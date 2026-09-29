@@ -1,0 +1,39 @@
+# Source: current SentinelKilnDB data_scripts plus tile_processing.py.
+# Dataset time statements conflict with the downloader date filter; see docs/PROGRESS.md.
+preprocessing_verified: false
+collection: COPERNICUS/S2_SR_HARMONIZED
+date_range: ["2024-01-01", "2025-02-28"]
+cloud_filter:
+  property: CLOUDY_PIXEL_PERCENTAGE
+  property_less_than: 1
+bands: [B4, B3, B2, QA60]
+rgb_bands: [B4, B3, B2]
+cloud_mask:
+  band: QA60
+  qa60_bit: 10
+patches:
+  size_px: 128
+  overlap_px: 30
+  stride_px: 98
+  origin_px: [0, 0]
+  align_last_patch_to_far_edge: true
+compositing_method: best_or_median
+valid_pixel_count:
+  reducer: count
+  band: B4
+  scale_m: 10
+  select: best_only_when_best_count_exceeds_median_count
+reflectance_conversion:
+  method: per_patch_per_band_minmax_uint8
+  formula: "uint8((b-b.min())/(b.max()-b.min()+1e-5)*255)"
+  divisor: null
+  percentiles: null
+  application_stage: each_unpadded_inference_patch
+output:
+  bands_order: [B4, B3, B2]
+  channel_order: [R, G, B]
+  district_crs:
+    centroid_longitude_threshold: 90
+    west_of_threshold: EPSG:32645
+    at_or_east_of_threshold: EPSG:32646
+  scale_m: 10

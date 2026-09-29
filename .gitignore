@@ -1,0 +1,41 @@
+# Python bytecode and local environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+
+# Packaging and test/tool state
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+build/
+dist/
+
+# Local agent/editor state
+.kilo/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Downloaded, intermediate, and generated project data
+data/raw/**
+data/interim/**
+data/processed/**
+
+# Model weights and training outputs
+*.pt
+*.pth
+*.onnx
+*.engine
+runs/
+wandb/
+
+# Local archives, scratch scripts, and captured command output
+*.zip
+*_out.txt

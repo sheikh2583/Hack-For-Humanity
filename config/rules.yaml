@@ -1,0 +1,42 @@
+# KilnWatch BD — Compliance Rules
+# ============================================================
+# WARNING: all values below are UNVERIFIED placeholders from
+# secondary sources.  Read the Brick Manufacturing and Kiln
+# Establishment (Control) Act 2013 (amended 2019) and the
+# January 2020 gazette *yourself* before setting verified: true.
+# ============================================================
+
+version: draft-0
+
+legal_status_caveat: "s.8 bars ESTABLISHING kilns in prohibited areas after 2013; the 2019 proviso allows relaxation for pre-existing kilns meeting air standards (not for ECAs, forest, hills). Imagery cannot show establishment date: flags are candidates, not findings."
+forest_hill_note: "2 km govt forest (8(3)(খ)) and 0.5 km hills (8(3)(গ)) cannot be relaxed by the proviso"
+
+sources:
+  - "Brick Manufacturing and Kiln Establishment (Control) Act 2013, amended 2019 (Legislative Division portal)"
+  - "January 2020 gazette (advanced-technology kilns, reported 400 m): locate original"
+
+technology:
+  flagged_classes: [FCBK]
+  note: "Zigzag, Hybrid Hoffman, VSBK and tunnel are permitted; detector cannot see HHK/VSBK/tunnel"
+  severity: 3
+  verified: false
+
+siting_rules:
+  - {id: near_school,     feature: schools,      buffer_m: 1000, severity: 3, verified: false}
+  - {id: near_hospital,   feature: hospitals,     buffer_m: 1000, severity: 3, verified: false}
+  - {id: near_settlement, feature: settlements,   buffer_m: 1000, severity: 2, verified: false}
+  - {id: near_forest,     feature: forests,        buffer_m: 2000, severity: 2, verified: false}
+  - {id: near_wetland,    feature: water,          buffer_m: 1000, severity: 1, verified: false}
+
+scoring:
+  exposure_radius_m: 1000
+  sensitivity_radii_m: [500, 750, 1000, 1500, 2000]
+  normalization: percentile_rank
+  weights:
+    n_schools: 1.0
+    n_hospitals: 1.0
+    settlement_area: 1.0
+
+not_implemented:
+  - "agricultural land (needs land-use data; a strict reading flags almost every kiln)"
+  - "ecologically critical areas (needs polygons)"

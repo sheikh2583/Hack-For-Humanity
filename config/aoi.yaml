@@ -1,0 +1,6 @@
+# District names resolve to geoBoundaries_BGD_ADM2.geojson shapeName values.
+districts:
+  - name: Chapainawabganj
+    boundary_name: Nawabganj
+  - name: Gazipur
+    boundary_name: Gazipur

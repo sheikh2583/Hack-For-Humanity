@@ -1,0 +1,72 @@
+[build-system]
+requires = ["setuptools>=68.0", "setuptools-scm>=8.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kilnwatch-bd"
+version = "0.1.0"
+description = "Satellite-based brick kiln compliance triage for Bangladesh"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "KilnWatch BD Team"},
+]
+
+dependencies = [
+    "geopandas>=0.14",
+    "shapely>=2.0",
+    "pyproj>=3.6",
+    "pyarrow>=14.0",
+    "pyyaml>=6.0",
+    "typer>=0.9",
+    "rich>=13.0",
+    "pandas>=2.1",
+    "numpy>=1.26",
+    "scipy>=1.11",
+]
+
+[project.optional-dependencies]
+detect = [
+    "torch>=2.1",
+    "ultralytics>=8.1",
+    "rasterio>=1.3",
+    "pillow>=10.0",
+]
+geo = [
+    "osmnx>=2.0",
+    "folium>=0.15",
+]
+score = [
+]
+app = [
+    "streamlit>=1.30",
+    "streamlit-folium>=0.15",
+    "folium>=0.15",
+]
+ee = [
+    "earthengine-api>=0.1.380",
+]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff>=0.1",
+]
+all = [
+    "kilnwatch-bd[detect,geo,score,app,ee,dev]",
+]
+
+[project.scripts]
+kilnwatch = "src.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*", "app*", "config*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
