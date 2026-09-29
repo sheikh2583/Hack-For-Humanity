@@ -2,6 +2,14 @@
 
 **Checked:** 2026-09-29. This document tracks the implementation against
 [`kilnwatch_scaffold.md`](../kilnwatch_scaffold.md) and the later project requests.
+For the machine-run evidence and planned Linux overnight run, see
+[`TRAINING_RUN_HISTORY.md`](TRAINING_RUN_HISTORY.md).
+
+Cross-platform initialization scripts, shared CUDA 13.0 pins, a shared
+Linux/Windows training runner, and ten-epoch Git-staged metric archives have
+since been added. These changes were reviewed by code inspection and static
+syntax/CLI checks only; the training setup has not been run on the Linux RTX
+3090 host, and the new synthetic tests have not been executed.
 
 ## Assessment
 
@@ -24,9 +32,15 @@ conflict with those decisions.
   label lines passed a class, eight-coordinate, and normalized-range audit.
   The split report records the 1,300 m Chebyshev filter and 1,322.41 m minimum
   cross-split distance.
+- The root `yolo_obb_bd.zip` is an older converted dataset bundle. Its report
+  lacks the 1,300 m leakage-filter threshold and must not be used for training;
+  the initializer rejects it. Use the checked `data/interim/yolo_obb/` data or
+  create a new transfer archive from that directory.
 - The pretrained starting weights `data/models/yolov8n-obb.pt` and
-  `data/models/yolov8s-obb.pt` load as Ultralytics OBB models. No kiln-trained
-  checkpoint exists yet.
+  `data/models/yolov8s-obb.pt` load as Ultralytics OBB models. An interrupted
+  YOLOv8n checkpoint exists under ignored `runs/yolov8n-obb-256/weights/`;
+  it has not been evaluated on the held-out test split and is not a final
+  model.
 - Both boundary files are present. The ADM2 file has 64 valid EPSG:4326
   features, a `shapeName` field, and includes `Nawabganj` and `Gazipur`. The
   country boundary is one valid EPSG:4326 feature. Their provenance, licence,
@@ -45,15 +59,32 @@ conflict with those decisions.
   full-data RAM/VRAM benchmarks remain unmeasured.
 - Training start readiness is documented in
   [`docs/TRAINING_READINESS.md`](TRAINING_READINESS.md): the converted data and
-  starting weights are ready. The training rule now permits the local RTX
-  4070; the `.venv` now has CUDA-enabled PyTorch and sees the GPU. The 3-epoch
-  YOLOv8n smoke run passed (val mAP50 0.5226, mAP50-95 0.2527); the full staged
-  run is in progress.
-- The machine has an NVIDIA GeForce RTX 4070 (8 GB). The active `.venv` is
+  starting weights are ready. The Windows `.venv` has CUDA-enabled PyTorch.
+  Its RTX 4070 smoke run completed 3 epochs. The full YOLOv8n 256px stage has
+  six completed validation rows and the console capture shows interruption
+  during epoch 7; later stages and test evaluation did not run. The Linux RTX
+  3090 overnight run is planned but has not started. See the run history for
+  recorded metrics, artifacts, and handoff steps. The user manages GPU
+  workloads; agents must not touch the GPU unless explicitly asked.
+- The Windows development machine has an NVIDIA GeForce RTX 4070 (8 GB). The active `.venv` is
   Python 3.12.10 with Ultralytics 8.4.165. Ruff passes for `src`, `app`, `tests`,
-  and `tools`; all 82 tests pass after the CUDA package change. Current full
-  run output is under ignored `runs/`; final test-split metrics are not yet
+  and `tools`; all 82 tests passed after the CUDA package change. Partial
+  training output is under ignored `runs/`; final test-split metrics are not yet
   available.
+- `scripts/init_linux.sh` and `scripts/init_windows.ps1` share
+  `requirements-gpu-cu130.txt`; the Linux RTX 3090 host and its NVIDIA driver
+  have not been inspected. `scripts/prepare_training_assets.py` uses a pinned
+  SentinelKilnDB revision and checks file digests, but requires either a
+  current converted dataset archive or a user-reviewed boundary before
+  raw-data conversion. The stale root dataset ZIP is intentionally rejected.
+- `src/training/run_store.py`, `src/training/engine.py`, and
+  `src/training/runner.py` separate run identity/configuration, Ultralytics
+  execution/logging, and workflow coordination. Each run is numbered under
+  `results/run_NNNN/`; manifests record the host/GPU used per stage, checkpoints
+  are ignored, and epoch CSV archives are Git-staged every 10 epochs.
+- `docs/TRAINING_RUN_HISTORY.md` records the completed Windows smoke run, the
+  interrupted full-stage evidence, and the planned new Linux run. The Linux run
+  remains explicitly unstarted until the user launches it.
 - Git metadata and an upstream tracking branch are present. A separate nested
   `Hack-For-Humanity/` copy is ignored and remains outside the active project.
 - Git metadata is present in this checkout, but no history review was needed
@@ -61,9 +92,9 @@ conflict with those decisions.
 
 ## Implemented but awaiting external or human validation
 
-- `notebooks/train.ipynb` contains the smoke test and requested staged model
-  selection. Pretrained OBB weights load locally, but the notebook has not been
-  run on Colab/Kaggle GPU and no kiln model metrics are available.
+- `notebooks/train.ipynb` delegates smoke and staged model selection to the
+  canonical script runner. The historical partial validation metrics are in
+  `runs/yolov8n-obb-256/results.csv`; no final held-out evaluation exists.
 - `config/preprocessing.yaml`, `src/data/export_s2.py`,
   `src/data/normalize.py`, and `tools/calibrate_preprocessing.py` implement the
   recorded repository recipe. `preprocessing_verified` intentionally remains
@@ -123,7 +154,7 @@ Sources checked on 2026-09-29:
    .\.venv\Scripts\python.exe tools\calibrate_preprocessing.py <exported-chip-dir> <training-png-dir>
    ```
 
-4. Run the notebook on a GPU, use the resulting `best.pt` and matching training
-   `imgsz`, then spot-check raster alignment and detections.
+4. Run the cross-platform training runner on a GPU, use the resulting `best.pt`
+   and matching training `imgsz`, then spot-check raster alignment/detections.
 5. Finish the missing validation utilities, legal basis, and runbook before the
    demo. Review the unverified rules and OSM data coverage by hand.

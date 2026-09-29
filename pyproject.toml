@@ -52,8 +52,12 @@ dev = [
     "pytest-cov>=4.1",
     "ruff>=0.1",
 ]
+training = [
+    "ipykernel>=6.29",
+    "jupyterlab>=4.2",
+]
 all = [
-    "kilnwatch-bd[detect,geo,score,app,ee,dev]",
+    "kilnwatch-bd[detect,geo,score,app,ee,dev,training]",
 ]
 
 [project.scripts]

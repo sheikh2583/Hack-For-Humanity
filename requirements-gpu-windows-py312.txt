@@ -1,6 +1,3 @@
-# CUDA-enabled PyTorch for this Windows/Python 3.12 training workstation.
-# Keep torch and torchvision versions paired; install with:
-# python -m pip install -r requirements-gpu-windows-py312.txt
---extra-index-url https://download.pytorch.org/whl/cu130
-torch==2.14.0+cu130
-torchvision==0.29.0+cu130
+# Backward-compatible filename. Shared Windows/Linux GPU requirements live in
+# requirements-gpu-cu130.txt so both operating systems use the same versions.
+-r requirements-gpu-cu130.txt

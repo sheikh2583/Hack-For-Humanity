@@ -1,8 +1,12 @@
 # Training start readiness
 
-**Checked:** 2026-09-29. The local training inputs were inspected; CUDA was
-enabled in `.venv` and the 3-epoch smoke test passed. The staged full training
-run is in progress.
+**Checked:** 2026-09-29. See [TRAINING_RUN_HISTORY.md](TRAINING_RUN_HISTORY.md)
+for the Windows run evidence and next Linux run plan. The Windows RTX 4070
+smoke test completed. The first full stage has six completed validation rows;
+the saved console shows interruption during epoch 7. The user plans a fresh
+overnight run on the Linux RTX 3090; it has not started or been verified. No
+GPU workload may be started by an agent unless the user explicitly requests
+that specific work; the user manages GPU runs by default.
 
 ## Dataset and weights
 
@@ -33,40 +37,81 @@ ADM2 file. Their source provenance, licence, and human review have not been
 verified. This does not block training on the already converted chips, but
 verify those items before making geographic claims from project outputs.
 
-## Local GPU setup and training
+## Windows and Linux GPU setup and training
 
-The pinned CUDA-enabled PyTorch/torchvision pair is installed in the project
-environment. To reproduce the setup:
+The shared pinned CUDA-enabled PyTorch/torchvision and Ultralytics versions
+are in `requirements-gpu-cu130.txt`. The initializer creates `.venv`, installs
+the project training dependencies, and prepares available input assets:
 
-   ```powershell
-   .\.venv\Scripts\python.exe -m pip install -r requirements-gpu-windows-py312.txt
-   ```
+Linux (lab RTX 3090): `bash scripts/init_linux.sh --dataset-archive yolo_obb_1300m.zip`
 
-Confirm that PyTorch sees the RTX 4070:
+Windows: `powershell -ExecutionPolicy Bypass -File .\scripts\init_windows.ps1 -DatasetArchive .\yolo_obb_1300m.zip`
 
-   ```powershell
-   .\.venv\Scripts\python.exe -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'no CUDA device')"
-   ```
+The initializer itself does not run a CUDA probe, smoke test, or training job.
+If a current converted dataset archive is available, pass `--dataset-archive`
+on Linux or `-DatasetArchive` on Windows. The old root `yolo_obb_bd.zip` is
+rejected because it lacks the leakage filter. Otherwise, the reviewed boundary
+file must be placed at `data/raw/bangladesh_boundary.geojson`; then the initializer offers
+to download the pinned 3.74 GB SentinelKilnDB source and convert it. It does
+not fetch or guess boundary data.
+
+Bundle the checked converted data for the lab machine with:
+
+```bash
+.venv/bin/python scripts/prepare_training_assets.py \
+  --make-dataset-archive yolo_obb_1300m.zip
+```
+
+On Windows invoke `.venv\Scripts\python.exe` and the same script/arguments.
+Copy the ignored archive separately from the Git clone and pass its path to
+the initializer.
 
 The 3-epoch smoke test passed locally on the RTX 4070 at imgsz 256, batch 8,
-and zero loader workers. Its validation mAP50 was 0.5226 and mAP50-95 was
-0.2527; it completed all 3 epochs and produced confusion-matrix and PR-curve
-plots. These smoke metrics only validate the training path; they are not the
-final model evaluation.
+and zero loader workers. The retained training CSV's final row is mAP50 0.52184
+and mAP50-95 0.25290. Older notes cite a separate validation result of 0.5226
+and 0.2527; that separate metric record is not present locally. See the run
+history for this discrepancy. Smoke metrics validate the training path only.
 
-The full staged notebook run has started at `runs/yolov8n-obb-256/`. It trains
-YOLOv8n at 256/384/512, then YOLOv8s at the selected size. The single held-out
-test evaluation and final artifact copy are still pending.
+The first stage ran YOLOv8n at 256px for 6 of 50 configured epochs, then was
+interrupted partway through epoch 7. `results.csv` records six completed rows;
+`best.pt` and `last.pt` are present
+in `runs/yolov8n-obb-256/weights/`. These are partial-run checkpoints, not a
+selected final model. Stages at 384/512px, YOLOv8s, held-out test evaluation,
+and final artifact copy did not run. The epoch 6 validation values recorded in
+`results.csv` are mAP50 0.46018 and mAP50-95 0.22179; treat them as an
+incomplete run snapshot, not final evaluation. The trainer process was
+verified stopped.
 
-Colab and Kaggle remain alternatives. Their setup blocks are in the notebook;
-cloud accounts are needed only if choosing those hosted runtimes.
+That legacy output remains preserved but is not auto-imported by the numbered
+runner. Its `last.pt` will not be used by `scripts/train.py`; new numbered runs
+start from the configured pretrained weights.
 
-For Colab, the path setup can look like this after mounting Drive and uploading
-the converted dataset and optional weights:
+The canonical CLI is `scripts/train.py`, wrapped by `scripts/train_linux.sh`
+and `scripts/train_windows.ps1`. Running either launcher without arguments
+starts the smoke gate and then full training. The next invocation continues
+the current numbered run from its last checkpoint. Each `results/run_NNNN/`
+stores a portable manifest with GPU/host identity and dataset fingerprint,
+Git-staged epoch logs, and ignored model checkpoints. Use the same dataset on
+both hosts. See `Run Training` in the README for commands and transfer steps.
+
+The user owns all GPU runs, including smoke tests. Do not start, stop, or
+inspect GPU workloads unless the user explicitly requests that specific
+action. The RTX 3090 host has not been inspected from this checkout, so its
+driver compatibility and CUDA availability remain for the user to check.
+
+The runner writes metric CSV chunks into
+`results/run_NNNN/logs/<stage>/epochs_XXXX-YYYY.csv` after each 10 completed
+epochs and saves a final partial chunk on normal exit. New chunks and the
+updated `run.json` manifest are staged automatically; review and commit them
+when ready. Checkpoints remain ignored under `results/run_NNNN/checkpoints/`.
+
+Colab and Kaggle are not the supported scripts in this local cross-platform
+workflow. The supported GPU hosts are the Windows RTX 4070 and Linux RTX 3090.
+
+If adapting the shared runner to Colab, the data and model paths must point to
+the uploaded assets, and run state/logs should be saved to persistent storage:
 
 ```python
-from google.colab import drive
-drive.mount("/content/drive")
 DATASET_ROOT = Path("/content/drive/MyDrive/kilnwatch/yolo_obb")
 MODEL_ROOT = Path("/content/drive/MyDrive/kilnwatch/models")
 OUTPUT_DIR = Path("/content/drive/MyDrive/kilnwatch/runs")
@@ -100,6 +145,6 @@ the project export. See Google's [Earth Engine authentication guide](https://dev
 
 ## Not verified
 
-- The staged full training run has not completed yet.
-- No training duration, GPU memory requirement, kiln-model metric, or selected
-  trained checkpoint has been measured or produced.
+- The multi-stage training plan and held-out test evaluation remain incomplete.
+- The saved partial checkpoint has not been evaluated on the held-out test set.
+- GPU memory requirements and a complete-run time estimate remain unverified.

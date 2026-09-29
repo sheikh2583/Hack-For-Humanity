@@ -8,5 +8,5 @@ Rules:
 3. Store geometry in EPSG:4326. Do distance/area math in EPSG:9680 (WGS 84 / TM 90 NE). At startup assert pyproj can build it; otherwise fall back to EPSG:32645 (centroid lon < 90E) or EPSG:32646.
 4. Every module: type hints, docstring stating input/output schema, and one pytest using tiny synthetic data.
 5. Pipeline outputs are GeoParquet in data/processed/.
-6. Training may run locally when a CUDA-enabled GPU is available, or on Colab/Kaggle. Keep training in the notebook/script, check CUDA before starting, run the configured 3-epoch smoke test first, and continue to full training only if it passes.
+6. Do not start, stop, or run training, inference, benchmarks, smoke tests, or other GPU workloads unless the user explicitly asks for that specific GPU work. GPU use is user-managed by default. Keep training workflows in notebooks/scripts; do not treat CUDA availability or prior smoke-test approval as permission to run another GPU workload.
 7. After each task, list what you could not verify and what I must check by hand.

@@ -1,0 +1,36 @@
+# Shared defaults for the Windows RTX 4070 and Linux RTX 3090 training hosts.
+# Edit only after reviewing the dataset and the target machine's available VRAM.
+dataset: data/interim/yolo_obb
+models_dir: data/models
+results_dir: results
+batch: 8
+workers: 0
+patience: 10
+seed: 0
+augmentation:
+  flipud: 0.5
+  degrees: 90
+smoke:
+  model: yolov8n-obb.pt
+  imgsz: 256
+  epochs: 3
+stages:
+  - name: yolov8n-obb-256
+    model: yolov8n-obb.pt
+    imgsz: 256
+    epochs: 50
+  - name: yolov8n-obb-384
+    model: yolov8n-obb.pt
+    imgsz: 384
+    epochs: 50
+  - name: yolov8n-obb-512
+    model: yolov8n-obb.pt
+    imgsz: 512
+    epochs: 50
+  - name: yolov8s-obb-256
+    model: yolov8s-obb.pt
+    imgsz: best_stage1
+    epochs: 50
+test_split: test
+selection_metric: metrics/mAP50(B)
+archive_interval: 10
