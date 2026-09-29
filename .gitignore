@@ -7,7 +7,7 @@ venv
 env
 
 # Packaging and testtool state
-.egg-info
+*.egg-info/
 .pytest_cache
 .ruff_cache
 .mypy_cache
@@ -37,8 +37,10 @@ data/processed/
 *.onnx
 *.engine
 runs
+results/current_run.json
+results/*/checkpoints/
 wandb
 
 # Local archives, scratch scripts, and captured command output
 *.zip
-_out.txt
+*_out.txt

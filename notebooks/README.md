@@ -1,22 +1,19 @@
 # Training Notebooks
 
-Training notebooks for the local RTX 4070, Colab, or Kaggle GPU sessions.
+Training notebook for Windows and Linux local NVIDIA GPUs, Colab, or Kaggle.
+Use the OS-specific initialization script from the repository root to install
+the shared pinned GPU stack and Jupyter runtime before opening the notebook.
 
 ## train.ipynb
 
-YOLOv8 OBB training notebook (Step 3), classes FCBK and Zigzag:
-- Writes an absolute-path copy of `dataset.yaml` at runtime and uses it for train/val/test
-- Installs Ultralytics only when absent or below version 8.1
-- Stops at setup if CUDA is unavailable; install the local CUDA-enabled PyTorch
-  build from `requirements-gpu-windows-py312.txt` or select a hosted GPU runtime
-- A 3-epoch smoke test (yolov8n-obb, imgsz 256) must pass before the full runs start
-- Trains yolov8n-obb at imgsz 256/384/512, then yolov8s-obb at the best imgsz
-  (50 epochs, patience 10, `flipud=0.5`, `degrees=90`, `seed=0`)
-- Picks the best run by **val** mAP50, then evaluates that model on the **test**
-  split exactly once
-- Logs mAP50, mAP50-95 and per-class precision/recall/mAP50 (epochs run come from `results.csv`)
-- Saves `best.pt`, `training_results.json`, and val/test confusion matrices and PR curves
-  to `OUTPUT_DIR`
+Optional Jupyter interface for the shared YOLOv8 OBB runner, classes FCBK and
+Zigzag. `scripts/train.py` and `config/training.yaml` are the source of truth
+for Linux and Windows. Run the smoke cell first, then manually execute the full
+cell. It trains yolov8n-obb at imgsz 256/384/512, then yolov8s-obb at the best
+size; selects by validation mAP50 and evaluates the held-out test split once.
+Numbered run state, GPU metadata, metric CSV chunks, and checkpoints are
+organized under `results/run_NNNN/`. The runner stages the manifest and metric
+chunks but leaves commits to the user; checkpoint artifacts remain ignored.
 
 Use a dataset converted after the 1300 m Chebyshev leakage-filter change; the
 notebook warns if `split_report.json` predates it.

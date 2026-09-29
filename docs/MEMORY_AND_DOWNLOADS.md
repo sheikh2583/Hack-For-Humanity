@@ -6,6 +6,31 @@ This review targets avoidable peak memory and repeated network traffic in the
 current prototype. It does not claim a measured reduction: no district raster,
 GPU training run, or full Overpass fetch was benchmarked during this review.
 
+## Repository cleanup
+
+- Removed tracked command-capture files (`convert_out.txt`, `explore_out.txt`,
+  and `labels_out.txt`). They were one-time console logs; the conversion log
+  described an earlier split with substantial train/validation/test leakage
+  and contradicted the current conversion report. Re-run the documented CLI
+  commands to obtain current output rather than relying on captured logs.
+- Removed tracked `kilnwatch_bd.egg-info/` build metadata. Packaging tools
+  recreate this directory during editable installs; it is not project source.
+- Removed the unused root `weights/yolo26n.pt`. The project starts from the
+  canonical YOLOv8 OBB weights in `data/models/`; keep those files as the
+  documented training inputs.
+- Root ZIP archives are ignored by Git. The research archive remains
+  unreviewed. `yolo_obb_bd.zip` was inspected: its split report lacks the
+  current 1,300 m leakage-filter field, so the new initializer rejects it for
+  training; use the current `data/interim/yolo_obb/` or create a fresh archive
+  from that directory. `kilnwatch_bd_share.zip` can be regenerated with
+  `scripts/make_review_zip.ps1`.
+- `scripts/init_linux.sh` and `scripts/init_windows.ps1` install the same pinned
+  Python/GPU environment. `scripts/prepare_training_assets.py` can extract a
+  supplied converted dataset archive or download the three pinned public
+  SentinelKilnDB Parquet shards (about 3.74 GB) and convert them when a reviewed
+  boundary is available. It obtains OBB starting weights through Ultralytics
+  while CUDA devices are hidden; it never starts inference or training.
+
 ## Changes made
 
 - Inference now reads and predicts one raster window at a time. Previously,
@@ -56,10 +81,9 @@ GPU training run, or full Overpass fetch was benchmarked during this review.
   before rendering. Very large layers may still need viewport filtering or
   generalized display geometries; those changes could affect visible detail
   and should be measured against the actual districts first.
-- Training batch size remains 16. The notebook already comments that it may
-  need to be lowered for `yolov8s-obb` at image size 512. GPU memory behavior
-  has not been measured; lower the batch only after observing an actual OOM or
-  available GPU memory.
+- The notebook uses batch size 8. No VRAM benchmark has been run on either the
+  Windows RTX 4070 or the planned Linux RTX 3090; keep the starting value until
+  the user observes memory use or an OOM on the target host.
 
 ## Install only what the task needs
 
