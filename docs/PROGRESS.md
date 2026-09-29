@@ -15,21 +15,26 @@ conflict with those decisions.
 
 ## Verified locally
 
-- Dataset conversion was rerun from the local three-split Parquet dataset into
-  `data/interim/yolo_obb/`. The current `split_report.json` records 11,517
-  Bangladesh chips before leakage removal and 11,250 written chips after it.
-- Current per-class counts: train FCBK 1,773 / Zigzag 5,589; val FCBK 214 /
-  Zigzag 1,803; test FCBK 246 / Zigzag 1,025.
-- Leakage filtering dropped 141 val and 126 test chips, dropped no train chips,
-  and reports a final minimum cross-split Chebyshev distance of 1,322.41 m in
-  EPSG:9680. This clears the configured 1,300 m threshold.
-- The dataset ZIP contains 8,058 training PNGs at 128x128. Their pooled RGB
-  medians are 51/71/57, p99 values are 191/191/184, maximum pixel value is 254,
-  and the count of pixels equal to 255 is zero. These observed values differ
-  somewhat from the earlier estimate of 53/72/58 and p99 about 195.
-- Configured AOIs resolve to one ADM2 polygon each: Chapainawabganj maps to the
-  boundary file's `Nawabganj` name, and Gazipur maps to `Gazipur`. OSM queries
-  now use the polygon extent and clip returned features to the district polygon.
+- The raw SentinelKilnDB Parquet files are present and readable: train 71,856
+  rows, val 23,952 rows, and test 18,492 rows. Their byte sizes match the
+  published Hugging Face manifest.
+- The converted YOLO-OBB dataset is present at `data/interim/yolo_obb/`:
+  train 8,058, val 1,662, and test 1,530 image/label pairs. Ultralytics accepts
+  its dataset YAML when its root is set to the resolved dataset directory; all
+  label lines passed a class, eight-coordinate, and normalized-range audit.
+  The split report records the 1,300 m Chebyshev filter and 1,322.41 m minimum
+  cross-split distance.
+- The pretrained starting weights `data/models/yolov8n-obb.pt` and
+  `data/models/yolov8s-obb.pt` load as Ultralytics OBB models. No kiln-trained
+  checkpoint exists yet.
+- Both boundary files are present. The ADM2 file has 64 valid EPSG:4326
+  features, a `shapeName` field, and includes `Nawabganj` and `Gazipur`. The
+  country boundary is one valid EPSG:4326 feature. Their provenance, licence,
+  and human review have not been verified. Earth Engine exports, OSM caches,
+  and processed detections are not present.
+- The implementation has synthetic coverage for normalization, inference
+  channel order and `imgsz`, priority component weights, the rules-to-priority
+  path, district clipping, and refusal while preprocessing is unverified.
 - Synthetic tests cover normalization, inference channel order and `imgsz`,
   priority component weights, the rules-to-priority-to-dashboard-loader path,
   district clipping, and unverified preprocessing refusal.
@@ -39,23 +44,26 @@ conflict with those decisions.
   tiles. See [`docs/MEMORY_AND_DOWNLOADS.md`](MEMORY_AND_DOWNLOADS.md); actual
   full-data RAM/VRAM benchmarks remain unmeasured.
 - Training start readiness is documented in
-  [`docs/TRAINING_READINESS.md`](TRAINING_READINESS.md): converted splits are
-  present locally (about 351 MiB), but a hosted CUDA runtime and reachable
-  dataset path must be prepared before the smoke test. The notebook rejects
-  CPU-only runtime setup and checks Ultralytics is at least version 8.1.
-- Installed `.[dev,geo,detect,ee,app]` into the workspace `.venv`. The
-  environment is Python 3.12.10 (the project targets Python 3.11), with
-  Earth Engine, rasterio, and Ultralytics dependencies now present. Latest run:
-  82 pytest tests pass; `ruff check .` passes.
-- The workspace has no `.git` directory, so repository history, the complete
-  working-tree diff, and the earlier requested baseline commit cannot be
-  verified from this checkout.
+  [`docs/TRAINING_READINESS.md`](TRAINING_READINESS.md): the converted data and
+  starting weights are ready. The training rule now permits the local RTX
+  4070; the `.venv` now has CUDA-enabled PyTorch and sees the GPU. The 3-epoch
+  YOLOv8n smoke run passed (val mAP50 0.5226, mAP50-95 0.2527); the full staged
+  run is in progress.
+- The machine has an NVIDIA GeForce RTX 4070 (8 GB). The active `.venv` is
+  Python 3.12.10 with Ultralytics 8.4.165. Ruff passes for `src`, `app`, `tests`,
+  and `tools`; all 82 tests pass after the CUDA package change. Current full
+  run output is under ignored `runs/`; final test-split metrics are not yet
+  available.
+- Git metadata and an upstream tracking branch are present. A separate nested
+  `Hack-For-Humanity/` copy is ignored and remains outside the active project.
+- Git metadata is present in this checkout, but no history review was needed
+  for the changes recorded here.
 
 ## Implemented but awaiting external or human validation
 
 - `notebooks/train.ipynb` contains the smoke test and requested staged model
-  selection. It has not been run on Colab/Kaggle GPU; no weights or model
-  metrics are verified.
+  selection. Pretrained OBB weights load locally, but the notebook has not been
+  run on Colab/Kaggle GPU and no kiln model metrics are available.
 - `config/preprocessing.yaml`, `src/data/export_s2.py`,
   `src/data/normalize.py`, and `tools/calibrate_preprocessing.py` implement the
   recorded repository recipe. `preprocessing_verified` intentionally remains
@@ -74,9 +82,9 @@ conflict with those decisions.
 - `src/eval/audit_sample.py` samples confidence terciles. It does not yet create
   the requested 15 samples from negative regions. The Chapainawabganj 2022
   reported-count comparison and Gazipur closed-kiln CSV/check are also pending.
-- `docs/legal_basis.md` and `docs/RUNBOOK.md` are absent. The legal-source
-  extraction and exact ordered operator commands should be added before a
-  handoff/demo.
+- `docs/legal_basis.md` and `docs/RUNBOOK.md` now record the evidence fields,
+  operator commands, and human-only gates. They do not verify legal claims or
+  external services.
 
 ## SentinelKilnDB date evidence: unresolved
 

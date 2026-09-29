@@ -1,0 +1,2 @@
+[console_scripts]
+kilnwatch = src.cli:app

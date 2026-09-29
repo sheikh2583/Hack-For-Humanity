@@ -43,8 +43,11 @@ def _make_row(name: str, obb: list[str]) -> dict:
     return {
         COL_IMAGE_NAME: name,
         COL_IMAGE: _PNG_1x1,
-        "dota_label": [f"0 0 10 0 10 10 0 10 {ORIGINAL_CLASSES[int(l.split()[0])]} 0" for l in obb],
-        "yolo_aa_label": [f"{l.split()[0]} 0.5 0.5 0.1 0.1" for l in obb],
+        "dota_label": [
+            f"0 0 10 0 10 10 0 10 {ORIGINAL_CLASSES[int(label.split()[0])]} 0"
+            for label in obb
+        ],
+        "yolo_aa_label": [f"{label.split()[0]} 0.5 0.5 0.1 0.1" for label in obb],
         COL_OBB: list(obb),
     }
 

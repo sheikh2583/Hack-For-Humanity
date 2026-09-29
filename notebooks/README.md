@@ -1,13 +1,14 @@
 # Training Notebooks
 
-Training notebooks for Colab/Kaggle GPU sessions.
+Training notebooks for the local RTX 4070, Colab, or Kaggle GPU sessions.
 
 ## train.ipynb
 
 YOLOv8 OBB training notebook (Step 3), classes FCBK and Zigzag:
 - Writes an absolute-path copy of `dataset.yaml` at runtime and uses it for train/val/test
 - Installs Ultralytics only when absent or below version 8.1
-- Stops at setup if CUDA is unavailable; select a hosted GPU runtime first
+- Stops at setup if CUDA is unavailable; install the local CUDA-enabled PyTorch
+  build from `requirements-gpu-windows-py312.txt` or select a hosted GPU runtime
 - A 3-epoch smoke test (yolov8n-obb, imgsz 256) must pass before the full runs start
 - Trains yolov8n-obb at imgsz 256/384/512, then yolov8s-obb at the best imgsz
   (50 epochs, patience 10, `flipud=0.5`, `degrees=90`, `seed=0`)

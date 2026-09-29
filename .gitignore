@@ -2,40 +2,43 @@
 __pycache__/
 *.py[cod]
 *$py.class
-.venv/
-venv/
-env/
+.venv
+venv
+env
 
-# Packaging and test/tool state
-*.egg-info/
-.pytest_cache/
-.ruff_cache/
-.mypy_cache/
+# Packaging and testtool state
+.egg-info
+.pytest_cache
+.ruff_cache
+.mypy_cache
 .coverage
-htmlcov/
-build/
-dist/
+htmlcov
+build
+dist
 
-# Local agent/editor state
-.kilo/
-.vscode/
-.idea/
-*.swp
-*.swo
+# Local agenteditor state
+.kilo
+.vscode
+.idea
+.swp
+.swo
+
+# Nested copy of the project; keep it outside the outer repository index
+Hack-For-Humanity/
 
 # Downloaded, intermediate, and generated project data
-data/raw/**
-data/interim/**
-data/processed/**
+data/raw/
+data/interim/
+data/processed/
 
 # Model weights and training outputs
 *.pt
 *.pth
 *.onnx
 *.engine
-runs/
-wandb/
+runs
+wandb
 
 # Local archives, scratch scripts, and captured command output
 *.zip
-*_out.txt
+_out.txt

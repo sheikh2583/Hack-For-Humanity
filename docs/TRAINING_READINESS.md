@@ -1,81 +1,105 @@
 # Training start readiness
 
-**Checked:** 2026-09-29. This is a check against the current scaffold, converted
-dataset, and `notebooks/train.ipynb`. Training itself was not run.
+**Checked:** 2026-09-29. The local training inputs were inspected; CUDA was
+enabled in `.venv` and the 3-epoch smoke test passed. The staged full training
+run is in progress.
 
-## Dataset and notebook status
+## Dataset and weights
 
-The local converted dataset is present at `data/interim/yolo_obb/` and is ready
-for the notebook's smoke-test input:
+The raw SentinelKilnDB Parquet files are present at
+`data/raw/sentinelkilndb/`: train 71,856 rows, val 23,952, and test 18,492.
+The converted YOLO-OBB dataset is present at `data/interim/yolo_obb/`:
 
-| Split | Images | Labels |
-|---|---:|---:|
-| train | 8,058 | 8,058 |
-| val | 1,662 | 1,662 |
-| test | 1,530 | 1,530 |
+| Split | Images | Labels | FCBK instances | Zigzag instances |
+|---|---:|---:|---:|---:|
+| train | 8,058 | 8,058 | 1,773 | 5,589 |
+| val | 1,662 | 1,662 | 214 | 1,803 |
+| test | 1,530 | 1,530 | 246 | 1,025 |
 
-The tree is about 350.7 MiB. Its `dataset.yaml` defines the expected classes
-FCBK and Zigzag, and `split_report.json` records the 1,300 m Chebyshev leakage
-filter with a final minimum cross-split distance of 1,322.41 m. The notebook
-contains the 3-epoch `yolov8n-obb` smoke test and the staged full-training plan.
-The workspace search found no pretrained `.pt` weights.
+Ultralytics 8.4.165 accepts the dataset YAML when its `path` points to the
+resolved dataset root. The label audit found no malformed lines; every OBB row
+has a class ID and eight normalized coordinates. `split_report.json` records a
+1,300 m Chebyshev leakage filter and a 1,322.41 m minimum cross-split distance.
+The dataset tree is about 350.7 MiB.
 
-## What is genuinely needed before starting the smoke test
+Pretrained `yolov8n-obb.pt` (6,567,590 bytes) and `yolov8s-obb.pt`
+(23,267,238 bytes) are stored in `data/models/` and load as Ultralytics OBB
+models. These are initialization weights, not kiln-trained checkpoints. The
+selected final `best.pt` does not exist yet.
 
-1. **A hosted GPU runtime.** The local workspace has CPU-only PyTorch
-   (`2.14.0+cpu`; `torch.cuda.is_available()` is false). The project instructions
-   put training on Colab/Kaggle; do not start model training in this local venv.
-   The notebook now stops during setup if CUDA is unavailable.
-2. **Make the converted dataset reachable from that runtime.** The notebook's
-   current default `DATASET_ROOT=Path("data/interim/yolo_obb")` is the local
-   repository path. Upload/copy the complete converted folder (about 351 MiB)
-   to Drive or attach it as a Kaggle dataset, then set `DATASET_ROOT` to the
-   mounted/attached directory containing `dataset.yaml`, `split_report.json`,
-   and the `train`, `val`, and `test` subdirectories. The project ZIP does not
-   include this data.
-3. **Set an output location.** The notebook's default `OUTPUT_DIR=Path("runs")`
-   is runtime-local. For results to survive a Colab reset, mount Drive and set
-   `OUTPUT_DIR` to a Drive folder. This is needed for persistence, not to launch
-   the smoke test.
-4. **Allow dependency and initial weight downloads if the runtime cache lacks
-   them.** The notebook now checks the installed Ultralytics version and only
-   installs when it is missing or older than 8.1. `yolov8n-obb.pt` is fetched
-   on first use if not cached; `yolov8s-obb.pt` is needed later for stage 2.
+Both boundary files are present. Basic checks found EPSG:4326 geometries, a
+`shapeName` field and the required `Nawabganj`/`Gazipur` names in the 64-row
+ADM2 file. Their source provenance, licence, and human review have not been
+verified. This does not block training on the already converted chips, but
+verify those items before making geographic claims from project outputs.
 
-After those setup choices, run notebook cells in order through the data sanity
-check, absolute YAML creation, helpers, and smoke-test cell. Continue to the
-full configurations only if the smoke-test cell passes.
+## Local GPU setup and training
 
-## Local versus hosted setup examples
+The pinned CUDA-enabled PyTorch/torchvision pair is installed in the project
+environment. To reproduce the setup:
 
-The paths below are examples for mounted Google Drive; create/upload the
-converted directory first and adjust the Drive paths to match its actual
-location:
+   ```powershell
+   .\.venv\Scripts\python.exe -m pip install -r requirements-gpu-windows-py312.txt
+   ```
+
+Confirm that PyTorch sees the RTX 4070:
+
+   ```powershell
+   .\.venv\Scripts\python.exe -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'no CUDA device')"
+   ```
+
+The 3-epoch smoke test passed locally on the RTX 4070 at imgsz 256, batch 8,
+and zero loader workers. Its validation mAP50 was 0.5226 and mAP50-95 was
+0.2527; it completed all 3 epochs and produced confusion-matrix and PR-curve
+plots. These smoke metrics only validate the training path; they are not the
+final model evaluation.
+
+The full staged notebook run has started at `runs/yolov8n-obb-256/`. It trains
+YOLOv8n at 256/384/512, then YOLOv8s at the selected size. The single held-out
+test evaluation and final artifact copy are still pending.
+
+Colab and Kaggle remain alternatives. Their setup blocks are in the notebook;
+cloud accounts are needed only if choosing those hosted runtimes.
+
+For Colab, the path setup can look like this after mounting Drive and uploading
+the converted dataset and optional weights:
 
 ```python
 from google.colab import drive
 drive.mount("/content/drive")
 DATASET_ROOT = Path("/content/drive/MyDrive/kilnwatch/yolo_obb")
+MODEL_ROOT = Path("/content/drive/MyDrive/kilnwatch/models")
 OUTPUT_DIR = Path("/content/drive/MyDrive/kilnwatch/runs")
 ```
 
-For Kaggle, attach the converted dataset and set `DATASET_ROOT` to its mounted
-directory under `/kaggle/input/`; `OUTPUT_DIR` can be under `/kaggle/working/`.
+For Kaggle, set `DATASET_ROOT` to the attached dataset under `/kaggle/input/`,
+`MODEL_ROOT` to an attached model dataset if used, and `OUTPUT_DIR` under
+`/kaggle/working/`.
 
-## Not blockers for training the existing converted chips
+## Why the training step needs no Earth Engine signup
 
-- The unresolved SentinelKilnDB acquisition-date conflict and
-  `preprocessing_verified: false` govern Earth Engine parity/export. They do
-  not prevent training on the already converted PNG chips. They must be
-  resolved before claiming that newly exported imagery matches training data.
-- Legal threshold verification and unfinished downstream evaluation utilities
-  are not prerequisites for detector training. They remain blockers to legal
-  interpretation or a complete project handoff.
+The training inputs are already downloaded SentinelKilnDB chips, converted to
+local PNG/OBB labels. Training reads those files and the local pretrained
+weights; it does not request new Sentinel-2 imagery. The public dataset is
+already present in this checkout. A Hugging Face account is not part of the
+local training steps.
 
-## Still unverified
+Earth Engine is a later step for exporting new Sentinel-2 composites for
+inference. That API requires authentication and an authorized Google Cloud
+project; the acquisition-date conflict must also be resolved before enabling
+the project export. See Google's [Earth Engine authentication guide](https://developers.google.com/earth-engine/guides/auth).
 
-- The smoke test and full notebook have not run on Colab/Kaggle.
-- Hosted GPU availability, storage quota, runtime internet access, and actual
-  download behavior are account/session-specific and must be checked there.
-- No training duration, GPU memory requirement, model metric, or checkpoint has
-  been measured or produced.
+## Separate project gates
+
+- Resolve the conflicting SentinelKilnDB acquisition dates before enabling
+  Earth Engine export. This uncertainty does not prevent training on the
+  converted chips.
+- Legal thresholds, Earth Engine chip parity, OSM coverage, inference placement,
+  and dashboard outputs still need their own verification before any compliance
+  interpretation or complete demo.
+
+## Not verified
+
+- The staged full training run has not completed yet.
+- No training duration, GPU memory requirement, kiln-model metric, or selected
+  trained checkpoint has been measured or produced.

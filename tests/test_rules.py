@@ -102,7 +102,7 @@ class TestRuleEngine:
         assert near_kiln["breach_count"] >= 2
 
         # Far kiln: Zigzag (not flagged) + far from school
-        assert far_kiln["technology_flagged"] == False
+        assert not far_kiln["technology_flagged"]
         assert "near_school" not in far_kiln["breached_rules"]
 
     def test_rules_verified_flag(self, setup_data: dict) -> None:
