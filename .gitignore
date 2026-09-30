@@ -27,9 +27,12 @@ dist
 Hack-For-Humanity/
 
 # Downloaded, intermediate, and generated project data
-data/raw/
-data/interim/
-data/processed/
+data/raw/*
+!data/raw/.gitkeep
+data/interim/*
+!data/interim/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
 
 # Model weights and training outputs
 *.pt

@@ -128,6 +128,14 @@ can then offer to download the pinned 3.74 GB SentinelKilnDB source and convert
 it. It will not guess or download an unreviewed boundary. See
 [docs/TRAINING_READINESS.md](docs/TRAINING_READINESS.md) for the handoff steps.
 
+To create the Python environment and install dependencies before supplying
+training assets, pass `--skip-assets` on Linux or `-SkipAssetSetup` on Windows.
+Rerun the initializer without that option after placing a valid dataset archive
+or reviewed boundary. Empty `data/raw/`, `data/interim/`, and `data/processed/`
+folders are tracked with placeholders; downloaded datasets, generated outputs,
+archives, model weights, and `.venv/` stay local and must be supplied or created
+on each machine.
+
 To build or refresh `yolo_obb_1300m.zip` from this checkout's current converted
 dataset, run:
 
