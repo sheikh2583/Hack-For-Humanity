@@ -168,11 +168,14 @@ def export_s2(
     aoi_config: Annotated[
         Path, typer.Option(help="Path to aoi.yaml")
     ] = PROJECT_ROOT / "config" / "aoi.yaml",
+    project_id: Annotated[
+        str | None, typer.Option(help="Google Cloud project ID; defaults to EARTHENGINE_PROJECT")
+    ] = None,
 ) -> None:
     """Step 4a - Export Sentinel-2 composites via Earth Engine."""
     from src.data.export_s2 import export_composites
 
-    export_composites(aoi_config=aoi_config)
+    export_composites(aoi_config=aoi_config, project_id=project_id)
 
 
 @app.command()
@@ -265,6 +268,32 @@ def audit_sample(
     from src.eval.audit_sample import generate_audit_sample
 
     generate_audit_sample(kilns_path=kilns, n=n, output=output)
+
+
+@app.command("error-analysis")
+def error_analysis(
+    predictions: Annotated[Path, typer.Option(help="Directory with YOLO prediction labels")],
+    ground_truth: Annotated[Path, typer.Option(help="Directory with YOLO ground-truth labels")],
+    images: Annotated[Path, typer.Option(help="Directory with PNG image chips")],
+    output: Annotated[
+        Path, typer.Option(help="Directory for false-positive and missed-kiln crops")
+    ] = PROJECT_ROOT / "data" / "processed" / "error_analysis",
+    top_n: Annotated[int, typer.Option(min=1, help="Maximum errors per category")] = 50,
+) -> None:
+    """Save top false-positive and missed-kiln image crops."""
+    for path in (predictions, ground_truth, images):
+        if not path.is_dir():
+            rprint(f"[red]Input directory not found:[/red] {path}")
+            raise typer.Exit(code=1)
+    from src.eval.error_analysis import run_error_analysis
+
+    run_error_analysis(
+        predictions_dir=predictions,
+        ground_truth_dir=ground_truth,
+        images_dir=images,
+        output_dir=output,
+        top_n=top_n,
+    )
 
 
 # ---------------------------------------------------------------------------

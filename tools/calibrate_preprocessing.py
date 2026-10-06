@@ -1,8 +1,8 @@
-"""Compare exported and training SentinelKilnDB PNG chips.
+"""Compare paired exported and training SentinelKilnDB PNG chips.
 
 Input schema: two directories of RGB PNGs with identical ``lat_lon.png``
-filenames. Output: per-pair/channel training-minus-exported mean and percentile
-differences, aggregate statistics, and a measured scalar ratio suggestion.
+filenames. Output: per-pair/channel training-minus-exported mean, standard deviation, and
+percentile differences, plus a non-applied scalar adjustment suggestion.
 """
 
 from __future__ import annotations
@@ -31,6 +31,9 @@ def compare_chip(exported_path: Path, training_path: Path) -> dict[str, object]:
             export_stat = export_values.mean() if percentile is None else np.percentile(export_values, percentile)
             train_stat = train_values.mean() if percentile is None else np.percentile(train_values, percentile)
             result[f"{channel}_{label}_difference"] = float(train_stat - export_stat)
+        result[f"{channel}_std_difference"] = float(
+            train_values.std() - export_values.std()
+        )
         nonzero = train_values > 0
         if nonzero.any():
             ratios.extend((export_values[nonzero] / train_values[nonzero]).tolist())

@@ -2,7 +2,12 @@
 # Dataset time statements conflict with the downloader date filter; see docs/PROGRESS.md.
 preprocessing_verified: false
 collection: COPERNICUS/S2_SR_HARMONIZED
-date_range: ["2024-01-01", "2025-02-28"]
+authors_reference_dates:
+  downloader: "2024-01-01 to 2025-02-28"
+  repository_readme: "September 2023 to February 2024"
+  paper: "September 2023 to February 2024"
+  dataset_card: "November 2023 to February 2024"
+pilot_date_range: null
 cloud_filter:
   property: CLOUDY_PIXEL_PERCENTAGE
   property_less_than: 1
