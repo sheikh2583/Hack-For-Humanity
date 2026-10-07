@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
+import types
 
 import pytest
 import yaml
@@ -36,6 +38,42 @@ def test_export_stops_while_recipe_unverified(tmp_path: Path) -> None:
     aoi.write_text("districts: []\n", encoding="utf-8")
     with pytest.raises(RuntimeError, match="preprocessing_verified"):
         export_composites(aoi, preprocessing_config=prep, boundaries_path=tmp_path / "missing.geojson")
+
+
+def test_export_stops_when_pilot_date_range_is_missing(tmp_path: Path) -> None:
+    """A verified recipe still requires a human-supplied pilot date range."""
+    prep = tmp_path / "preprocessing.yaml"
+    prep.write_text("preprocessing_verified: true\npilot_date_range: null\n", encoding="utf-8")
+    aoi = tmp_path / "aoi.yaml"
+    aoi.write_text("districts: []\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="pilot_date_range"):
+        export_composites(aoi, preprocessing_config=prep, boundaries_path=tmp_path / "missing.geojson")
+
+
+def test_export_requires_earth_engine_project_before_initialization(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Missing project configuration is rejected before calling ``ee.Initialize``."""
+    prep = tmp_path / "preprocessing.yaml"
+    prep.write_text(
+        "preprocessing_verified: true\npilot_date_range: [2024-01-01, 2024-02-01]\n",
+        encoding="utf-8",
+    )
+    aoi = tmp_path / "aoi.yaml"
+    aoi.write_text("districts: []\n", encoding="utf-8")
+    boundaries = tmp_path / "boundaries.geojson"
+    boundaries.write_text("{}", encoding="utf-8")
+    initialize_called = False
+
+    def initialize(**_: object) -> None:
+        nonlocal initialize_called
+        initialize_called = True
+
+    monkeypatch.setitem(sys.modules, "ee", types.SimpleNamespace(Initialize=initialize))
+    monkeypatch.delenv("EARTHENGINE_PROJECT", raising=False)
+    with pytest.raises(RuntimeError, match="Earth Engine project"):
+        export_composites(aoi, preprocessing_config=prep, boundaries_path=boundaries)
+    assert initialize_called is False
 
 
 def test_configured_districts_resolve_in_real_adm2_file() -> None:

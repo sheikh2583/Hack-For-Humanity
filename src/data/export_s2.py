@@ -7,6 +7,7 @@ exports containing raw B4/B3/B2 reflectance in a district-specific UTM CRS.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -58,6 +59,7 @@ def export_composites(
     aoi_config: Path,
     preprocessing_config: Path | None = None,
     boundaries_path: Path | None = None,
+    project_id: str | None = None,
 ) -> None:
     """Submit Earth Engine exports, refusing unverified preprocessing settings."""
     preprocessing_config = preprocessing_config or PROJECT_ROOT / "config" / "preprocessing.yaml"
@@ -65,6 +67,9 @@ def export_composites(
     prep = _read_yaml(preprocessing_config)
     if prep.get("preprocessing_verified") is not True:
         raise RuntimeError("Set preprocessing_verified: true after reviewing config/preprocessing.yaml")
+    pilot_date_range = prep.get("pilot_date_range")
+    if not isinstance(pilot_date_range, list) or len(pilot_date_range) != 2:
+        raise RuntimeError("Set preprocessing.pilot_date_range to [start_date, end_date] after the pilot")
     aoi = _read_yaml(aoi_config)
     if not boundaries_path.exists():
         raise FileNotFoundError(f"ADM2 boundaries not found: {boundaries_path}")
@@ -72,13 +77,18 @@ def export_composites(
     import ee  # type: ignore[import-untyped]
     from rich import print as rprint
 
-    ee.Initialize()
+    earthengine_project = project_id or os.environ.get("EARTHENGINE_PROJECT")
+    if not earthengine_project:
+        raise RuntimeError(
+            "Earth Engine project is required; pass project_id or set EARTHENGINE_PROJECT"
+        )
+    ee.Initialize(project=earthengine_project)
     bands = prep["bands"]
     rgb_bands = prep["rgb_bands"]
     cloud_mask_band = str(prep["cloud_mask"]["band"])
     cloud_bit = int(prep["cloud_mask"]["qa60_bit"])
     collection_id = prep["collection"]
-    start_date, end_date = prep["date_range"]
+    start_date, end_date = pilot_date_range
     cloud_property = str(prep["cloud_filter"]["property"])
     cloud_limit = float(prep["cloud_filter"]["property_less_than"])
     scale = int(prep["output"]["scale_m"])

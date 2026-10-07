@@ -29,6 +29,9 @@ Hack-For-Humanity/
 # Downloaded, intermediate, and generated project data
 data/raw/*
 !data/raw/.gitkeep
+!data/raw/bangladesh_boundary.geojson
+!data/raw/boundaries/
+!data/raw/boundaries/geoBoundaries_BGD_ADM2.geojson
 data/interim/*
 !data/interim/.gitkeep
 data/processed/*
