@@ -103,9 +103,9 @@ prerequisites and the cross-platform training handoff.
 
 After cloning, use the initializer for that OS. It creates `.venv`, installs
 the shared pinned GPU stack, development tools, and Jupyter runtime, then
-prepares the converted dataset and pretrained YOLOv8 OBB weights where the
-required inputs are available. It does not run a CUDA probe, smoke test, or
-training job.
+downloads and prepares the SentinelKilnDB dataset, Bangladesh boundary, and
+pretrained YOLOv8 OBB weights. The raw dataset download is about 3.74 GB. It
+does not run a CUDA probe, smoke test, or training job.
 
 Linux (RTX 3090 lab PC):
 
@@ -119,19 +119,20 @@ Windows:
 powershell -ExecutionPolicy Bypass -File .\scripts\init_windows.ps1 -DatasetArchive .\yolo_obb_1300m.zip
 ```
 
-Both use `requirements-gpu-cu130.txt` with Python 3.11 or 3.12. If you have a
+Both use `requirements-gpu-cu130.txt` with Python 3.11 or 3.12. The initializer
+automatically downloads the pinned SentinelKilnDB source files and obtains the
+Bangladesh ADM0 GeoJSON from the geoBoundaries current gbOpen API when those
+assets are absent. It validates the boundary CRS and geometries before use.
+Pretrained OBB weights are downloaded by Ultralytics. If you already have a
 current converted dataset archive (including the 1,300 m leakage filter), pass
-it with `--dataset-archive` on Linux or `-DatasetArchive` on Windows. The
-existing root `yolo_obb_bd.zip` is stale and will be rejected. Otherwise,
-provide the reviewed `data/raw/bangladesh_boundary.geojson`; the initializer
-can then offer to download the pinned 3.74 GB SentinelKilnDB source and convert
-it. It will not guess or download an unreviewed boundary. See
+it with `--dataset-archive` on Linux or `-DatasetArchive` on Windows to skip
+the raw dataset conversion. The existing root `yolo_obb_bd.zip` is stale and
+will be rejected. See
 [docs/TRAINING_READINESS.md](docs/TRAINING_READINESS.md) for the handoff steps.
 
-To create the Python environment and install dependencies before supplying
-training assets, pass `--skip-assets` on Linux or `-SkipAssetSetup` on Windows.
-Rerun the initializer without that option after placing a valid dataset archive
-or reviewed boundary. Empty `data/raw/`, `data/interim/`, and `data/processed/`
+To create the Python environment without downloading the training assets, pass
+`--skip-assets` on Linux or `-SkipAssetSetup` on Windows. Rerun the initializer
+without that option to fetch them. Empty `data/raw/`, `data/interim/`, and `data/processed/`
 folders are tracked with placeholders; downloaded datasets, generated outputs,
 archives, model weights, and `.venv/` stay local and must be supplied or created
 on each machine.

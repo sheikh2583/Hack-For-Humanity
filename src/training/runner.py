@@ -10,7 +10,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -138,8 +137,18 @@ def _run_smoke(
         imgsz=config["smoke"]["imgsz"], epochs=config["smoke"]["epochs"],
         config=config, device=device, resume=last.is_file(),
     )
+    completed = _csv_epochs(output / "results.csv")
+    if completed < config["smoke"]["epochs"]:
+        state["smoke"] = {"status": "failed", "completed_epochs": completed,
+                          "hardware_event": event["event_number"]}
+        state["status"] = "smoke_failed"
+        _save_state(run_dir, state)
+        raise RuntimeError(
+            f"Smoke gate recorded {completed} epoch rows in {output / 'results.csv'}; "
+            f"expected {config['smoke']['epochs']}. Not marking the smoke test as passed."
+        )
     state["smoke"] = {
-        "status": "passed", "completed_epochs": _csv_epochs(output / "results.csv"),
+        "status": "passed", "completed_epochs": completed,
         "result_dir": output.relative_to(run_dir).as_posix(),
         "hardware_event": event["event_number"],
     }

@@ -50,10 +50,12 @@ Windows: `powershell -ExecutionPolicy Bypass -File .\scripts\init_windows.ps1 -D
 The initializer itself does not run a CUDA probe, smoke test, or training job.
 If a current converted dataset archive is available, pass `--dataset-archive`
 on Linux or `-DatasetArchive` on Windows. The old root `yolo_obb_bd.zip` is
-rejected because it lacks the leakage filter. Otherwise, the reviewed boundary
-file must be placed at `data/raw/bangladesh_boundary.geojson`; then the initializer offers
-to download the pinned 3.74 GB SentinelKilnDB source and convert it. It does
-not fetch or guess boundary data.
+rejected because it lacks the leakage filter. Otherwise, the initializer
+downloads the pinned 3.74 GB SentinelKilnDB source, fetches the Bangladesh
+ADM0 GeoJSON from geoBoundaries' current gbOpen API when absent, validates it,
+and converts the dataset. Ultralytics downloads the pretrained OBB weights.
+Use `--skip-assets` / `-SkipAssetSetup` to install dependencies without these
+downloads; initialization does not start a GPU workload.
 
 Bundle the checked converted data for the lab machine with:
 

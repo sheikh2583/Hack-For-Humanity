@@ -21,6 +21,58 @@ normalization, a confidence-weighted exposure formula, and a 1,300 m
 Chebyshev leakage filter. The old prompts below are historical where they
 conflict with those decisions.
 
+## Update 2026-10-07: review of the shared snapshot
+
+CPU-only review (no GPU workload, no training, no inference, no network). On this
+snapshot: 106 tests pass and 1 is skipped (it needs the ADM2 boundary file, which
+review archives omit); `ruff` reports two TRY004 style findings in
+`src/training/run_store.py` that were left alone because they change the raised
+exception type.
+
+**Defects found in the training runner and fixed (not yet run on a GPU):**
+
+1. `src/training/engine.py` passed a *relative* `project` to Ultralytics. Ultralytics
+   8.4.165 resolves a relative project under its own `runs_dir/<task>/`, so results
+   would not have appeared under `results/run_NNNN/checkpoints/<stage>/`. The runner
+   then read 0 epoch rows, the smoke gate still reported "passed", and stage 1 would
+   have trained for hours before failing. `project` is now absolute, and
+   `train_stage` raises if Ultralytics reports a different `save_dir`.
+2. `validation_map50` read the *last* `results.csv` row, but `best.pt` is the epoch with
+   the highest mAP50-95 (the box fitness weights are `[0, 0, 0, 1]`). With
+   `patience: 10` those differ by up to 10 epochs, so candidates were ranked on numbers
+   that did not describe the checkpoint that gets tested. It now returns the mAP50 of
+   the best-fitness epoch.
+3. `_run_smoke` now refuses to record "passed" unless `results.csv` has the configured
+   number of epoch rows.
+4. The fourth stage was named `yolov8s-obb-256` although its image size is chosen
+   from stage 1; it is now `yolov8s-obb-best`.
+
+Each fix has a test that fails on the previous code. Resuming a half-finished stage
+on a *different* machine is not safe: Ultralytics restores the `save_dir` stored in
+the checkpoint. The new guard turns that into a clear error; resume on the same host,
+or move only completed stages.
+
+**Cross-checks against the evidence dossier (documents, not new measurements):**
+
+- `config/preprocessing.yaml` and `src/data/normalize.py` match the dossier's recorded
+  recipe: B4/B3/B2 plus QA60 bit 10, `<1%` cloud, stride 98 from origin (0, 0) with a
+  far-edge patch, and the per-band, per-patch `uint8((b-min)/(max-min+1e-5)*255)` stretch.
+- Class balance after the leakage filter: FCBK 2,233 vs Zigzag 8,417 instances
+  (21.0% FCBK). The paper's Bangladesh table gives 1,461 vs 5,440 kilns (21.2%).
+  Instance counts are about 1.5x the kiln counts, which is plausible for 30 px chip
+  overlap; this has not been checked kiln by kiln.
+- The authors trained at the native `imgsz=128` (YOLOv11L-OBB, 100 epochs, batch 16);
+  the staged plan here starts at 256 and has no native-size baseline.
+- The paper's Bangladesh numbers use a different protocol (out-of-region Dhaka,
+  leave-one-country-out), so they are context for the order of magnitude only.
+- `config/rules.yaml` and `docs/legal_basis.md` were annotated with the dossier's
+  candidate passages. No threshold or `verified` flag was changed. Two corrections
+  of substance: the old note that Zigzag/HHK/VSBK/tunnel "are permitted" has no
+  support in the evidence (the Act defines a kiln by performance, not by type), and
+  the 400 m figure is an exception for **existing** Hybrid Hoffman/Tunnel kilns, not
+  a general rule. A single 2 km forest buffer also over-applies: 2 km is for
+  **government** forest only.
+
 ## Verified locally
 
 - The raw SentinelKilnDB Parquet files are present and readable: train 71,856
@@ -68,15 +120,17 @@ conflict with those decisions.
   workloads; agents must not touch the GPU unless explicitly asked.
 - The Windows development machine has an NVIDIA GeForce RTX 4070 (8 GB). The active `.venv` is
   Python 3.12.10 with Ultralytics 8.4.165. Ruff passes for `src`, `app`, `tests`,
-  and `tools`; all 82 tests passed after the CUDA package change. Partial
+  and `tools`; 101 tests passed as of 2026-10-06 (82 originally plus 19 new
+  validation, error-analysis, and negative-sampling tests). Partial
   training output is under ignored `runs/`; final test-split metrics are not yet
   available.
 - `scripts/init_linux.sh` and `scripts/init_windows.ps1` share
   `requirements-gpu-cu130.txt`; the Linux RTX 3090 host and its NVIDIA driver
   have not been inspected. `scripts/prepare_training_assets.py` uses a pinned
-  SentinelKilnDB revision and checks file digests, but requires either a
-  current converted dataset archive or a user-reviewed boundary before
-  raw-data conversion. The stale root dataset ZIP is intentionally rejected.
+  SentinelKilnDB revision and checks file digests. Without a converted archive,
+  it now fetches and validates Bangladesh ADM0 from geoBoundaries before raw-data
+  conversion, then downloads pretrained weights. The stale root dataset ZIP is
+  intentionally rejected.
 - `src/training/run_store.py`, `src/training/engine.py`, and
   `src/training/runner.py` separate run identity/configuration, Ultralytics
   execution/logging, and workflow coordination. Each run is numbered under
@@ -110,9 +164,21 @@ conflict with those decisions.
 - OSM clipping is covered by a synthetic geometry test, but the downloaded
   layer coverage has not been checked against imagery. Railways and optional
   HDX/WDPA forest data are not implemented yet.
-- `src/eval/audit_sample.py` samples confidence terciles. It does not yet create
-  the requested 15 samples from negative regions. The Chapainawabganj 2022
-  reported-count comparison and Gazipur closed-kiln CSV/check are also pending.
+- `src/eval/audit_sample.py` samples confidence terciles and now includes
+  `sample_negative_regions()` to draw random boundary points that are far from
+  any detection (default 15 samples, 2 000 m minimum distance). The sampler
+  requires a user-supplied boundary GeoJSON and detection GeoParquet; it does
+  not fabricate locations. Two synthetic tests pass. The human must supply the
+  boundary file and run the sampler after detections exist.
+- `src/eval/validate_counts.py` (added 2026-10-06) provides
+  `compare_district_counts()` and `check_closure_proximity()`. Both accept
+  user-supplied reference CSVs and detection GeoParquet; they do not invent
+  coordinates, reported counts, or legal interpretations. Eight synthetic tests
+  pass. The human must supply Chapainawabganj 2022 reported counts and the
+  Gazipur closed-kiln CSV before running them on real data.
+- `src/eval/error_analysis.py` saves top-N false-positive and missed-kiln
+  image crops. Three synthetic tests now exist (added 2026-10-06); the module
+  has not been run against real test-split predictions.
 - `docs/legal_basis.md` and `docs/RUNBOOK.md` now record the evidence fields,
   operator commands, and human-only gates. They do not verify legal claims or
   external services.
@@ -126,6 +192,7 @@ period:
 |---|---|
 | Current authors' downloader code | `filterDate('2024-01-01', '2025-02-28')`; Earth Engine treats the end as exclusive |
 | Authors' GitHub README | September 2023-February 2024 |
+| NeurIPS 2025 proceedings, main paper text (per the evidence dossier) | November 2023-February 2024 |
 | NeurIPS 2025 paper supplement | September 2023-February 2024 |
 | Hugging Face dataset card | November 2023-February 2024 |
 

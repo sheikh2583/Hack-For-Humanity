@@ -8,11 +8,13 @@ Output schema: Ultralytics checkpoints/results under each numbered run's
 from __future__ import annotations
 
 import csv
+import math
 import shutil
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from src.training.run_store import ROOT
 
@@ -76,19 +78,42 @@ def train_stage(
     model = YOLO(str(weights))
     model.add_callback("on_fit_epoch_end", on_epoch_end)
     model.add_callback("on_train_end", on_train_end)
+    # `project` must be absolute: Ultralytics prefixes a relative project with its own
+    # runs_dir/<task>/, which would put the outputs somewhere the runner never looks.
     model.train(
         data=str(data_yaml.resolve()), imgsz=imgsz, epochs=epochs,
         batch=config["batch"], workers=config["workers"], patience=config["patience"],
         seed=config["seed"], flipud=config["augmentation"]["flipud"],
         degrees=config["augmentation"]["degrees"], device=device,
-        project=checkpoints_dir.resolve().relative_to(ROOT).as_posix(),
+        project=str(checkpoints_dir.resolve()),
         name=stage_name, exist_ok=True, plots=True, resume=resume,
     )
+    actual = Path(model.trainer.save_dir).resolve()
+    if actual != result_dir.resolve():
+        # A resumed checkpoint restores the save_dir it was first trained with, so resuming a
+        # half-finished stage on a different host/path lands here instead of writing elsewhere.
+        raise RuntimeError(
+            f"Ultralytics wrote stage {stage_name!r} to {actual}, expected {result_dir.resolve()}. "
+            "If this stage was resumed from a checkpoint created on another machine or path, "
+            "restart the stage from the pretrained weights on this host."
+        )
     return result_dir
 
 
-def validation_map50(result_dir: Path, preferred_column: str) -> float:
-    """Read a stage's last validation mAP50 from its results.csv."""
+FITNESS_COLUMN = "metrics/mAP50-95(B)"
+
+
+def validation_map50(
+    result_dir: Path, preferred_column: str, fitness_column: str = FITNESS_COLUMN
+) -> float:
+    """Return validation mAP50 at the epoch that produced ``best.pt``.
+
+    Ultralytics 8.4 saves ``best.pt`` at the epoch with the highest fitness, which for
+    box/OBB metrics is mAP50-95 alone (weights ``[0, 0, 0, 1]``); the first such epoch wins
+    ties. With early stopping the last CSV row is up to ``patience`` epochs later, so its
+    mAP50 does not describe the checkpoint that gets selected and tested. Rows with a NaN
+    fitness are ignored.
+    """
     path = result_dir / "results.csv"
     with path.open(newline="", encoding="utf-8-sig") as source:
         reader = csv.DictReader(source)
@@ -96,10 +121,18 @@ def validation_map50(result_dir: Path, preferred_column: str) -> float:
         column = fields.get(preferred_column)
         if column is None:
             column = next((field for name, field in fields.items() if "mAP50" in name), None)
+        fitness = fields.get(fitness_column)
         rows = list(reader)
-    if column is None or not rows:
-        raise ValueError(f"No validation mAP50 row found in {path}")
-    return float(rows[-1][column])
+    if column is None or fitness is None or not rows:
+        raise ValueError(
+            f"No validation mAP50 / {fitness_column} rows found in {path}"
+        )
+    scored = [(float(row[fitness]), index) for index, row in enumerate(rows)]
+    scored = [(value, index) for value, index in scored if not math.isnan(value)]
+    if not scored:
+        raise ValueError(f"Every {fitness_column} value in {path} is NaN")
+    best_index = max(scored, key=lambda item: (item[0], -item[1]))[1]
+    return float(rows[best_index][column])
 
 
 def copy_review_plots(source: Path, destination: Path) -> None:
@@ -120,7 +153,7 @@ def evaluate_test(
     metrics = YOLO(str(checkpoint)).val(
         data=str(data_yaml.resolve()), split=test_split, imgsz=imgsz,
         device=device, plots=True,
-        project=checkpoints_dir.resolve().relative_to(ROOT).as_posix(),
+        project=str(checkpoints_dir.resolve()),  # absolute, see train_stage
         name="heldout_test", exist_ok=True,
     )
     values = {

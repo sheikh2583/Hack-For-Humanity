@@ -4,7 +4,7 @@ dataset: data/interim/yolo_obb
 models_dir: data/models
 results_dir: results
 batch: 8
-workers: 0
+workers: 0  # safe default on Windows; the Linux 3090 host can usually use 4-8 (unmeasured)
 patience: 10
 seed: 0
 augmentation:
@@ -27,7 +27,7 @@ stages:
     model: yolov8n-obb.pt
     imgsz: 512
     epochs: 50
-  - name: yolov8s-obb-256
+  - name: yolov8s-obb-best  # imgsz is chosen from the three yolov8n stages
     model: yolov8s-obb.pt
     imgsz: best_stage1
     epochs: 50

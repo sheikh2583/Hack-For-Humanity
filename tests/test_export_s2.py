@@ -45,6 +45,8 @@ def test_configured_districts_resolve_in_real_adm2_file() -> None:
     aoi = yaml.safe_load(Path("config/aoi.yaml").read_text(encoding="utf-8"))
     recipe = yaml.safe_load(Path("config/preprocessing.yaml").read_text(encoding="utf-8"))
     boundaries = Path("data/raw/boundaries/geoBoundaries_BGD_ADM2.geojson")
+    if not boundaries.is_file():  # the boundary file is not shipped in share/review archives
+        pytest.skip(f"{boundaries} not present on this machine")
     for district in aoi["districts"]:
         geometry, epsg = _district_geometry(
             boundaries,

@@ -12,16 +12,22 @@ legal_status_caveat: "s.8 bars ESTABLISHING kilns in prohibited areas after 2013
 forest_hill_note: "2 km govt forest (8(3)(খ)) and 0.5 km hills (8(3)(গ)) cannot be relaxed by the proviso"
 
 sources:
-  - "Brick Manufacturing and Kiln Establishment (Control) Act 2013, amended 2019 (Legislative Division portal)"
-  - "January 2020 gazette (advanced-technology kilns, reported 400 m): locate original"
+  - "Brick Manufacturing and Kiln Establishment (Control) Act 2013 (Act 59 of 2013), amended by Act 1 of 2019. Consolidated Bangla text: bdlaws.minlaw.gov.bd/act-details-1140.html (no official English translation found)"
+  - "Bangladesh Gazette Extra 9 Jan 2020, S.R.O. No. 07-Ain/2020 dated 06-01-2020 (Legislative Division 2020 SRO index, item 7): relaxes the s.8(3) distances to 400 m ONLY for EXISTING advanced-technology kilns (Hybrid Hoffman, Tunnel), subject to air-quality and workplace conditions; not applicable to new kilns. Not used by any rule below: the detector cannot identify those technologies."
+  - "Evidence register with candidate passages and open items: docs/legal_basis.md (all unverified)"
 
 technology:
   flagged_classes: [FCBK]
-  note: "Zigzag, Hybrid Hoffman, VSBK and tunnel are permitted; detector cannot see HHK/VSBK/tunnel"
+  note: "UNSUPPORTED by the evidence reviewed: the Act defines a kiln by performance (improved technology, fuel-efficient, air pollution within the Environment Conservation Rules 1997 limits; s.2) and names no permitted or banned technologies, so 'Zigzag permitted / FCBK flagged' is a project heuristic, not a statutory finding. Detector cannot see HHK/VSBK/tunnel."
   severity: 3
   verified: false
 
 siting_rules:
+  # Candidate source mapping (unverified; see docs/legal_basis.md):
+  #   schools / hospitals -> s.8(3)(ঙ): 1 km from education institutions, hospitals and clinics (also railways, research institutions)
+  #   settlements         -> s.8(1)(ক)(খ) + s.8(3)(ক): 1 km from residential area (>= 50 families) / city, municipality, upazila HQ
+  #   forests             -> s.8(3)(খ) gives 2 km for GOVERNMENT forest only; other forest, sanctuary, garden are 1 km via s.8(3)(ক)
+  #   water               -> s.8(1)(গ) wetland (submerged >= 6 months) + s.8(3)(ক): 1 km; OSM "water" also includes rivers and ponds
   - {id: near_school,     feature: schools,      buffer_m: 1000, severity: 3, verified: false}
   - {id: near_hospital,   feature: hospitals,     buffer_m: 1000, severity: 3, verified: false}
   - {id: near_settlement, feature: settlements,   buffer_m: 1000, severity: 2, verified: false}
@@ -39,4 +45,8 @@ scoring:
 
 not_implemented:
   - "agricultural land (needs land-use data; a strict reading flags almost every kiln)"
-  - "ecologically critical areas (needs polygons)"
+  - "ecologically critical areas (needs polygons; DoE publishes only PDF lists, no public polygon layer was found)"
+  - "railways, 1 km (named in s.8(3)(ঙ); needs a railway layer)"
+  - "hills and mounds, 0.5 km (s.8(3)(গ); needs terrain data)"
+  - "sanctuaries, gardens, degraded air sheds (s.8(1); no usable public layers identified)"
+  - "ordinary roads: no road-distance rule was found in the Act, the 2019 amendment or the official pages reviewed; do not add one without a primary source"

@@ -205,3 +205,90 @@ def compute_audit_results(
     rprint(f"[green]Audit results written to {output_json}[/green]")
     rprint(json.dumps(results, indent=2))
     return results
+
+
+def sample_negative_regions(
+    detections_path: Path,
+    boundary_path: Path,
+    n: int = 15,
+    min_distance_m: float = 2000.0,
+    output: Path = Path("audit_negatives.csv"),
+    seed: int = 42,
+) -> pd.DataFrame:
+    """Sample random points inside the boundary that are far from any detection.
+
+    Parameters
+    ----------
+    detections_path : Path
+        GeoParquet of detected kilns.
+    boundary_path : Path
+        GeoJSON of the area-of-interest polygon (e.g. a district boundary).
+    n : int
+        Number of negative-region samples to draw (default 15).
+    min_distance_m : float
+        Minimum distance from any detection centroid in metres (default 2000).
+    output : Path
+        Output CSV path.
+    seed : int
+        Random seed.
+
+    Returns
+    -------
+    pd.DataFrame
+        The negative-region audit sample.
+    """
+    from shapely.strtree import STRtree
+
+    from src.geo.crs import get_projected_crs
+
+    proj_crs = get_projected_crs()
+    detections = gpd.read_parquet(detections_path)
+    boundary = gpd.read_file(boundary_path).to_crs(proj_crs)
+    boundary_union = boundary.union_all()
+
+    det_proj = detections.to_crs(proj_crs)
+    det_centroids = det_proj.geometry.centroid.values
+
+    rng = np.random.default_rng(seed)
+    minx, miny, maxx, maxy = boundary_union.bounds
+
+    samples: list[dict[str, object]] = []
+    attempts = 0
+    max_attempts = n * 200
+
+    tree = STRtree(det_centroids) if len(det_centroids) > 0 else None
+
+    from pyproj import Transformer
+
+    to_wgs84 = Transformer.from_crs(proj_crs, "EPSG:4326", always_xy=True)
+
+    from shapely.geometry import Point as ShapelyPoint
+
+    while len(samples) < n and attempts < max_attempts:
+        attempts += 1
+        x = rng.uniform(minx, maxx)
+        y = rng.uniform(miny, maxy)
+        point = ShapelyPoint(x, y)
+        if not boundary_union.contains(point):
+            continue
+        if tree is not None:
+            nearest_idx = tree.nearest(point)
+            nearest_dist = point.distance(det_centroids[nearest_idx])
+            if nearest_dist < min_distance_m:
+                continue
+
+        lon, lat = to_wgs84.transform(x, y)
+        samples.append({
+            "sample_id": f"neg_{len(samples):03d}",
+            "lat": round(float(lat), 6),
+            "lon": round(float(lon), 6),
+            "google_earth": (
+                f"https://earth.google.com/web/@{lat},{lon},0a,500d,35y,0h,0t,0r"
+            ),
+            "label": "",
+        })
+
+    out_df = pd.DataFrame(samples)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    out_df.to_csv(output, index=False)
+    return out_df

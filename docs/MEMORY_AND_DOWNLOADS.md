@@ -27,8 +27,8 @@ GPU training run, or full Overpass fetch was benchmarked during this review.
 - `scripts/init_linux.sh` and `scripts/init_windows.ps1` install the same pinned
   Python/GPU environment. `scripts/prepare_training_assets.py` can extract a
   supplied converted dataset archive or download the three pinned public
-  SentinelKilnDB Parquet shards (about 3.74 GB) and convert them when a reviewed
-  boundary is available. It obtains OBB starting weights through Ultralytics
+  SentinelKilnDB Parquet shards (about 3.74 GB) and convert them with a
+  validated Bangladesh ADM0 boundary fetched from geoBoundaries when needed. It obtains OBB starting weights through Ultralytics
   while CUDA devices are hidden; it never starts inference or training.
 
 ## Changes made

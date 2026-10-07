@@ -82,11 +82,11 @@ GPU task. These instructions are for the user to run.
    `requirements-gpu-cu130.txt`, project development/inference dependencies,
    and JupyterLab. They do not start a GPU workload.
 2. If the converted dataset is missing, pass a local converted archive to the
-   initializer or place the reviewed country boundary at
-   `data/raw/bangladesh_boundary.geojson`. With the boundary present, the
-   initializer can offer to download the pinned 3.74 GB source Parquet files
-   from Hugging Face and run the project converter. It refuses to guess a
-   boundary source.
+   initializer or let it download the pinned 3.74 GB source Parquet files from
+   Hugging Face. It obtains Bangladesh ADM0 from geoBoundaries' current gbOpen
+   API when needed, validates the GeoJSON, and runs the project converter.
+   Ultralytics downloads the configured OBB starting weights. Use
+   `--skip-assets` (Linux) or `-SkipAssetSetup` (Windows) to skip these downloads.
 3. Run `bash scripts/train_linux.sh` or `scripts/train_windows.ps1` with no
    arguments. The one-command launcher runs smoke and, on success, full training.
    Running it again resumes the current numbered run; `continue` is available
