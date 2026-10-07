@@ -108,6 +108,16 @@ def test_validation_map50_rejects_missing_fitness_column(tmp_path: Path) -> None
         validation_map50(stage, "metrics/mAP50(B)")
 
 
+def test_validation_map50_does_not_substitute_map50_95(tmp_path: Path) -> None:
+    """A missing mAP50 column must not silently return the mAP50-95 value."""
+    stage = _write_results(
+        tmp_path / "s", [(0.4, 0.2)],
+        header="epoch,time,metrics/mAP50-95(B)\n",
+    )
+    with pytest.raises(ValueError, match=r"metrics/mAP50\(B\)"):
+        validation_map50(stage, "metrics/mAP50(B)")
+
+
 def _fake_ultralytics(monkeypatch: pytest.MonkeyPatch, *, save_dir_for) -> list[dict]:
     """Install a fake ``ultralytics.YOLO``; ``save_dir_for(kwargs)`` mimics get_save_dir."""
     import sys

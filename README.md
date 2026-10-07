@@ -1,13 +1,15 @@
 # KilnWatch BD 🏭🛰️
 
-> **Current status:** See [docs/PROGRESS.md](docs/PROGRESS.md) and the
-> [training run history](docs/TRAINING_RUN_HISTORY.md) for verified
-> implementation and outstanding checks. Conversion, lint, and 82 tests passed
-> before the latest runner changes; the current test suite has not been rerun.
-> The Windows RTX 4070 smoke run completed; the first full stage completed six
-> epochs and was interrupted during epoch 7. The Linux RTX 3090 overnight run
-> is planned, not started. The partial checkpoint is not a final model. The user manages future GPU runs unless explicitly
-> asking an agent to perform one. Earth Engine export has not run.
+> **Current status (2026-10-07):** Linux run `run_0002` completed all four
+> training stages and one held-out test evaluation on an RTX 3090. The selected
+> model is `results/run_0002/checkpoints/final/best.pt`; test mAP50 was 0.7524
+> and mAP50-95 was 0.4930. See [docs/TRAINING_RUN_HISTORY.md](docs/TRAINING_RUN_HISTORY.md)
+> and [docs/PROGRESS.md](docs/PROGRESS.md) for evidence and remaining checks.
+> Detection review plots currently cover only the first three test batches,
+> which contain blank labels; inspect representative positive detections before
+> using the model. The current test suite has not been rerun after the latest
+> changes. Earth Engine export and real-imagery inference have not run.
+> GPU workloads remain user-managed unless explicitly requested.
 > `config/preprocessing.yaml` deliberately keeps `preprocessing_verified: false`
 > because published SentinelKilnDB date ranges conflict; do not enable export
 > until the authors' intended dates and a paired-chip calibration are reviewed.

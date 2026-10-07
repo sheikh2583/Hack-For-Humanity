@@ -10,7 +10,7 @@ from pathlib import Path
 
 import geopandas as gpd
 
-from src.geo.crs import get_projected_crs
+from src.geo.crs import centroid_longitude, get_projected_crs
 
 
 def load_kilns(path: Path) -> gpd.GeoDataFrame:
@@ -20,7 +20,8 @@ def load_kilns(path: Path) -> gpd.GeoDataFrame:
     gdf = gpd.read_parquet(path)
     if gdf.crs is None:
         raise ValueError("Dashboard GeoParquet must declare a CRS")
-    centroids = gdf.to_crs(get_projected_crs()).geometry.centroid.to_crs("EPSG:4326")
+    projected = get_projected_crs(centroid_longitude(gdf))
+    centroids = gdf.to_crs(projected).geometry.centroid.to_crs("EPSG:4326")
     gdf["lat"] = centroids.y.to_numpy()
     gdf["lon"] = centroids.x.to_numpy()
     return gdf

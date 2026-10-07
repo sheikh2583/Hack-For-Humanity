@@ -1,6 +1,7 @@
 # KilnWatch BD Operator Runbook
 
-**Scope:** local GPU training and the later imagery/pilot handoff.
+**Updated:** 2026-10-07. **Scope:** completed local GPU training and the later
+imagery/pilot handoff.
 
 ## Current Verified State
 
@@ -11,21 +12,20 @@
   split image/label counts and OBB label structure were checked.
 - Pretrained starting weights are present in `data/models/`:
   `yolov8n-obb.pt` and `yolov8s-obb.pt`; both load as OBB models.
-- The previous Windows development machine used an RTX 4070 (8 GB). The new
-  training host is expected to be an RTX 3090 on Linux; that host has not been
-  inspected or GPU-tested. Both platforms use the shared pinned stack in
-  `requirements-gpu-cu130.txt`.
-- The Windows smoke run completed, and the first full stage was interrupted
-  during epoch 7 after six completed validation rows. The planned Linux
-  overnight run has not started. Keep the run-by-run evidence in
-  `docs/TRAINING_RUN_HISTORY.md` up to date.
+- Linux run `run_0002` completed on host `NDAG-M-Lab` with an RTX 3090, Python
+  3.12.2, PyTorch 2.14.0+cu130, and Ultralytics 8.4.165. All four stages and
+  one held-out test evaluation completed. See `docs/TRAINING_RUN_HISTORY.md`.
+- The Windows RTX 4070 smoke run completed historically; its first full stage
+  stopped during epoch 7 after six completed validation rows. It was not used
+  to resume `run_0002`.
 - The ADM2 and Bangladesh boundary files are present and pass basic CRS,
   geometry, field, and required-district checks. Source provenance, licence,
   and human review still need confirmation before geographic claims are made.
-- A partial YOLOv8n checkpoint exists under `runs/yolov8n-obb-256/`; it was
-  stopped at epoch 6/50 and has not been evaluated on the held-out test split.
-  No final trained model, Earth Engine export, OSM cache, or processed
-  detection GeoParquet is verified here.
+- The selected trained checkpoint is
+  `results/run_0002/checkpoints/final/best.pt`; its test metrics are in
+  `results/run_0002/checkpoints/heldout_test/test_metrics.json`. Real-raster
+  inference, geographic-placement checks, Earth Engine exports, OSM caches,
+  and processed detection GeoParquet are not verified here.
 
 ## Local Checks
 
@@ -37,9 +37,10 @@ python -m pytest -q
 ruff check src app tests tools
 ```
 
-Latest local verification: `ruff check src app tests tools` passes and
-`python -m pytest -q` reports 82 passed. The full test suite includes the
-present ADM2 boundary file.
+Historical local verification: `ruff check src app tests tools` passed and
+the 2026-10-06 test run reported 101 passed and one skipped. The current test
+suite has not been rerun after later changes. The full test suite includes the
+ADM2 boundary test when that file is present.
 
 ## Dataset Conversion
 
@@ -99,11 +100,10 @@ GPU task. These instructions are for the user to run.
    manifest automatically. Review and commit them explicitly. Checkpoints
    remain ignored under `results/run_NNNN/checkpoints/`.
 
-The RTX 3090 Linux setup has not been exercised from this Windows checkout.
-Confirm the lab host has the dataset, pretrained weights, and a driver
-compatible with the installed CUDA wheel. Start with the one-command launcher;
-it runs smoke and only proceeds to full training when smoke passes. The runner
-records which GPU it used in the numbered result manifest.
+The Linux host and installed CUDA wheel were exercised by `run_0002`. For a
+future run, use the one-command launcher; it runs smoke and proceeds to full
+training only when smoke passes. A completed current run causes the runner to
+allocate the next numbered run rather than overwrite existing outputs.
 
 Colab and Kaggle remain optional alternatives; upload the ignored data folders
 and set the corresponding paths in the notebook when using those runtimes.

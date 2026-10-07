@@ -3,37 +3,77 @@
 Upload `kilnwatch_bd_share.zip` to Claude Web, then paste this prompt:
 
 ```text
-Review the attached KilnWatch BD project as an independent technical reviewer. Read `AGENTS.md`, `docs/PROGRESS.md`, `docs/TRAINING_READINESS.md`, `docs/TRAINING_RUN_HISTORY.md`, `docs/MEMORY_AND_DOWNLOADS.md`, and `kilnwatch_scaffold.md` first. Inspect the actual code/config/notebook in the ZIP before making claims. Use web search for source-dependent claims and cite primary sources with direct links. Do not edit code or invent data formats, legal rules, thresholds, dates, or coordinates.
+Review the attached KilnWatch BD project as an independent technical reviewer.
+Read AGENTS.md, docs/PROGRESS.md, docs/TRAINING_READINESS.md,
+docs/TRAINING_RUN_HISTORY.md, docs/MEMORY_AND_DOWNLOADS.md, and
+kilnwatch_scaffold.md first. Inspect the code/config/notebook in the ZIP before
+making claims. Use primary sources and direct links for source-dependent legal
+or dataset claims. Do not edit code or invent schemas, legal rules, thresholds,
+dates, or coordinates.
 
-## Current verified project state
+## Current verified state
 
-- The local converted dataset is at `data/interim/yolo_obb/`: train 8,058 images/labels, val 1,662, test 1,530; about 350.7 MiB total. `dataset.yaml` names FCBK and Zigzag. The split report records a 1,300 m Chebyshev filter and 1,322.41 m minimum cross-split distance.
-- Latest full test run: 82 passed; Ruff clean. The environment used Python 3.12.10, although the project targets Python 3.11.
-- New Windows/Linux initializers, pinned GPU requirements, a pinned-data preparation helper, and synthetic tests for asset validation and metric-log archiving have been added since that baseline. They have not been executed. The Linux RTX 3090 host has not been inspected.
-- A shared `scripts/train.py` runner, `config/training.yaml`, and Linux/PowerShell wrappers define one-command smoke plus staged training, numbered resumable runs, validation-based selection, one held-out test evaluation, per-stage GPU/host metadata, and automatic staging of 10-epoch CSV chunks. The new modular runner, tests, Ruff, GPU command, and Linux host setup have not been run. The notebook delegates to this runner.
-- `docs/TRAINING_RUN_HISTORY.md` records the Windows run from retained artifacts and clearly marks the new Linux RTX 3090 overnight run as planned but not started. It notes the small discrepancy between the smoke CSV metric and the previously reported standalone validation metric.
-- The active `.venv` uses `torch 2.14.0+cu130` and `torchvision 0.29.0+cu130`; CUDA was previously verified on the NVIDIA GeForce RTX 4070 Laptop GPU (8 GB). The 3-epoch `yolov8n-obb` smoke test passed. Its retained `results.csv` final row is mAP50 0.52184 and mAP50-95 0.25290; prior notes cite a separate validation at 0.5226/0.2527 whose metric record is not retained. The user-requested interruption left six full-stage epochs recorded and the console shows partial epoch 7 at imgsz 256. The user manages all future GPU workloads unless explicitly asking the agent to perform a specific one.
-- The converted dataset and canonical pretrained starting weights are local at `data/interim/yolo_obb/` and `data/models/`; Colab/Kaggle uploads are optional alternatives, not prerequisites. The runner uses shared config and local paths; checkpoints stay under ignored `results/run_NNNN/checkpoints/`.
-- `scripts/init_linux.sh` and `scripts/init_windows.ps1` prepare the environment and fetch missing training assets after clone. They download the pinned raw dataset, obtain Bangladesh ADM0 from geoBoundaries, validate it, convert the chips, and download pretrained OBB weights. Metric CSV blocks and run manifests are stored under `results/run_NNNN/` and automatically staged every ten completed epochs; model checkpoints remain ignored.
-- Memory/download changes: raster tiles stream one window at a time; converter batch size is tunable; OSM caches are reused unless `kilnwatch fetch-osm --refresh` is used; Folium backgrounds no longer request remote tiles; the notebook skips the Ultralytics install if version >=8.1 is already present. No full-data RAM/VRAM benchmark was run.
-- Training the existing converted chips is not blocked by the unresolved imagery-date conflict or `preprocessing_verified: false`. Those block Earth Engine parity/export claims, not the training job.
+- Linux run results/run_0002 completed on host NDAG-M-Lab using an RTX 3090,
+  Python 3.12.2, PyTorch 2.14.0+cu130, and Ultralytics 8.4.165. The smoke gate,
+  all four configured stages, and one held-out test evaluation completed.
+- The selected checkpoint is results/run_0002/checkpoints/final/best.pt:
+  YOLOv8s-OBB at 512 px. Validation mAP50 was 0.70546. Held-out test metrics
+  were mAP50 0.75244, mAP50-95 0.49299, precision 0.69856, and recall 0.73354.
+  Test AP50 was 0.601 for FCBK and 0.904 for Zigzag. These are dataset metrics,
+  not field-accuracy evidence.
+- The first three test visualization batches contain 48 blank-label images;
+  label and prediction mosaics are identical. They do not visually review
+  positive detections. The local artifacts are excluded from the ZIP; see
+  docs/CLAUDE_REVIEW_CONTEXT.md for findings.
+- The converted dataset is data/interim/yolo_obb/: train 8,058 images, val
+  1,662, test 1,530. Its split report records a 1,300 m Chebyshev leakage
+  filter and 1,322.41 m minimum cross-split distance. Starting weights are in
+  data/models/; the selected trained checkpoint is separate.
+- Historical local test evidence from 2026-10-06 was 101 passed and one
+  skipped; Ruff passed then. The current suite has not been rerun after later
+  changes. Do not claim those checks cover subsequent edits.
+- Earth Engine export and inference on exported real Sentinel-2 imagery have
+  not run. config/preprocessing.yaml remains preprocessing_verified: false
+  because published date ranges conflict and paired-chip calibration has not
+  been completed. Rules in config/rules.yaml remain legally unverified.
+- No representative positive detections, geographic placement, OSM coverage,
+  field accuracy, or legal compliance conclusion has been human-verified.
+  GPU workloads remain user-managed unless explicitly requested.
 
-## Questions for review
+## Review questions
 
-1. SentinelKilnDB dates conflict. The authors' downloader currently says 2024-01-01 through 2025-02-28; the authors' README and NeurIPS supplement say September 2023 through February 2024; the Hugging Face card says November 2023 through February 2024. Determine whether primary sources resolve which dates produced the released chips. Give evidence/confidence and exact questions for the dataset authors if unresolved.
-2. `config/preprocessing.yaml` intentionally remains `preprocessing_verified: false`; Earth Engine authentication/export and real paired-chip calibration have not run. Identify the evidence/checks required before enabling export, without guessing beyond the recorded recipe.
-3. Rule values are unverified. Identify legal claims that appear unsupported by the attached dossier and point to the exact dossier passage needing review. Do not propose replacement thresholds or legal conclusions.
-4. Review `docs/MEMORY_AND_DOWNLOADS.md` and the implemented changes. Identify any remaining unnecessary downloads or high-memory code paths visible in the source. Separate code-inspection findings from measured results; none of the optimizations has a full-data memory benchmark yet.
-5. Compare the scaffold with actual implementation and identify missing items relevant to a credible pilot/handoff. The progress notes say `docs/legal_basis.md` and `docs/RUNBOOK.md`, railways and optional HDX/WDPA forest loaders, the 15 negative-region audit samples, the Chapainawabganj 2022 count check, and the Gazipur closed-kiln check/CSV remain incomplete. Verify those claims against the ZIP and correct any stale status.
-6. Assess what the 82-test/Ruff result establishes and does not establish across Python 3.11 vs the checked Python 3.12 environment. The local smoke test passed, but the full staged run stopped after epoch 6/50; do not claim full training, test evaluation, live OSM, Earth Engine, or real-raster inference has completed.
+1. Check the SentinelKilnDB acquisition-date discrepancy against primary
+   sources. The authors' downloader, repository text, NeurIPS supplement, and
+   Hugging Face card have conflicting date ranges. Determine whether evidence
+   resolves which dates produced the released chips; otherwise give exact
+   clarification questions for the dataset authors.
+2. Review the preprocessing and Earth Engine gates. Identify evidence needed
+   before setting preprocessing_verified: true; do not infer an acquisition
+   period or claim parity without paired-chip results.
+3. Review legal claims and thresholds against authoritative Act/gazette
+   sources. Identify unsupported claims and exact passages needing human
+   review. Do not propose replacement thresholds without primary evidence.
+4. Review code for concrete correctness, security, memory, and performance
+   issues. Separate code-inspection conclusions from measurements; do not
+   claim an optimization is faster without a benchmark.
+5. Check whether manual review plots should sample representative positive and
+   negative examples instead of only the first three validation batches.
+6. Compare scaffold promises with implementation and identify remaining
+   blockers for a local demo and a real imagery pilot. Verify all claimed gaps
+   against the ZIP rather than copying stale status text.
 
 ## Return
 
-- Is the project ready for a full training run, local demo, real imagery pilot, or none? Distinguish each clearly.
-- A prioritized blocker table with evidence, next action, owner (developer/human/dataset author), and dependencies.
-- Exact author clarification questions for the date conflict.
-- Specific discrepancies between the ZIP contents and progress docs, with file paths.
-- The shortest practical next-step sequence to complete training, then advance toward a real imagery pilot.
+- Readiness for model experimentation, local demo, and real imagery pilot,
+  assessed separately.
+- A prioritized table of concrete blockers, evidence, next action, owner, and
+  dependencies.
+- Exact dataset-author questions if dates remain unresolved.
+- Any stale documentation or contradiction found in the ZIP.
+- A short next-step sequence. Preserve the completed model/run artifacts and
+  do not rerun training or held-out test evaluation as part of this review.
 
-Be explicit about uncertainty. Separate verified facts, code-inspection conclusions, and inference. Do not recommend marking preprocessing or legal rules verified without evidence.
+Be explicit about uncertainty and distinguish verified facts, code-inspection
+conclusions, and inference. Do not mark preprocessing or legal rules verified
+without evidence.
 ```

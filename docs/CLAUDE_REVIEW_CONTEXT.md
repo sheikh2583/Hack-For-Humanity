@@ -15,9 +15,8 @@ that the individual detections are visually correct.
 
 ## Visual review finding
 
-The held-out test prediction mosaics are not usable for a label-versus-prediction
-review. For each of the three saved batches, the corresponding label and
-prediction JPEGs are byte-for-byte identical:
+For each of the first three saved test batches, the label and prediction JPEGs
+are byte-for-byte identical:
 
 - `results/run_0002/checkpoints/heldout_test/val_batch0_labels.jpg` and
   `val_batch0_pred.jpg`
@@ -26,23 +25,27 @@ prediction JPEGs are byte-for-byte identical:
 - `results/run_0002/checkpoints/heldout_test/val_batch2_labels.jpg` and
   `val_batch2_pred.jpg`
 
-The images show the chip mosaics without visible box annotations. The saved
-confusion matrix and PR/F1 curves are available locally and indicate weaker
-FCBK results than Zigzag (test AP50 0.601 versus 0.904). The confusion matrix
-shows 151 FCBK matches out of 246 true FCBK instances, 68 FCBK instances
-classified as Zigzag, and 27 missed as background. For Zigzag, it shows 890
-matches out of 1,025 true instances, 92 classified as FCBK, and 43 missed as
-background. It also shows 359 background false positive detections (125 FCBK,
-234 Zigzag).
+This is consistent with the sample contents: the first 48 sorted test label
+files (16 images per batch) are empty, and those mosaics show no predictions at
+the plot display threshold. The validator saves only the first three batches,
+so these artifacts do not visually review positive kiln detections. The
+identical files alone do not indicate a broken OBB renderer. If improving
+manual review, select representative positive and negative examples instead of
+assuming the current first-three-batch mosaics are representative.
+
+The saved confusion matrix and PR/F1 curves indicate weaker FCBK results than
+Zigzag (test AP50 0.601 versus 0.904). The confusion matrix shows 151 FCBK
+matches out of 246 true FCBK instances, 68 FCBK instances classified as
+Zigzag, and 27 missed as background. For Zigzag, it shows 890 matches out of
+1,025 true instances, 92 classified as FCBK, and 43 missed as background. It
+also shows 359 background false positive detections (125 FCBK, 234 Zigzag).
 
 ## Review request
 
-Inspect the training and evaluation plotting path, especially the call that
-produces the held-out test `val_batch*_labels.jpg` and `val_batch*_pred.jpg`
-files. Explain why the outputs are identical and propose a small, testable code
-change that creates useful OBB label/prediction comparison images. Preserve
-the current model, training results, and test metrics. Do not rerun training or
-held-out test evaluation as part of the code proposal.
+Review low-risk options for making manual review plots representative of both
+positive and negative test examples. Do not change training or evaluation
+semantics, and do not rerun training or held-out test evaluation as part of a
+code proposal.
 
 The ZIP intentionally excludes `results/run_0002/`, model weights, and dataset
 files. The descriptions above record the observed state so the source review

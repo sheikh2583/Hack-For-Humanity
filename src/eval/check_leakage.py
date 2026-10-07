@@ -31,13 +31,13 @@ LEAKAGE_CRS_EPSG = 9680
 FILTERED_SPLITS = ("val", "test")  # train chips are never dropped
 
 
-def _leakage_crs() -> pyproj.CRS:
+def _leakage_crs(centroid_lon: float) -> pyproj.CRS:
     """Return EPSG:9680, raising if the projected-CRS helper fell back to UTM.
 
     The threshold is defined in EPSG:9680 metres, so a silent UTM fallback would
     change what 1300 m means.
     """
-    crs = get_projected_crs()
+    crs = get_projected_crs(centroid_lon)
     if crs.to_epsg() != LEAKAGE_CRS_EPSG:
         raise RuntimeError(
             f"Leakage filter requires EPSG:{LEAKAGE_CRS_EPSG}, got {crs.to_string()}. "
@@ -72,7 +72,7 @@ def filter_cross_split_leakage(
             [float(r["latitude"]) for r in records],
         ),
         crs="EPSG:4326",
-    ).to_crs(_leakage_crs())
+    ).to_crs(_leakage_crs(float(np.mean([float(r["longitude"]) for r in records]))))
     coords = np.array([(geom.x, geom.y) for geom in frame.geometry], dtype=float)
     splits = np.array([str(r["split"]) for r in records])
     names = [str(r["image_name"]) for r in records]

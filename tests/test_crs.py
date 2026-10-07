@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pyproj
+import pytest
 
 from src.geo.crs import get_projected_crs
 
@@ -29,3 +30,33 @@ class TestGetProjectedCRS:
         # Transform a known point in Bangladesh
         x, y = transformer.transform(88.5, 24.0)
         assert x != 0.0 and y != 0.0
+
+    @pytest.mark.parametrize(("longitude", "expected"), [(89.9, 32645), (90.0, 32646)])
+    def test_utm_fallback_uses_centroid_longitude(self, monkeypatch, longitude, expected) -> None:
+        """When EPSG:9680 is unavailable, select UTM zone from centroid longitude."""
+        from pyproj.exceptions import CRSError
+
+        original = pyproj.CRS.from_epsg
+
+        def from_epsg(code):
+            if code == 9680:
+                raise CRSError("simulated missing CRS")
+            return original(code)
+
+        monkeypatch.setattr(pyproj.CRS, "from_epsg", staticmethod(from_epsg))
+        assert get_projected_crs(longitude).to_epsg() == expected
+
+    def test_utm_fallback_requires_centroid_longitude(self, monkeypatch) -> None:
+        """Do not guess a UTM zone when the required centroid is unavailable."""
+        from pyproj.exceptions import CRSError
+
+        original = pyproj.CRS.from_epsg
+
+        def from_epsg(code):
+            if code == 9680:
+                raise CRSError("simulated missing CRS")
+            return original(code)
+
+        monkeypatch.setattr(pyproj.CRS, "from_epsg", staticmethod(from_epsg))
+        with pytest.raises(RuntimeError, match="centroid longitude"):
+            get_projected_crs()

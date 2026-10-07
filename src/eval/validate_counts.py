@@ -120,8 +120,7 @@ def check_closure_proximity(
     """
     from shapely.strtree import STRtree
 
-    proj_crs = get_projected_crs()
-    detections = gpd.read_parquet(detections_path).to_crs(proj_crs)
+    detections = gpd.read_parquet(detections_path)
 
     records: list[dict[str, Any]] = []
     with open(closure_csv, newline="", encoding="utf-8") as f:
@@ -137,6 +136,9 @@ def check_closure_proximity(
 
     if not records:
         return []
+
+    proj_crs = get_projected_crs(float(np.mean([r["longitude"] for r in records])))
+    detections = detections.to_crs(proj_crs)
 
     closure_gdf = gpd.GeoDataFrame(
         records,

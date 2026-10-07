@@ -25,6 +25,7 @@ import pandas as pd
 import streamlit as st
 
 from app.data_loader import load_kilns as load_kilns_from_parquet
+from app.popup import parse_breached_rules
 
 # Add project root to path for imports
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -200,9 +201,7 @@ def render_map(df: pd.DataFrame, confidence_threshold: float = 0.5) -> None:
         color = _priority_color(int(rank), total)
 
         # Build popup
-        breached = row.get("breached_rules", [])
-        if isinstance(breached, str):
-            breached = eval(breached) if breached.startswith("[") else [breached]
+        breached = parse_breached_rules(row.get("breached_rules", []))
 
         needs_verification = row["confidence"] < confidence_threshold
 

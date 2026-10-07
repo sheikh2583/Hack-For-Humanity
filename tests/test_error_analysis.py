@@ -61,8 +61,8 @@ def test_empty_inputs_produce_zero_counts(tmp_path: Path) -> None:
     assert result["missed_kilns"] == 0
 
 
-def test_matched_chips_produce_no_simple_errors(tmp_path: Path) -> None:
-    """When both prediction and GT exist for a chip, neither FP nor miss is logged."""
+def test_partial_errors_are_box_matched_and_gt_only_chip_is_visited(tmp_path: Path) -> None:
+    """Matching catches partial misses, extra boxes, and labels with no pred file."""
     pred_dir = tmp_path / "predictions"
     gt_dir = tmp_path / "ground_truth"
     img_dir = tmp_path / "images"
@@ -71,13 +71,20 @@ def test_matched_chips_produce_no_simple_errors(tmp_path: Path) -> None:
     pred_dir.mkdir()
     gt_dir.mkdir()
 
-    # Same chip has both prediction and GT
-    (pred_dir / "chip_c.txt").write_text("0 0.1 0.1 0.9 0.1 0.9 0.9 0.1 0.9 0.9\n")
-    (gt_dir / "chip_c.txt").write_text("0 0.1 0.1 0.9 0.1 0.9 0.9 0.1 0.9\n")
+    # First box matches; the shifted prediction is a false positive and the
+    # second ground truth is missed. A separate GT-only chip is also detected.
+    (pred_dir / "chip_c.txt").write_text(
+        "0 0.1 0.1 0.4 0.1 0.4 0.4 0.1 0.4 0.9\n"
+        "0 0.6 0.6 0.9 0.6 0.9 0.9 0.6 0.9 0.8\n"
+    )
+    (gt_dir / "chip_c.txt").write_text(
+        "0 0.1 0.1 0.4 0.1 0.4 0.4 0.1 0.4\n"
+        "0 0.1 0.6 0.4 0.6 0.4 0.9 0.1 0.9\n"
+    )
+    (gt_dir / "chip_d.txt").write_text("0 0.2 0.2 0.8 0.2 0.8 0.8 0.2 0.8\n")
 
-    _write_chips(img_dir, ["chip_c"])
+    _write_chips(img_dir, ["chip_c", "chip_d"])
 
     result = run_error_analysis(pred_dir, gt_dir, img_dir, out_dir)
-    # The simple matching logic doesn't count matched chips as errors
-    assert result["false_positives"] == 0
-    assert result["missed_kilns"] == 0
+    assert result["false_positives"] == 1
+    assert result["missed_kilns"] == 2

@@ -119,13 +119,12 @@ def validation_map50(
         reader = csv.DictReader(source)
         fields = {field.strip(): field for field in (reader.fieldnames or [])}
         column = fields.get(preferred_column)
-        if column is None:
-            column = next((field for name, field in fields.items() if "mAP50" in name), None)
         fitness = fields.get(fitness_column)
         rows = list(reader)
     if column is None or fitness is None or not rows:
         raise ValueError(
-            f"No validation mAP50 / {fitness_column} rows found in {path}"
+            f"Required validation columns {preferred_column!r} and {fitness_column!r} "
+            f"were not found with data rows in {path}"
         )
     scored = [(float(row[fitness]), index) for index, row in enumerate(rows)]
     scored = [(value, index) for value, index in scored if not math.isnan(value)]

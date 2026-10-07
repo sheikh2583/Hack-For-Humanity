@@ -40,7 +40,7 @@ import numpy as np
 import pandas as pd
 import yaml
 
-from src.geo.crs import get_projected_crs
+from src.geo.crs import centroid_longitude, get_projected_crs
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
@@ -201,8 +201,8 @@ def compute_priority(
     if radius_m is None:
         radius_m = float(scoring_cfg.get("exposure_radius_m", 1000))
 
-    proj_crs = get_projected_crs()
     kilns = gpd.read_parquet(kilns_scored_path)
+    proj_crs = get_projected_crs(centroid_longitude(kilns))
     kilns_proj = kilns.to_crs(proj_crs)
 
     if osm_dir is None:
@@ -295,42 +295,40 @@ def sensitivity_analysis(
     baseline_ranking = None
 
     for radius in radii:
-        for weights in weight_sets:
-            import tempfile
+        import tempfile
 
-            with tempfile.NamedTemporaryFile(suffix=".parquet", delete=False) as tmp:
-                tmp_path = Path(tmp.name)
-
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tmp_path = Path(temp_dir) / "priority.parquet"
             gdf = compute_priority(
                 kilns_scored_path, output=tmp_path, radius_m=radius, osm_dir=osm_dir
             )
-            gdf = _score_priority_components(
-                gdf,
-                gdf["n_schools"].to_numpy(),
-                gdf["n_hospitals"].to_numpy(),
-                gdf["settlement_area"].to_numpy(),
-                weights,
-                str(scoring_cfg.get("normalization", "percentile_rank")),
-            )
-            top20 = gdf.nsmallest(20, "priority_rank")["kiln_id"].tolist()
-            if baseline_ranking is None:
-                baseline_ranking = top20
-            baseline_ranks = {kid: i for i, kid in enumerate(baseline_ranking)}
-            current_ranks = {kid: i for i, kid in enumerate(top20)}
-            common = set(baseline_ranking) & set(top20)
-            if len(common) >= 3:
-                x = [baseline_ranks[k] for k in common]
-                y = [current_ranks[k] for k in common]
-                corr, _ = spearmanr(x, y)
-            else:
-                corr = float("nan")
-            results.append({
-                "radius_m": radius,
-                "weights": weights,
-                "top20_overlap": len(common),
-                "spearman_rho": corr,
-            })
-            tmp_path.unlink(missing_ok=True)
+            for weights in weight_sets:
+                rescored = _score_priority_components(
+                    gdf,
+                    gdf["n_schools"].to_numpy(),
+                    gdf["n_hospitals"].to_numpy(),
+                    gdf["settlement_area"].to_numpy(),
+                    weights,
+                    str(scoring_cfg.get("normalization", "percentile_rank")),
+                )
+                top20 = rescored.nsmallest(20, "priority_rank")["kiln_id"].tolist()
+                if baseline_ranking is None:
+                    baseline_ranking = top20
+                baseline_ranks = {kid: i for i, kid in enumerate(baseline_ranking)}
+                current_ranks = {kid: i for i, kid in enumerate(top20)}
+                common = set(baseline_ranking) & set(top20)
+                if len(common) >= 3:
+                    x = [baseline_ranks[k] for k in common]
+                    y = [current_ranks[k] for k in common]
+                    corr, _ = spearmanr(x, y)
+                else:
+                    corr = float("nan")
+                results.append({
+                    "radius_m": radius,
+                    "weights": weights,
+                    "top20_overlap": len(common),
+                    "spearman_rho": corr,
+                })
 
     df = pd.DataFrame(results)
     rprint(df.to_string(index=False))

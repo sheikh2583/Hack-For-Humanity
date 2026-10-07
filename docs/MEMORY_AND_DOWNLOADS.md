@@ -1,10 +1,11 @@
 # Memory and download review
 
-**Review date:** 2026-09-29
+**Review date:** 2026-10-07
 
 This review targets avoidable peak memory and repeated network traffic in the
-current prototype. It does not claim a measured reduction: no district raster,
-GPU training run, or full Overpass fetch was benchmarked during this review.
+current prototype. Training run `run_0002` has since completed, but it was not a
+controlled performance benchmark. No district raster or full Overpass fetch
+was benchmarked during this review, and no measured optimization is claimed.
 
 ## Repository cleanup
 
@@ -81,9 +82,10 @@ GPU training run, or full Overpass fetch was benchmarked during this review.
   before rendering. Very large layers may still need viewport filtering or
   generalized display geometries; those changes could affect visible detail
   and should be measured against the actual districts first.
-- The notebook uses batch size 8. No VRAM benchmark has been run on either the
-  Windows RTX 4070 or the planned Linux RTX 3090; keep the starting value until
-  the user observes memory use or an OOM on the target host.
+- The notebook and `run_0002` used batch size 8. The full staged run completed
+  on the Linux RTX 3090. This was an operational training run, not a controlled
+  VRAM benchmark; keep the configured value unless a measured optimization or
+  an out-of-memory failure justifies changing it.
 
 ## Install only what the task needs
 

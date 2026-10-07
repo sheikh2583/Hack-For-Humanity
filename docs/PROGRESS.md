@@ -1,15 +1,32 @@
 # KilnWatch BD progress and verification
 
-**Checked:** 2026-09-29. This document tracks the implementation against
-[`kilnwatch_scaffold.md`](../kilnwatch_scaffold.md) and the later project requests.
-For the machine-run evidence and planned Linux overnight run, see
-[`TRAINING_RUN_HISTORY.md`](TRAINING_RUN_HISTORY.md).
+**Updated:** 2026-10-07. This document tracks implementation against
+[`kilnwatch_scaffold.md`](../kilnwatch_scaffold.md) and later project requests.
+Linux training run `run_0002` completed; see
+[`TRAINING_RUN_HISTORY.md`](TRAINING_RUN_HISTORY.md) for stage metrics and
+artifacts. The earlier progress notes below include a pre-run snapshot and are
+retained as dated history where useful.
 
 Cross-platform initialization scripts, shared CUDA 13.0 pins, a shared
 Linux/Windows training runner, and ten-epoch Git-staged metric archives have
-since been added. These changes were reviewed by code inspection and static
-syntax/CLI checks only; the training setup has not been run on the Linux RTX
-3090 host, and the new synthetic tests have not been executed.
+since been added. The Linux RTX 3090 runner was exercised in `run_0002`.
+The current test suite has not been rerun after the latest changes.
+
+## Update 2026-10-07: completed Linux training run
+
+- Run `results/run_0002/` completed the smoke gate, all four configured stages,
+  and one held-out test evaluation on the RTX 3090. The selected checkpoint is
+  `results/run_0002/checkpoints/final/best.pt` (YOLOv8s-OBB at 512 px).
+- Selected validation mAP50 was 0.70546. Held-out test mAP50 was 0.75244 and
+  mAP50-95 was 0.49299. See the run history for precision, recall, per-stage
+  results, and artifact paths.
+- The first three saved test batches contain 48 blank-label images. Their label
+  and prediction mosaics are identical, so they do not provide a visual review
+  of positive examples. Select representative positive and negative samples
+  before relying on visual spot checks.
+- Training completion does not complete the project pilot: real-raster
+  inference, geographic placement review, Earth Engine date/calibration gates,
+  OSM coverage, legal verification, and field review remain outstanding.
 
 ## Assessment
 
@@ -21,7 +38,7 @@ normalization, a confidence-weighted exposure formula, and a 1,300 m
 Chebyshev leakage filter. The old prompts below are historical where they
 conflict with those decisions.
 
-## Update 2026-10-07: review of the shared snapshot
+## Update 2026-10-07: pre-run review of the shared snapshot
 
 CPU-only review (no GPU workload, no training, no inference, no network). On this
 snapshot: 106 tests pass and 1 is skipped (it needs the ADM2 boundary file, which
@@ -29,7 +46,7 @@ review archives omit); `ruff` reports two TRY004 style findings in
 `src/training/run_store.py` that were left alone because they change the raised
 exception type.
 
-**Defects found in the training runner and fixed (not yet run on a GPU):**
+**Defects found in the training runner and fixed (before run `run_0002`):**
 
 1. `src/training/engine.py` passed a *relative* `project` to Ultralytics. Ultralytics
    8.4.165 resolves a relative project under its own `runs_dir/<task>/`, so results
@@ -109,24 +126,21 @@ or move only completed stages.
   `--refresh` is supplied, and Folium maps no longer fetch remote background
   tiles. See [`docs/MEMORY_AND_DOWNLOADS.md`](MEMORY_AND_DOWNLOADS.md); actual
   full-data RAM/VRAM benchmarks remain unmeasured.
-- Training start readiness is documented in
-  [`docs/TRAINING_READINESS.md`](TRAINING_READINESS.md): the converted data and
-  starting weights are ready. The Windows `.venv` has CUDA-enabled PyTorch.
-  Its RTX 4070 smoke run completed 3 epochs. The full YOLOv8n 256px stage has
-  six completed validation rows and the console capture shows interruption
-  during epoch 7; later stages and test evaluation did not run. The Linux RTX
-  3090 overnight run is planned but has not started. See the run history for
-  recorded metrics, artifacts, and handoff steps. The user manages GPU
-  workloads; agents must not touch the GPU unless explicitly asked.
-- The Windows development machine has an NVIDIA GeForce RTX 4070 (8 GB). The active `.venv` is
-  Python 3.12.10 with Ultralytics 8.4.165. Ruff passes for `src`, `app`, `tests`,
-  and `tools`; 101 tests passed as of 2026-10-06 (82 originally plus 19 new
-  validation, error-analysis, and negative-sampling tests). Partial
-  training output is under ignored `runs/`; final test-split metrics are not yet
-  available.
+- Training setup and completed-run evidence are summarized in
+  [`docs/TRAINING_READINESS.md`](TRAINING_READINESS.md). The earlier Windows
+  RTX 4070 run remains historical: its smoke completed, and its first full
+  stage stopped during epoch 7. The Linux RTX 3090 run subsequently completed
+  as `run_0002`; see the run history. The user manages future GPU workloads;
+  agents must not run them unless explicitly asked.
+- The Windows development machine has an NVIDIA GeForce RTX 4070 (8 GB). The
+  2026-10-06 static check recorded Ruff passing for `src`, `app`, `tests`, and
+  `tools`, with 101 tests passing and one skipped. This is historical test
+  evidence; the current suite has not been rerun after later changes. Linux
+  run `run_0002` produced held-out test metrics, but they do not establish field
+  accuracy.
 - `scripts/init_linux.sh` and `scripts/init_windows.ps1` share
-  `requirements-gpu-cu130.txt`; the Linux RTX 3090 host and its NVIDIA driver
-  have not been inspected. `scripts/prepare_training_assets.py` uses a pinned
+  `requirements-gpu-cu130.txt`; the Linux RTX 3090 host and CUDA stack were
+  exercised by run `run_0002`. `scripts/prepare_training_assets.py` uses a pinned
   SentinelKilnDB revision and checks file digests. Without a converted archive,
   it now fetches and validates Bangladesh ADM0 from geoBoundaries before raw-data
   conversion, then downloads pretrained weights. The stale root dataset ZIP is
@@ -136,9 +150,8 @@ or move only completed stages.
   execution/logging, and workflow coordination. Each run is numbered under
   `results/run_NNNN/`; manifests record the host/GPU used per stage, checkpoints
   are ignored, and epoch CSV archives are Git-staged every 10 epochs.
-- `docs/TRAINING_RUN_HISTORY.md` records the completed Windows smoke run, the
-  interrupted full-stage evidence, and the planned new Linux run. The Linux run
-  remains explicitly unstarted until the user launches it.
+- `docs/TRAINING_RUN_HISTORY.md` records the historical Windows runs and
+  completed Linux run `run_0002`.
 - Git metadata and an upstream tracking branch are present. A separate nested
   `Hack-For-Humanity/` copy is ignored and remains outside the active project.
 - Git metadata is present in this checkout, but no history review was needed
@@ -147,8 +160,9 @@ or move only completed stages.
 ## Implemented but awaiting external or human validation
 
 - `notebooks/train.ipynb` delegates smoke and staged model selection to the
-  canonical script runner. The historical partial validation metrics are in
-  `runs/yolov8n-obb-256/results.csv`; no final held-out evaluation exists.
+  canonical script runner. Historical partial Windows validation metrics are
+  in `runs/yolov8n-obb-256/results.csv`; the completed Linux held-out metrics
+  are in `results/run_0002/checkpoints/heldout_test/test_metrics.json`.
 - `config/preprocessing.yaml`, `src/data/export_s2.py`,
   `src/data/normalize.py`, and `tools/calibrate_preprocessing.py` implement the
   recorded repository recipe. `preprocessing_verified` intentionally remains
@@ -221,7 +235,8 @@ Sources checked on 2026-09-29:
    .\.venv\Scripts\python.exe tools\calibrate_preprocessing.py <exported-chip-dir> <training-png-dir>
    ```
 
-4. Run the cross-platform training runner on a GPU, use the resulting `best.pt`
-   and matching training `imgsz`, then spot-check raster alignment/detections.
-5. Finish the missing validation utilities, legal basis, and runbook before the
-   demo. Review the unverified rules and OSM data coverage by hand.
+4. Review representative positive and negative detections from `run_0002`,
+   then run inference on an approved real-raster pilot and spot-check raster
+   alignment and cross-tile deduplication.
+5. Resolve the date/calibration gate, complete legal and OSM human review, and
+   finish the outstanding validation utilities before making pilot claims.

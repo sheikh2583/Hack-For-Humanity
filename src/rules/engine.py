@@ -43,7 +43,7 @@ import numpy as np
 import pandas as pd
 import yaml
 
-from src.geo.crs import get_projected_crs
+from src.geo.crs import centroid_longitude, get_projected_crs
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -123,7 +123,8 @@ def evaluate_rules(
     from rich import print as rprint
 
     rules = _load_rules(rules_config)
-    proj_crs = get_projected_crs()
+    kilns = gpd.read_parquet(kilns_path)
+    proj_crs = get_projected_crs(centroid_longitude(kilns))
 
     # Check if any rule is unverified
     any_unverified = False

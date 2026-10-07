@@ -38,6 +38,8 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 
+from src.geo.crs import centroid_longitude, get_projected_crs
+
 
 def _wilson_interval(
     successes: int,
@@ -116,8 +118,10 @@ def generate_audit_sample(
 
     sample_df = pd.concat(samples, ignore_index=True)
 
-    # Compute centroids
-    centroids = sample_df.geometry.centroid
+    # Centroids are calculated in the prescribed projected CRS, then returned
+    # to WGS84 for the audit CSV and Google Earth links.
+    projected_crs = get_projected_crs(centroid_longitude(kilns))
+    centroids = sample_df.to_crs(projected_crs).geometry.centroid.to_crs("EPSG:4326")
     sample_df["lat"] = centroids.y
     sample_df["lon"] = centroids.x
 
@@ -239,11 +243,10 @@ def sample_negative_regions(
     """
     from shapely.strtree import STRtree
 
-    from src.geo.crs import get_projected_crs
-
-    proj_crs = get_projected_crs()
     detections = gpd.read_parquet(detections_path)
-    boundary = gpd.read_file(boundary_path).to_crs(proj_crs)
+    boundary_wgs84 = gpd.read_file(boundary_path).to_crs("EPSG:4326")
+    proj_crs = get_projected_crs(centroid_longitude(boundary_wgs84))
+    boundary = boundary_wgs84.to_crs(proj_crs)
     boundary_union = boundary.union_all()
 
     det_proj = detections.to_crs(proj_crs)
