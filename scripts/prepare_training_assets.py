@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import shutil
 import subprocess
@@ -43,6 +44,7 @@ RAW_ROOT = PROJECT_ROOT / "data/raw/sentinelkilndb"
 DATASET_ROOT = PROJECT_ROOT / "data/interim/yolo_obb"
 BOUNDARY = PROJECT_ROOT / "data/raw/bangladesh_boundary.geojson"
 MODEL_ROOT = PROJECT_ROOT / "data/models"
+BOUNDARY_API = "https://www.geoboundaries.org/api/current/gbOpen/BGD/ADM0/"
 
 
 def is_valid_converted_dataset(dataset_root: Path) -> bool:
@@ -194,13 +196,7 @@ def _ensure_raw_dataset(download: bool) -> None:
 
 
 def _convert_raw_dataset() -> None:
-    """Run the project conversion using a manually reviewed country boundary."""
-    if not BOUNDARY.is_file():
-        raise FileNotFoundError(
-            "Raw Parquet data is present, but conversion requires your reviewed "
-            f"Bangladesh boundary at {BOUNDARY}. The initializer will not fetch or "
-            "guess a boundary source. Place the reviewed file there, then rerun."
-        )
+    """Convert raw Parquet data using the validated geoBoundaries BGD ADM0 file."""
     command = [
         sys.executable,
         "-m",
@@ -213,6 +209,55 @@ def _convert_raw_dataset() -> None:
         str(DATASET_ROOT),
     ]
     subprocess.run(command, cwd=PROJECT_ROOT, check=True)
+
+
+def _ensure_boundary() -> None:
+    """Use a local boundary or fetch and validate geoBoundaries' Bangladesh ADM0.
+
+    Input schema: geoBoundaries current API metadata plus its GeoJSON download.
+    Output schema: one or more valid Polygon/MultiPolygon features in EPSG:4326
+    saved as ``data/raw/bangladesh_boundary.geojson``.
+    """
+    import geopandas as gpd
+
+    if BOUNDARY.is_file():
+        boundary = gpd.read_file(BOUNDARY)
+        if (
+            boundary.empty
+            or boundary.crs is None
+            or boundary.crs.to_epsg() != 4326
+            or not boundary.geometry.is_valid.all()
+            or not boundary.geom_type.isin(("Polygon", "MultiPolygon")).all()
+        ):
+            raise ValueError(f"Existing boundary is invalid or not EPSG:4326: {BOUNDARY}")
+        return
+
+    with urllib.request.urlopen(BOUNDARY_API, timeout=60) as response:
+        metadata = json.load(response)
+    if metadata.get("boundaryISO") != "BGD" or metadata.get("boundaryType") != "ADM0":
+        raise ValueError("geoBoundaries API did not return Bangladesh ADM0 metadata")
+    download_url = metadata.get("gjDownloadURL")
+    if not isinstance(download_url, str) or not download_url.startswith("https://"):
+        raise ValueError("geoBoundaries API did not provide a secure GeoJSON download URL")
+
+    BOUNDARY.parent.mkdir(parents=True, exist_ok=True)
+    partial = BOUNDARY.with_name(f"{BOUNDARY.stem}.partial{BOUNDARY.suffix}")
+    try:
+        urllib.request.urlretrieve(download_url, partial)
+        boundary = gpd.read_file(partial)
+        if (
+            boundary.empty
+            or boundary.crs is None
+            or boundary.crs.to_epsg() != 4326
+            or not boundary.geometry.is_valid.all()
+            or not boundary.geom_type.isin(("Polygon", "MultiPolygon")).all()
+        ):
+            raise ValueError("Downloaded geoBoundaries GeoJSON failed geometry/CRS validation")
+        partial.replace(BOUNDARY)
+    except Exception:
+        partial.unlink(missing_ok=True)
+        raise
+    print(f"Downloaded Bangladesh ADM0 boundary from geoBoundaries: {download_url}")
 
 
 def _ensure_starting_weights() -> None:
@@ -254,8 +299,8 @@ def main() -> int:
     parser.add_argument(
         "--download-raw",
         action="store_true",
-        help="Confirm download of the pinned 3.74 GB SentinelKilnDB source files",
-    )
+        help=argparse.SUPPRESS,
+    )  # Kept for compatibility; raw data downloads automatically when needed.
     parser.add_argument(
         "--make-dataset-archive",
         metavar="PATH",
@@ -272,22 +317,7 @@ def main() -> int:
         if archive:
             _extract_dataset_archive(archive)
         else:
-            if not BOUNDARY.is_file():
-                print(
-                    "Training data is absent. Supply a converted yolo_obb_bd.zip or "
-                    "place your reviewed Bangladesh boundary at "
-                    f"{BOUNDARY}. The boundary is required to build the converted dataset."
-                )
-                return 2
-            download = args.download_raw
-            if not download and sys.stdin.isatty():
-                answer = input(
-                    "Download pinned SentinelKilnDB Parquet files (about 3.74 GB)? [y/N] "
-                )
-                download = answer.strip().lower() in {"y", "yes"}
-            if not download:
-                print("No dataset download requested. Pass --download-raw to download it.")
-                return 2
+            _ensure_boundary()
             _ensure_raw_dataset(download=True)
             _convert_raw_dataset()
 
