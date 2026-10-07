@@ -1,5 +1,11 @@
 # Claude review context: training artifacts and prediction plots
 
+This note records the visual sampling limitation in the completed benchmark
+run; it is not a statement that the dashboard outputs are confirmed findings.
+Current candidate wording, CSV notices, provenance fields, and unresolved legal
+and spatial source dependencies are documented in
+[`screening_provenance.md`](screening_provenance.md).
+
 ## Current training run
 
 `results/run_0002/` completed on the Linux RTX 3090 using Python 3.12.2,

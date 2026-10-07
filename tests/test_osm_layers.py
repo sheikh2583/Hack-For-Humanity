@@ -19,6 +19,7 @@ from src.geo.osm_layers import (
     _clip_features_to_district,
     _district_bbox,
     _fetch_layer,
+    _annotate_source_provenance,
     fetch_all_layers,
 )
 
@@ -41,6 +42,28 @@ def test_osm_features_are_clipped_to_district_polygon() -> None:
     )
     clipped = _clip_features_to_district(features, box(0, 0, 0.5, 0.5))
     assert clipped["name"].tolist() == ["inside"]
+
+
+def test_fetched_osm_layer_retains_source_and_feature_provenance() -> None:
+    """A fetched feature carries its source identity and access metadata."""
+    import pandas as pd
+
+    features = gpd.GeoDataFrame(
+        {"name": ["school"], "amenity": ["school"], "geometry": [Point(88.5, 24.5)]},
+        index=pd.MultiIndex.from_tuples([("way", 123)], names=["element", "id"]),
+        crs="EPSG:4326",
+    )
+    result = _annotate_source_provenance(
+        features, "schools", "https://overpass.example/api/interpreter"
+    )
+
+    assert result.loc[result.index[0], "feature_id"] == "('way', 123)"
+    assert result.loc[result.index[0], "source_layer_id"] == "openstreetmap:schools"
+    assert result.loc[result.index[0], "source_authority"] == "OpenStreetMap contributors"
+    assert result.loc[result.index[0], "source_url"] == "https://overpass.example/api/interpreter"
+    assert result.loc[result.index[0], "source_accessed_at"]
+    assert result.loc[result.index[0], "source_version_date"] is None
+    assert "not a legally controlling boundary" in result.loc[result.index[0], "geometry_provenance"]
 
 
 def test_fetch_all_layers_reuses_cache_unless_refreshed(tmp_path: Path) -> None:

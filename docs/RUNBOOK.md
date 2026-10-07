@@ -1,6 +1,6 @@
 # KilnWatch BD Operator Runbook
 
-**Updated:** 2026-10-07. **Scope:** completed local GPU training and the later
+**Updated:** 2026-10-08. **Scope:** completed local GPU training and the later
 imagery/pilot handoff.
 
 ## Current Verified State
@@ -38,8 +38,10 @@ ruff check src app tests tools
 ```
 
 Historical local verification: `ruff check src app tests tools` passed and
-the 2026-10-06 test run reported 101 passed and one skipped. The current test
-suite has not been rerun after later changes. The full test suite includes the
+the 2026-10-06 test run reported 101 passed and one skipped. Latest targeted
+screening UI, CSV, rule-provenance, OSM-provenance, inference, and pipeline
+checks reported 32 passed and 3 deselected because OSMnx is unavailable in the
+active `.venv`; the full test suite was not run. The full suite includes the
 ADM2 boundary test when that file is present.
 
 ## Dataset Conversion
@@ -149,8 +151,12 @@ python -m src.cli infer path\to\best.pt `
 ```
 
 Then fetch or load reviewed OSM caches, run rules and scoring, and generate an
-an audit CSV. Inspect detections, coordinate placement, OSM coverage, and the
-advisory-only labels manually before sharing results.
+audit CSV. Inspect detections, coordinate placement, OSM coverage, and the
+advisory screening labels before sharing results. Every marker/detail popup and
+CSV should retain its caveat and explain that distances are measured to mapped
+features, which may not be legally controlling boundaries. See
+[`screening_provenance.md`](screening_provenance.md) for traceability fields
+and review-state definitions.
 
 ## Explicitly Not Automatable Here
 

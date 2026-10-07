@@ -1,19 +1,19 @@
 # KilnWatch BD — Compliance Rules
 # ============================================================
-# WARNING: all values below are UNVERIFIED placeholders from
-# secondary sources.  Read the Brick Manufacturing and Kiln
-# Establishment (Control) Act 2013 (amended 2019) and the
-# January 2020 gazette *yourself* before setting verified: true.
+# WARNING: all values below remain UNVERIFIED screening proxies.
+# Manus research was reviewed against the official consolidated Act and
+# Gazette scan; current legal force and GIS boundary interpretation remain
+# unresolved. See docs/legal_basis.md before changing any verified flag.
 # ============================================================
 
-version: draft-0
+version: draft-1
 
 legal_status_caveat: "s.8 bars ESTABLISHING kilns in prohibited areas after 2013; the 2019 proviso allows relaxation for pre-existing kilns meeting air standards (not for ECAs, forest, hills). Imagery cannot show establishment date: flags are candidates, not findings."
 forest_hill_note: "2 km govt forest (8(3)(খ)) and 0.5 km hills (8(3)(গ)) cannot be relaxed by the proviso"
 
 sources:
-  - "Brick Manufacturing and Kiln Establishment (Control) Act 2013 (Act 59 of 2013), amended by Act 1 of 2019. Consolidated Bangla text: bdlaws.minlaw.gov.bd/act-details-1140.html (no official English translation found)"
-  - "Bangladesh Gazette Extra 9 Jan 2020, S.R.O. No. 07-Ain/2020 dated 06-01-2020 (Legislative Division 2020 SRO index, item 7): relaxes the s.8(3) distances to 400 m ONLY for EXISTING advanced-technology kilns (Hybrid Hoffman, Tunnel), subject to air-quality and workplace conditions; not applicable to new kilns. Not used by any rule below: the detector cannot identify those technologies."
+  - "Brick Manufacturing and Kiln Establishment (Control) Act 2013 (Act 59 of 2013), amended by Act 1 of 2019. Official consolidated Bangla text: https://bdlaws.minlaw.gov.bd/act-details-1140.html (no official English translation found)"
+  - "Bangladesh Gazette Extra, S.R.O. 07-Ain/2020: https://www.dpp.gov.bd/upload_file/gazettes/34909_20337.pdf. Manus transcribes a narrow 400 m exception for certain existing kilns; the scan's full text and current force have not been independently verified. Not used by any rule below."
   - "Evidence register with candidate passages and open items: docs/legal_basis.md (all unverified)"
 
 technology:
@@ -23,16 +23,12 @@ technology:
   verified: false
 
 siting_rules:
-  # Candidate source mapping (unverified; see docs/legal_basis.md):
-  #   schools / hospitals -> s.8(3)(ঙ): 1 km from education institutions, hospitals and clinics (also railways, research institutions)
-  #   settlements         -> s.8(1)(ক)(খ) + s.8(3)(ক): 1 km from residential area (>= 50 families) / city, municipality, upazila HQ
-  #   forests             -> s.8(3)(খ) gives 2 km for GOVERNMENT forest only; other forest, sanctuary, garden are 1 km via s.8(3)(ক)
-  #   water               -> s.8(1)(গ) wetland (submerged >= 6 months) + s.8(3)(ক): 1 km; OSM "water" also includes rivers and ponds
+  # These are unverified screening proxies, not findings of legal breach.
+  # School/hospital and settlement geometry does not fully represent the
+  # Act's legal categories or reference boundaries. See docs/legal_basis.md.
   - {id: near_school,     feature: schools,      buffer_m: 1000, severity: 3, verified: false}
   - {id: near_hospital,   feature: hospitals,     buffer_m: 1000, severity: 3, verified: false}
   - {id: near_settlement, feature: settlements,   buffer_m: 1000, severity: 2, verified: false}
-  - {id: near_forest,     feature: forests,        buffer_m: 2000, severity: 2, verified: false}
-  - {id: near_wetland,    feature: water,          buffer_m: 1000, severity: 1, verified: false}
 
 scoring:
   exposure_radius_m: 1000
@@ -49,4 +45,6 @@ not_implemented:
   - "railways, 1 km (named in s.8(3)(ঙ); needs a railway layer)"
   - "hills and mounds, 0.5 km (s.8(3)(গ); needs terrain data)"
   - "sanctuaries, gardens, degraded air sheds (s.8(1); no usable public layers identified)"
+  - "government forests (the 2 km rule is specific to government forest; generic OSM forests are not used as a legal proxy)"
+  - "wetlands (the Act's seasonal-submergence definition is not represented by generic OSM water; no legal proxy is used)"
   - "ordinary roads: no road-distance rule was found in the Act, the 2019 amendment or the official pages reviewed; do not add one without a primary source"

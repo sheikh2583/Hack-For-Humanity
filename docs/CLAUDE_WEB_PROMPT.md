@@ -4,9 +4,9 @@ Upload `kilnwatch_bd_share.zip` to Claude Web, then paste this prompt:
 
 ```text
 Review the attached KilnWatch BD project as an independent technical reviewer.
-Read AGENTS.md, docs/PROGRESS.md, docs/TRAINING_READINESS.md,
-docs/TRAINING_RUN_HISTORY.md, docs/MEMORY_AND_DOWNLOADS.md, and
-kilnwatch_scaffold.md first. Inspect the code/config/notebook in the ZIP before
+Read AGENTS.md, README.md, docs/screening_provenance.md, docs/legal_basis.md,
+docs/PROGRESS.md, docs/TRAINING_RUN_HISTORY.md, and kilnwatch_scaffold.md
+first. Inspect the code/config/notebook in the ZIP before
 making claims. Use primary sources and direct links for source-dependent legal
 or dataset claims. Do not edit code or invent schemas, legal rules, thresholds,
 dates, or coordinates.
@@ -29,15 +29,21 @@ dates, or coordinates.
   1,662, test 1,530. Its split report records a 1,300 m Chebyshev leakage
   filter and 1,322.41 m minimum cross-split distance. Starting weights are in
   data/models/; the selected trained checkpoint is separate.
-- Historical local test evidence from 2026-10-06 was 101 passed and one
-  skipped; Ruff passed then. The current suite has not been rerun after later
-  changes. Do not claim those checks cover subsequent edits.
+- Targeted tests for the recent screening UI, CSV, rule provenance, OSM
+  provenance, inference, and pipeline changes reported 32 passed and 3
+  deselected due to OSMnx being unavailable in the active environment. This
+  was not a full suite run. The 2026-10-06 run of 101 passed/one skipped and
+  Ruff are historical only.
 - Earth Engine export and inference on exported real Sentinel-2 imagery have
   not run. config/preprocessing.yaml remains preprocessing_verified: false
   because published date ranges conflict and paired-chip calibration has not
   been completed. Rules in config/rules.yaml remain legally unverified.
 - No representative positive detections, geographic placement, OSM coverage,
-  field accuracy, or legal compliance conclusion has been human-verified.
+  field accuracy, or legal/administrative status has been confirmed by an
+  authorized reviewer. Dashboard and CSV values are advisory screening
+  candidates. Rule signals default to `unverified_candidate`; detector
+  confidence is not legal confirmation. See docs/screening_provenance.md for
+  known provenance limits, legacy-data gaps, and unresolved source dependencies.
   GPU workloads remain user-managed unless explicitly requested.
 
 ## Review questions
@@ -56,8 +62,8 @@ dates, or coordinates.
 4. Review code for concrete correctness, security, memory, and performance
    issues. Separate code-inspection conclusions from measurements; do not
    claim an optimization is faster without a benchmark.
-5. Check whether manual review plots should sample representative positive and
-   negative examples instead of only the first three validation batches.
+5. Review whether current provenance fields can be populated from actual
+   producers and identify compatibility risks for legacy data.
 6. Compare scaffold promises with implementation and identify remaining
    blockers for a local demo and a real imagery pilot. Verify all claimed gaps
    against the ZIP rather than copying stale status text.
@@ -72,6 +78,11 @@ dates, or coordinates.
 - Any stale documentation or contradiction found in the ZIP.
 - A short next-step sequence. Preserve the completed model/run artifacts and
   do not rerun training or held-out test evaluation as part of this review.
+
+Do not describe a model or GIS result as a breach, illegal, non-compliant, or
+verified. Distances are to mapped features and may not match legally controlling
+boundaries. Do not change legal thresholds or verification fields based on
+secondary sources alone.
 
 Be explicit about uncertainty and distinguish verified facts, code-inspection
 conclusions, and inference. Do not mark preprocessing or legal rules verified

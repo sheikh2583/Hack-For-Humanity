@@ -49,6 +49,9 @@ class TestRuleEngine:
                 "class": ["FCBK", "Zigzag"],
                 "confidence": [0.9, 0.8],
                 "district": ["TestDistrict", "TestDistrict"],
+                "detector_model": ["synthetic-model", "synthetic-model"],
+                "detector_version": ["test-version", "test-version"],
+                "imagery_date": [None, None],
             },
             crs="EPSG:4326",
         )
@@ -62,7 +65,17 @@ class TestRuleEngine:
         osm_dir.mkdir(parents=True)
 
         schools_gdf = gpd.GeoDataFrame(
-            {"name": ["Test School"], "geometry": [school_point]},
+            {
+                "name": ["Test School"],
+                "feature_id": ["way/123"],
+                "source_layer_id": ["openstreetmap:schools"],
+                "source_authority": ["OpenStreetMap contributors"],
+                "source_url": ["https://www.openstreetmap.org/"],
+                "source_version_date": [None],
+                "source_accessed_at": ["2026-10-08T00:00:00+00:00"],
+                "geometry_provenance": ["synthetic test geometry"],
+                "geometry": [school_point],
+            },
             crs="EPSG:4326",
         )
         schools_gdf.to_parquet(osm_dir / "schools.parquet")
@@ -131,3 +144,33 @@ class TestRuleEngine:
 
         assert "dist_schools_m" in result.columns
         assert "dist_hospitals_m" in result.columns
+
+    def test_candidate_signals_have_unverified_provenance(self, setup_data: dict) -> None:
+        """Matched mapped features retain source, method, confidence, and review state."""
+        import json
+
+        from src.rules.engine import evaluate_rules
+
+        result = evaluate_rules(
+            kilns_path=setup_data["kilns_path"],
+            rules_config=setup_data["rules_path"],
+            osm_dir=setup_data["osm_dir"],
+            output=setup_data["output"],
+        )
+        near_kiln = result[result["kiln_id"] == "kiln_near"].iloc[0]
+        records = json.loads(near_kiln["signal_provenance_json"])
+        school_signal = next(item for item in records if item["signal_id"] == "near_school")
+
+        assert school_signal["review_state"] == "unverified_candidate"
+        assert school_signal["rule_config_version"] == "test-v1"
+        assert school_signal["source_layer_id"] == "openstreetmap:schools"
+        assert school_signal["source_authority"] == "OpenStreetMap contributors"
+        assert school_signal["source_url"].startswith("https://")
+        assert school_signal["feature_id"] == "way/123"
+        assert school_signal["distance_m"] == pytest.approx(500, abs=3)
+        assert "Shapely nearest geometry distance" in school_signal["measurement_method"]
+        assert school_signal["detector_model_version"] == "synthetic-model / test-version"
+        assert school_signal["detector_confidence"] == pytest.approx(0.9)
+        assert school_signal["imagery_date"] is None
+        assert school_signal["instrument_id"] is None
+        assert school_signal["effective_dates"] is None

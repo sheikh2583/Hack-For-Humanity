@@ -1,6 +1,6 @@
 # Training setup and completed run
 
-**Updated:** 2026-10-07. The Linux RTX 3090 training run completed as
+**Updated:** 2026-10-08. The Linux RTX 3090 training run completed as
 `results/run_0002/`. This document records the verified run and the remaining
 review steps. Run-by-run evidence is in
 [`TRAINING_RUN_HISTORY.md`](TRAINING_RUN_HISTORY.md).
@@ -29,31 +29,14 @@ training host and CUDA stack were exercised by this run.
 ## Completed run `run_0002`
 
 The 3-epoch smoke gate passed, all four configured stages completed, and the
-selected model was evaluated once on the held-out test split. The candidate
-selection used validation mAP50. The selected stage was YOLOv8s-OBB at 512 px.
-
-| Measure | Result |
-|---|---:|
-| Selected-stage validation mAP50 | 0.70546 |
-| Held-out test mAP50 | 0.75244 |
-| Held-out test mAP50-95 | 0.49299 |
-| Held-out test precision | 0.69856 |
-| Held-out test recall | 0.73354 |
-
-Artifacts:
-
-- Final checkpoint: `results/run_0002/checkpoints/final/best.pt`
-- Run manifest: `results/run_0002/run.json`
-- Final summary: `results/run_0002/checkpoints/final/training_results.json`
-- Held-out metrics: `results/run_0002/checkpoints/heldout_test/test_metrics.json`
-- Epoch CSV archives: `results/run_0002/logs/<stage>/`
-- Training and evaluation plots: `results/run_0002/checkpoints/`
-
-The first three held-out plot batches contain 48 blank-label images, so their
-label and prediction mosaics are identical and do not visually review positive
-detections. This is a sampling limitation, not evidence that OBB rendering is
-broken. Select representative positive and negative examples for manual review.
-The aggregate test metrics do not establish field accuracy.
+selected model was evaluated once on the held-out test split using validation
+mAP50 for candidate selection. Detailed metrics, stages, artifact paths, and
+plot-sampling limitations are recorded once in
+[`TRAINING_RUN_HISTORY.md`](TRAINING_RUN_HISTORY.md). The selected checkpoint
+is `results/run_0002/checkpoints/final/best.pt` (YOLOv8s-OBB at 512 px).
+The test metrics are dataset evaluation results, not evidence of field
+accuracy. The first three test mosaics do not cover positive examples; inspect
+representative validation examples before use.
 
 ## Historical Windows run
 
@@ -90,6 +73,9 @@ specific GPU work.
 - Legal rule thresholds. Values in `config/rules.yaml` remain unverified and
   must not be treated as legal findings.
 - OSM coverage for the intended pilot area.
+
+The advisory dashboard/export semantics and signal provenance requirements are
+documented in [`screening_provenance.md`](screening_provenance.md).
 
 Training uses the already converted local SentinelKilnDB chips; it does not
 require Earth Engine authentication. The date and preprocessing questions

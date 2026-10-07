@@ -1,4 +1,4 @@
-"""Priority scoring for kiln compliance triage.
+"""Screening priority scoring for kiln candidates.
 
 Input
 -----
@@ -13,13 +13,13 @@ Output
   Column                 Dtype      Description
   =====================  =========  =============================================
   exposure               float      Weighted normalized school, hospital, settlement components
-  priority               float      breach_score * confidence * (1 + exposure)
+  priority               float      screening score × detector confidence × (1 + exposure)
   priority_rank          int        1 = highest priority
   =====================  =========  =============================================
 
 Formula
 -------
-    priority = breach_score * confidence * (1 + exposure)
+    priority = screening score * detector confidence * (1 + exposure)
 
     exposure = weighted sum of the three separately normalized components
 

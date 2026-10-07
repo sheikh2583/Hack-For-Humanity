@@ -1,6 +1,6 @@
 # KilnWatch BD progress and verification
 
-**Updated:** 2026-10-07. This document tracks implementation against
+**Updated:** 2026-10-08. This document tracks implementation against
 [`kilnwatch_scaffold.md`](../kilnwatch_scaffold.md) and later project requests.
 Linux training run `run_0002` completed; see
 [`TRAINING_RUN_HISTORY.md`](TRAINING_RUN_HISTORY.md) for stage metrics and
@@ -10,7 +10,9 @@ retained as dated history where useful.
 Cross-platform initialization scripts, shared CUDA 13.0 pins, a shared
 Linux/Windows training runner, and ten-epoch Git-staged metric archives have
 since been added. The Linux RTX 3090 runner was exercised in `run_0002`.
-The current test suite has not been rerun after the latest changes.
+Latest targeted screening UI, CSV, rule-provenance, OSM-provenance, inference,
+and pipeline checks reported 32 passed and 3 deselected (OSMnx is unavailable
+in the active `.venv`). This was not a full suite run.
 
 ## Update 2026-10-07: completed Linux training run
 
@@ -135,7 +137,7 @@ or move only completed stages.
 - The Windows development machine has an NVIDIA GeForce RTX 4070 (8 GB). The
   2026-10-06 static check recorded Ruff passing for `src`, `app`, `tests`, and
   `tools`, with 101 tests passing and one skipped. This is historical test
-  evidence; the current suite has not been rerun after later changes. Linux
+  evidence and does not cover later changes. Linux
   run `run_0002` produced held-out test metrics, but they do not establish field
   accuracy.
 - `scripts/init_linux.sh` and `scripts/init_windows.ps1` share
@@ -193,9 +195,10 @@ or move only completed stages.
 - `src/eval/error_analysis.py` saves top-N false-positive and missed-kiln
   image crops. Three synthetic tests now exist (added 2026-10-06); the module
   has not been run against real test-split predictions.
-- `docs/legal_basis.md` and `docs/RUNBOOK.md` now record the evidence fields,
-  operator commands, and human-only gates. They do not verify legal claims or
-  external services.
+- `docs/legal_basis.md`, `docs/RUNBOOK.md`, and
+  `docs/screening_provenance.md` record evidence fields, operator commands,
+  screening limits, and unresolved review gates. They do not verify legal
+  claims or external services.
 
 ## SentinelKilnDB date evidence: unresolved
 

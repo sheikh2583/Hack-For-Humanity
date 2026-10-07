@@ -30,6 +30,7 @@ Contract
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -93,8 +94,17 @@ def _fetch_layer(
     west, south, east, north = bbox
     try:
         gdf = ox.features_from_bbox(bbox=(north, south, east, west), tags=tags)
+        gdf = _annotate_source_provenance(
+            gdf,
+            layer_name,
+            str(getattr(ox.settings, "overpass_url", None) or "https://www.openstreetmap.org/"),
+        )
         # Keep only geometry and key columns
-        keep_cols = [c for c in ["name", "amenity", "landuse", "natural", "place", "waterway"]
+        keep_cols = [c for c in [
+            "name", "amenity", "landuse", "natural", "place", "waterway",
+            "feature_id", "source_layer_id", "source_authority", "source_url",
+            "source_accessed_at", "source_version_date", "geometry_provenance",
+        ]
                      if c in gdf.columns]
         gdf = gdf[keep_cols + ["geometry"]].copy()
         gdf = gdf.to_crs("EPSG:4326")
@@ -102,6 +112,32 @@ def _fetch_layer(
     except InsufficientResponseError:
         # No features of this type in the area - return empty GDF
         return gpd.GeoDataFrame(columns=["geometry"], geometry="geometry", crs="EPSG:4326")
+
+
+def _annotate_source_provenance(
+    gdf: gpd.GeoDataFrame,
+    layer_name: str,
+    source_url: str,
+) -> gpd.GeoDataFrame:
+    """Attach source and feature provenance to one fetched OSM layer.
+
+    Input schema: GeoDataFrame returned by OSMnx; feature index retained.
+    Output schema: copy with source, feature ID, retrieval timestamp, and
+    geometry-provenance columns. OSM snapshot date remains null because the
+    current request path does not expose it.
+    """
+    result = gdf.copy()
+    result["feature_id"] = [repr(value) for value in result.index]
+    result["source_layer_id"] = f"openstreetmap:{layer_name}"
+    result["source_authority"] = "OpenStreetMap contributors"
+    result["source_url"] = source_url
+    result["source_accessed_at"] = datetime.now(timezone.utc).isoformat()
+    result["source_version_date"] = None
+    result["geometry_provenance"] = (
+        "OpenStreetMap geometry returned by Overpass; downstream pipeline clips "
+        "it to configured ADM2 polygon; not a legally controlling boundary"
+    )
+    return result
 
 
 def _bbox_area_km2(bbox: tuple[float, float, float, float]) -> float:
@@ -309,4 +345,3 @@ def render_layer_maps(
 
         map_path = dist_dir / f"{layer_name}_map.html"
         m.save(str(map_path))
-

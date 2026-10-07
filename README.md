@@ -1,31 +1,36 @@
 # KilnWatch BD 🏭🛰️
 
-> **Current status (2026-10-07):** Linux run `run_0002` completed all four
+> **Current status (2026-10-08):** Linux run `run_0002` completed all four
 > training stages and one held-out test evaluation on an RTX 3090. The selected
 > model is `results/run_0002/checkpoints/final/best.pt`; test mAP50 was 0.7524
 > and mAP50-95 was 0.4930. See [docs/TRAINING_RUN_HISTORY.md](docs/TRAINING_RUN_HISTORY.md)
 > and [docs/PROGRESS.md](docs/PROGRESS.md) for evidence and remaining checks.
 > Detection review plots currently cover only the first three test batches,
 > which contain blank labels; inspect representative positive detections before
-> using the model. The current test suite has not been rerun after the latest
-> changes. Earth Engine export and real-imagery inference have not run.
+> using the model. The current screening UI/export changes have targeted test
+> coverage (32 passed; 3 OSMnx-dependent tests were deselected). Earth Engine
+> export and real-imagery inference have not run.
 > GPU workloads remain user-managed unless explicitly requested.
 > `config/preprocessing.yaml` deliberately keeps `preprocessing_verified: false`
 > because published SentinelKilnDB date ranges conflict; do not enable export
 > until the authors' intended dates and a paired-chip calibration are reviewed.
 
-> Satellite-based brick kiln compliance triage for Bangladesh  
+> Satellite-based brick kiln candidate screening for Bangladesh
 > *Hack for Humanity Bangladesh 2026*
 
 ## Overview
 
-KilnWatch BD detects brick kilns in Sentinel-2 satellite imagery, checks each
-against siting and technology rules from Bangladesh's Brick Manufacturing and
-Kiln Establishment (Control) Act 2013, ranks them by community exposure, and
-displays the results on an interactive map.
+KilnWatch BD detects kiln candidates in Sentinel-2 satellite imagery, compares
+them with configured siting and technology rules as GIS screening signals,
+ranks them by screening priority, and displays the results on an interactive
+map. These outputs are not legal or administrative determinations.
 
-**⚠️ Advisory only** — all outputs require field verification before any
-enforcement action.
+**Advisory screening only.** Detector confidence describes the model's
+assessment that a kiln candidate exists; rule signals describe comparisons to
+mapped features. Neither establishes legal status. Distances are to mapped
+features and may differ from distances to legally controlling boundaries.
+See [docs/screening_provenance.md](docs/screening_provenance.md) for signal
+provenance, review states, and unresolved dependencies.
 
 ## Dataset
 
@@ -40,7 +45,7 @@ kilnwatch-bd/
 ├── AGENTS.md                # Agent rules
 ├── config/
 │   ├── aoi.yaml             # Areas of interest & season
-│   └── rules.yaml           # Legal compliance rules (UNVERIFIED)
+│   └── rules.yaml           # Unverified screening configuration
 ├── data/
 │   ├── raw/                 # Original downloads (not committed)
 │   ├── interim/             # Intermediate artefacts
@@ -50,7 +55,7 @@ kilnwatch-bd/
 │   ├── data/                # Dataset conversion & export
 │   ├── detect/              # YOLO inference & NMS
 │   ├── geo/                 # OSM layers & spatial utilities
-│   ├── rules/               # Compliance rule engine
+│   ├── rules/               # Candidate rule-signal engine
 │   ├── score/               # Priority scoring
 │   ├── eval/                # Error analysis & audit sampling
 │   └── app/                 # (reserved)
@@ -209,15 +214,19 @@ commands; it does not define a separate training pipeline.
 | 3 | `kilnwatch export-s2` | Export Sentinel-2 composites via Earth Engine |
 | 4 | `kilnwatch infer` | Run kiln detection on exported imagery |
 | 5 | `kilnwatch fetch-osm` | Download OSM layers (schools, hospitals, etc.) |
-| 6 | `kilnwatch check-rules` | Evaluate compliance rules per kiln |
+| 6 | `kilnwatch check-rules` | Generate candidate rule signals from mapped features |
 | 7 | `kilnwatch score` | Compute priority scores |
 | 8 | `kilnwatch audit-sample` | Generate audit sample for manual validation |
 
-## Legal Disclaimer
+## Screening and legal status
 
-All rule thresholds in `config/rules.yaml` are **unverified placeholders** from
-secondary sources. They must be checked against the original Act and gazette
-before any use beyond prototyping.
+Generated detections and rule signals default to `unverified_candidate`.
+Configured thresholds and source layers have not been confirmed as authoritative
+legal boundaries or legal interpretations. Do not use screening outputs to
+assert that a kiln is illegal or non-compliant. See
+[docs/legal_basis.md](docs/legal_basis.md) for legal research and
+[docs/screening_provenance.md](docs/screening_provenance.md) for unresolved
+legal and spatial-data dependencies.
 
 ## Licence
 

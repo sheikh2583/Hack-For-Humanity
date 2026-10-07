@@ -17,7 +17,10 @@ Output
     geometry      Polygon    OBB polygon in EPSG:4326
     class         str        Kiln class name (FCBK / Zigzag)
     confidence    float64    Detection confidence ∈ [0, 1]
-    district      str        District name from filename / AOI config
+  district      str        District name from filename / AOI config
+  detector_model str       Checkpoint model identity (training argument or filename)
+  detector_version str|None Ultralytics package/checkpoint version
+  imagery_date  str|None   Acquisition date when present; null otherwise
   ============  =========  =============================================
 
 Processing
@@ -268,6 +271,10 @@ def run_inference(
     model = YOLO(str(weights))
     checkpoint = getattr(model, "ckpt", None) or {}
     train_args = checkpoint.get("train_args", {}) if isinstance(checkpoint, dict) else {}
+    import ultralytics
+
+    detector_model = str(train_args.get("model") or weights.name)
+    detector_version = str(checkpoint.get("version") or ultralytics.__version__)
     trained_imgsz = train_args.get("imgsz")
     if trained_imgsz is None:
         raise ValueError("Checkpoint does not record training imgsz; cannot verify inference size")
@@ -318,6 +325,11 @@ def run_inference(
                             "class": OUTPUT_CLASSES.get(int(cls_id), f"unknown_{cls_id}"),
                             "confidence": float(conf),
                             "district": district,
+                            "detector_model": detector_model,
+                            "detector_version": detector_version,
+                            # Exported composite acquisition dates are not
+                            # retained in the current raster/export contract.
+                            "imagery_date": None,
                         }
                     )
         masked_tile_fraction = masked_tile_count / tile_count if tile_count else 0.0
@@ -335,7 +347,10 @@ def run_inference(
         gdf = gpd.GeoDataFrame(kept, crs="EPSG:4326")
     else:
         gdf = gpd.GeoDataFrame(
-            columns=["kiln_id", "geometry", "class", "confidence", "district"],
+            columns=[
+                "kiln_id", "geometry", "class", "confidence", "district",
+                "detector_model", "detector_version", "imagery_date",
+            ],
             geometry="geometry",
             crs="EPSG:4326",
         )
@@ -344,4 +359,3 @@ def run_inference(
     gdf.to_parquet(output)
     rprint(f"[green]Kilns written to {output}[/green]")
     return gdf
-

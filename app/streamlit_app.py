@@ -1,12 +1,10 @@
-"""KilnWatch BD — Interactive Compliance Triage Dashboard.
+"""KilnWatch BD — advisory screening dashboard.
 
 Streamlit app displaying detected kilns on a Folium map with:
 - Sidebar filters (district, kiln class, min confidence)
 - Priority-coloured markers
-- Detail panel with breached rules, distances, nearby sites
-- "Needs verification" badges below confidence threshold
-- "Advisory only" banner
-- "Rules not verified" banner when rules_verified is false
+- Candidate rule signals, mapped-feature distances, and source provenance
+- Advisory-only notices on the page and every marker popup
 - CSV export of filtered list
 
 Loads only from data/processed/. Runs fully offline with no external API calls.
@@ -25,7 +23,14 @@ import pandas as pd
 import streamlit as st
 
 from app.data_loader import load_kilns as load_kilns_from_parquet
-from app.popup import parse_breached_rules
+from app.popup import build_marker_popup
+from app.presentation import (
+    DASHBOARD_LABELS,
+    DETAIL_COLUMN_RENAMES,
+    marker_tooltip,
+    screening_csv,
+    with_signal_provenance,
+)
 
 # Add project root to path for imports
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -36,7 +41,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 # ---------------------------------------------------------------------------
 
 st.set_page_config(
-    page_title="KilnWatch BD — Compliance Triage",
+    page_title=DASHBOARD_LABELS["page_title"],
     page_icon="🏭",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -74,31 +79,19 @@ def load_kilns() -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 def show_banners(df: pd.DataFrame) -> None:
-    """Display advisory and verification banners."""
+    """Display an advisory that distinguishes screening from confirmation."""
     st.markdown(
-        """
+        f"""
         <div style="background: linear-gradient(135deg, #ff6b35, #f7931e);
                     color: white; padding: 12px 20px; border-radius: 8px;
                     margin-bottom: 16px; font-weight: 600; text-align: center;
                     font-size: 1.1em;">
-            ⚠️ ADVISORY ONLY — Verify all findings before inspection or enforcement action
+            ⚠️ {DASHBOARD_LABELS['advisory']}
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    if "rules_verified" in df.columns and not df["rules_verified"].all():
-        st.markdown(
-            """
-            <div style="background: linear-gradient(135deg, #e74c3c, #c0392b);
-                        color: white; padding: 12px 20px; border-radius: 8px;
-                        margin-bottom: 16px; font-weight: 600; text-align: center;">
-                🚨 RULES NOT VERIFIED — Legal thresholds in rules.yaml have not been confirmed
-                against the Act. Do not rely on these results.
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -120,14 +113,14 @@ def sidebar_filters(df: pd.DataFrame) -> pd.DataFrame:
     # Class filter
     classes = sorted(df["class"].unique().tolist())
     selected_classes = st.sidebar.multiselect(
-        "Kiln Class",
+        "Detected Class",
         options=classes,
         default=classes,
     )
 
     # Confidence filter
     min_conf = st.sidebar.slider(
-        "Minimum Confidence",
+        "Minimum Detector Confidence",
         min_value=0.0,
         max_value=1.0,
         value=0.25,
@@ -138,7 +131,7 @@ def sidebar_filters(df: pd.DataFrame) -> pd.DataFrame:
     if "priority_rank" in df.columns:
         max_rank = int(df["priority_rank"].max())
         top_n = st.sidebar.slider(
-            "Show Top N by Priority",
+            DASHBOARD_LABELS["priority_filter"],
             min_value=1,
             max_value=max(max_rank, 1),
             value=min(50, max_rank),
@@ -162,13 +155,13 @@ def sidebar_filters(df: pd.DataFrame) -> pd.DataFrame:
 # Map
 # ---------------------------------------------------------------------------
 
-def render_map(df: pd.DataFrame, confidence_threshold: float = 0.5) -> None:
+def render_map(df: pd.DataFrame) -> None:
     """Render the Folium map with colour-coded kiln markers."""
     import folium
     from streamlit_folium import st_folium
 
     if df.empty:
-        st.warning("No kilns match the current filters.")
+        st.warning("No kiln candidates match the current filters.")
         return
 
     # Centre map on mean location
@@ -181,7 +174,7 @@ def render_map(df: pd.DataFrame, confidence_threshold: float = 0.5) -> None:
         tiles=None,
     )
 
-    # Priority-based colour scale
+    # Screening-priority colour scale
     def _priority_color(priority_rank: int, total: int) -> str:
         """Map priority rank to a colour from red (highest) to green (lowest)."""
         if total <= 1:
@@ -200,47 +193,7 @@ def render_map(df: pd.DataFrame, confidence_threshold: float = 0.5) -> None:
         rank = row.get("priority_rank", 1)
         color = _priority_color(int(rank), total)
 
-        # Build popup
-        breached = parse_breached_rules(row.get("breached_rules", []))
-
-        needs_verification = row["confidence"] < confidence_threshold
-
-        popup_html = f"""
-        <div style="min-width: 250px; font-family: sans-serif;">
-            <h4 style="margin: 0 0 8px 0; color: {color};">
-                {'🔴' if rank <= total * 0.33 else '🟡' if rank <= total * 0.66 else '🟢'}
-                Kiln {row.get('kiln_id', 'N/A')[:8]}...
-            </h4>
-            <table style="width: 100%; font-size: 0.9em;">
-                <tr><td><b>Class</b></td><td>{row['class']}</td></tr>
-                <tr><td><b>Confidence</b></td><td>{row['confidence']:.2%}</td></tr>
-                <tr><td><b>Priority Rank</b></td><td>#{rank}</td></tr>
-                <tr><td><b>Breach Score</b></td><td>{row.get('breach_score', 'N/A')}</td></tr>
-                <tr><td><b>Breached Rules</b></td><td>{', '.join(breached) if breached else 'None'}</td></tr>
-            </table>
-        """
-
-        # Distance details
-        dist_cols = [c for c in row.index if c.startswith("dist_") and c.endswith("_m")]
-        if dist_cols:
-            popup_html += "<hr style='margin: 4px 0;'><table style='width: 100%; font-size: 0.85em;'>"
-            for dc in dist_cols:
-                feature = dc.replace("dist_", "").replace("_m", "")
-                val = row[dc]
-                display = f"{val:.0f} m" if val != float("inf") else "N/A"
-                popup_html += f"<tr><td>↔ {feature}</td><td>{display}</td></tr>"
-            popup_html += "</table>"
-
-        if needs_verification:
-            popup_html += """
-            <div style="background: #f39c12; color: white; padding: 4px 8px;
-                        border-radius: 4px; margin-top: 8px; text-align: center;
-                        font-size: 0.85em; font-weight: 600;">
-                ⚠️ NEEDS VERIFICATION (low confidence)
-            </div>
-            """
-
-        popup_html += "</div>"
+        popup_html = build_marker_popup(row, int(rank), total)
 
         folium.CircleMarker(
             location=[row["lat"], row["lon"]],
@@ -250,7 +203,7 @@ def render_map(df: pd.DataFrame, confidence_threshold: float = 0.5) -> None:
             fill_color=color,
             fill_opacity=0.7,
             popup=folium.Popup(popup_html, max_width=350),
-            tooltip=f"#{rank} | {row['class']} | {row['confidence']:.0%}",
+            tooltip=marker_tooltip(row, int(rank)),
         ).add_to(m)
 
     st_folium(m, width=None, height=600, returned_objects=[])
@@ -265,16 +218,16 @@ def render_stats(df: pd.DataFrame) -> None:
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        st.metric("Total Kilns", len(df))
+        st.metric(DASHBOARD_LABELS["count"], len(df))
     with col2:
-        breaching = (df.get("breach_count", pd.Series([0])) > 0).sum()
-        st.metric("Breaching Rules", int(breaching))
+        signaled = (df.get("breach_count", pd.Series([0])) > 0).sum()
+        st.metric(DASHBOARD_LABELS["signals"], int(signaled))
     with col3:
         flagged = df.get("technology_flagged", pd.Series([False])).sum()
-        st.metric("Tech Flagged", int(flagged))
+        st.metric(DASHBOARD_LABELS["technology"], int(flagged))
     with col4:
         if "priority" in df.columns:
-            st.metric("Max Priority Score", f"{df['priority'].max():.1f}")
+            st.metric(DASHBOARD_LABELS["max_score"], f"{df['priority'].max():.1f}")
 
 
 # ---------------------------------------------------------------------------
@@ -283,11 +236,9 @@ def render_stats(df: pd.DataFrame) -> None:
 
 def csv_export(df: pd.DataFrame) -> None:
     """Provide a CSV download button for the filtered data."""
-    # Drop geometry for CSV
-    export_cols = [c for c in df.columns if c != "geometry"]
-    csv = df[export_cols].to_csv(index=False)
+    csv = screening_csv(df)
     st.download_button(
-        label="📥 Export filtered list as CSV",
+        label=DASHBOARD_LABELS["export"],
         data=csv,
         file_name="kilnwatch_filtered.csv",
         mime="text/csv",
@@ -301,12 +252,12 @@ def csv_export(df: pd.DataFrame) -> None:
 def main() -> None:
     """Main dashboard entry point."""
     st.markdown(
-        """
+        f"""
         <h1 style="text-align: center; margin-bottom: 0;">
             🏭 KilnWatch BD
         </h1>
         <p style="text-align: center; color: #888; margin-top: 4px; margin-bottom: 20px;">
-            Satellite-Based Brick Kiln Compliance Triage Dashboard
+            {DASHBOARD_LABELS['subtitle']}
         </p>
         """,
         unsafe_allow_html=True,
@@ -322,19 +273,24 @@ def main() -> None:
     st.markdown("---")
 
     # Map
-    st.subheader("🗺️ Kiln Map")
+    st.subheader("🗺️ " + DASHBOARD_LABELS["map_title"])
     render_map(filtered)
 
     st.markdown("---")
 
     # Data table
-    st.subheader("📋 Kiln Details")
+    st.subheader("📋 " + DASHBOARD_LABELS["table_title"])
     display_cols = [
-        "kiln_id", "class", "confidence", "district",
-        "breach_count", "breach_score", "priority_rank",
+        "kiln_id", "class", "confidence", "district", "breached_rules",
+        "signal_provenance_json", "breach_count", "breach_score", "priority_rank",
     ]
-    display_cols = [c for c in display_cols if c in filtered.columns]
-    st.dataframe(filtered[display_cols], use_container_width=True, hide_index=True)
+    detail_rows = with_signal_provenance(filtered)
+    display_cols = [c for c in display_cols if c in detail_rows.columns]
+    st.dataframe(
+        detail_rows[display_cols].rename(columns=DETAIL_COLUMN_RENAMES),
+        use_container_width=True,
+        hide_index=True,
+    )
 
     csv_export(filtered)
 

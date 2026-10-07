@@ -67,6 +67,7 @@ try {
             "docs/TRAINING_READINESS.md",
             "docs/TRAINING_RUN_HISTORY.md",
             "docs/RUNBOOK.md",
+            "docs/screening_provenance.md",
             "results/README.md",
             "docs/legal_basis.md",
             "docs/CLAUDE_WEB_PROMPT.md",
