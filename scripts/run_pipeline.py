@@ -1,8 +1,9 @@
-"""Run inference, OSM retrieval, rule screening, and priority scoring in order.
+"""Run local inference, OSM retrieval, rule screening, and priority scoring.
 
-Input: prepared test chips, a YOLO OBB checkpoint, AOI/rules config and network
-access for OSM. Outputs: processed GeoParquet files consumed by the dashboard.
-Inference is explicitly forced to CPU by ``demo_inference.py``.
+Input: local Sentinel-2 GeoTIFF exports or prepared demo chips, a YOLO OBB
+checkpoint, AOI/rules config, and cached or retrievable OSM layers. Output:
+processed GeoParquet candidates consumed by the dashboard. Inference defaults
+to CPU.
 """
 
 from __future__ import annotations
@@ -44,24 +45,42 @@ def pipeline_steps(
     imgsz: int = 512,
 ) -> list[tuple[str, list[str]]]:
     """Return ordered commands, optionally excluding fetch and setting raster imgsz."""
-    inference = [sys.executable, "-m", "src.eval.demo_inference"]
-    if weights is not None:
-        inference.extend(["--weights", str(weights)])
-    steps = [("1. Demo inference", inference)]
-    for raster in real_rasters or []:
+    rasters = real_rasters or []
+    steps: list[tuple[str, list[str]]] = []
+    if not rasters:
+        inference = [sys.executable, "-m", "src.eval.demo_inference"]
+        if weights is not None:
+            inference.extend(["--weights", str(weights)])
+        steps.append(("1. Demo inference", inference))
+    raster_outputs: list[Path] = []
+    for raster in rasters:
         district = district_for_raster(raster, aoi_config)
         output_name = re.sub(r"[^a-z0-9]+", "_", district.casefold()).strip("_")
         output = ROOT / "data/processed" / f"kilns_{output_name}.parquet"
+        raster_outputs.append(output)
         command = [
             sys.executable, "-m", "src.cli", "infer", str(weights),
             "--raster-dir", str(raster), "--output", str(output), "--imgsz", str(imgsz),
             "--point-output", "--district-name", district,
         ]
         steps.append((f"Real raster inference: {raster}", command))
+    if raster_outputs:
+        merged_output = ROOT / "data/processed" / "kilns_raster_candidates.parquet"
+        merge_script = (
+            "import geopandas as gpd, pandas as pd; "
+            f"paths={ [str(path) for path in raster_outputs]!r}; "
+            "frames=[gpd.read_parquet(path) for path in paths]; "
+            "gpd.GeoDataFrame(pd.concat(frames, ignore_index=True), "
+            "geometry='geometry', crs=frames[0].crs).to_parquet(" + repr(str(merged_output)) + ")"
+        )
+        steps.append(("Merge raster candidates", [sys.executable, "-c", merge_script]))
     if include_fetch:
         steps.append(("2. Fetch OSM layers", [sys.executable, "-m", "src.cli", "fetch-osm"]))
+    rule_command = [sys.executable, "-m", "src.cli", "check-rules"]
+    if raster_outputs:
+        rule_command.extend(["--kilns", str(ROOT / "data/processed/kilns_raster_candidates.parquet")])
     steps.extend([
-        ("3. Check rules", [sys.executable, "-m", "src.cli", "check-rules"]),
+        ("3. Check rules", rule_command),
         ("4. Score priorities", [sys.executable, "-m", "src.cli", "score"]),
     ])
     return steps

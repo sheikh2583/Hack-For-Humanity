@@ -31,9 +31,14 @@ def resolve_weights(path: Path | None, root: Path = ROOT) -> Path:
     for match in sorted((root / "results").glob("*/checkpoints/final/best.pt")):
         if match.is_file():
             return match.resolve()
-    for match in sorted((root / "runs").glob("*/weights/best.pt")):
+    run_checkpoints = sorted((root / "runs").glob("*/weights/best.pt"))
+    for match in run_checkpoints:
+        if match.is_file() and "smoke" not in match.parts[-3].casefold():
+            print(f"WARNING: using fallback checkpoint {match}; verify its run provenance.")
+            return match.resolve()
+    for match in run_checkpoints:
         if match.is_file():
-            print(f"WARNING: using {match}; this may be a smoke-test checkpoint.")
+            print(f"WARNING: using smoke-test checkpoint {match} as the only available fallback.")
             return match.resolve()
     raise FileNotFoundError(
         f"Weights not found at {path or 'an unspecified path'}; searched results/run_0002/checkpoints/final, "

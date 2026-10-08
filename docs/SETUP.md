@@ -74,6 +74,10 @@ Start the dashboard with:
 .venv/bin/streamlit run app/streamlit_app.py
 ```
 
+The dashboard uses OpenStreetMap tiles by default and offers Esri World Imagery
+as a satellite layer in the map's layer control. Both layers are loaded from
+their public tile services, so the dashboard does not need a basemap API key.
+
 The app needs a processed kiln GeoParquet and supporting layer caches to show
 the full screening view. Check `data/interim/` and `data/processed/` before
 expecting a populated map.

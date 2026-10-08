@@ -20,15 +20,15 @@ technology:
   flagged_classes: [FCBK]
   note: "UNSUPPORTED by the evidence reviewed: the Act defines a kiln by performance (improved technology, fuel-efficient, air pollution within the Environment Conservation Rules 1997 limits; s.2) and names no permitted or banned technologies, so 'Zigzag permitted / FCBK flagged' is a project heuristic, not a statutory finding. Detector cannot see HHK/VSBK/tunnel."
   severity: 3
-  verified: true
+  verified: false
 
 siting_rules:
   # These are unverified screening proxies, not findings of legal breach.
   # School/hospital and settlement geometry does not fully represent the
   # Act's legal categories or reference boundaries. See docs/legal_basis.md.
-  - {id: near_school,     feature: schools,      buffer_m: 1000, severity: 3, verified: true}
-  - {id: near_hospital,   feature: hospitals,     buffer_m: 1000, severity: 3, verified: true}
-  - {id: near_settlement, feature: settlements,   buffer_m: 1000, severity: 2, verified: true}
+  - {id: near_school,     feature: schools,      buffer_m: 1000, severity: 3, verified: false}
+  - {id: near_hospital,   feature: hospitals,     buffer_m: 1000, severity: 3, verified: false}
+  - {id: near_settlement, feature: settlements,   buffer_m: 1000, severity: 2, verified: false}
 
 scoring:
   exposure_radius_m: 1000

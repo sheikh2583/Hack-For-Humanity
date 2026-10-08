@@ -39,6 +39,7 @@ EXPORT_RENAMES = {
     "breach_score": "screening_score",
     "priority": "screening_priority",
     "priority_rank": "screening_priority_rank",
+    "priority_band": "inspection_priority_band",
     "technology_flagged": "technology_candidate_signal",
     "rules_version": "rule_config_version",
     "class": "detected_class",

@@ -407,7 +407,7 @@ def render_layer_maps(
         if gdf.empty:
             continue
 
-        m = folium.Map(location=center, zoom_start=11, tiles=None)
+        m = folium.Map(location=center, zoom_start=11, tiles="OpenStreetMap")
         color = LAYER_COLORS.get(layer_name, "#888888")
 
         for _, row in gdf.iterrows():
