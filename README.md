@@ -9,7 +9,7 @@
 > which contain blank labels; inspect representative positive detections before
 > using the model. The local pipeline was exercised on 2026-10-08: demo-chip
 > inference, one exported Chapainawabganj raster, local Bangladesh PBF
-> enrichment, rule checks, and scoring completed. The full suite reported 150
+> enrichment, rule checks, and scoring completed. The full suite reported 151
 > passed, and `ruff check .` passed. No Earth
 > Engine export was made. Real-raster inference used 512 px with a checkpoint
 > trained at 256 px, and the result still needs visual review.

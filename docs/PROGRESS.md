@@ -4,15 +4,43 @@
 [`kilnwatch_scaffold.md`](../kilnwatch_scaffold.md) and later project requests.
 Linux training run `run_0002` completed; see
 [`TRAINING_RUN_HISTORY.md`](TRAINING_RUN_HISTORY.md) for stage metrics and
-artifacts. The earlier progress notes below include a pre-run snapshot and are
-retained as dated history where useful.
+artifacts. The pre-run snapshot below is explicitly marked historical.
 
 Cross-platform initialization scripts, shared CUDA 13.0 pins, a shared
 Linux/Windows training runner, and ten-epoch Git-staged metric archives have
 since been added. The Linux RTX 3090 runner was exercised in `run_0002`.
-Latest targeted screening UI, CSV, rule-provenance, OSM-provenance, inference,
-and pipeline checks reported 32 passed and 3 deselected (OSMnx is unavailable
-in the active `.venv`). This was not a full suite run.
+The latest full Windows environment check on 2026-10-08 reported 151 tests
+passed and Ruff clean. The runbook records the exact check and warning summary.
+
+## Update 2026-10-08: pipeline work and training evidence audit
+
+- No new model training run is recorded for 2026-10-08. The latest training is
+  Linux RTX 3090 `run_0002`, completed 2026-10-07. The October 8 local work was
+  inference, OSM extraction, rule checking, scoring, visualization, and docs.
+- `run_0002/run.json` labels every smoke, training, and held-out test stage with
+  host/platform, GPU, runtime, requested device, and timestamps. Its dataset
+  fingerprint, stage outcomes, and selected model are recorded. Metric CSV
+  chunks, the manifest, training configuration/source, and summary are
+  Git-tracked.
+- The historical Windows RTX 4070 smoke/full attempt is described in
+  [`TRAINING_RUN_HISTORY.md`](TRAINING_RUN_HISTORY.md). Recovered arguments,
+  raw metric CSVs, and console output are copied to
+  `results/legacy_windows_rtx4070_20260929/`; the original `runs/` remains
+  ignored. It has no original manifest or dataset fingerprint.
+- The shared staged method is in `config/training.yaml` and the training
+  runner: smoke, YOLOv8n at 256/384/512, then YOLOv8s at the best YOLOv8n
+  image size, followed by one held-out test evaluation. `run_0002/training_config.yaml`
+  and its hash were added retrospectively from the Git commit that contains
+  the run manifest. That commit postdates the final training event, so the
+  exact runtime source revision is still unknown. The manifest now records
+  this limitation explicitly.
+- `run.json` contains held-out metrics. The separate `test_metrics.json` is
+  absent from this checkout; checkpoints remain intentionally ignored by Git.
+  The matching data and checkpoints must be retained separately for a
+  reproducible rerun.
+- The recovered Windows records, manifest update, config snapshot, and docs
+  still need a Git commit. No training or Earth Engine call was made for this
+  evidence repair.
 
 ## Update 2026-10-07: completed Linux training run
 
@@ -92,7 +120,7 @@ or move only completed stages.
   a general rule. A single 2 km forest buffer also over-applies: 2 km is for
   **government** forest only.
 
-## Verified locally
+## Pre-run snapshot (2026-10-06; historical)
 
 - The raw SentinelKilnDB Parquet files are present and readable: train 71,856
   rows, val 23,952 rows, and test 18,492 rows. Their byte sizes match the
@@ -151,7 +179,9 @@ or move only completed stages.
   `src/training/runner.py` separate run identity/configuration, Ultralytics
   execution/logging, and workflow coordination. Each run is numbered under
   `results/run_NNNN/`; manifests record the host/GPU used per stage, checkpoints
-  are ignored, and epoch CSV archives are Git-staged every 10 epochs.
+  are ignored, and epoch CSV archives are Git-staged every 10 epochs. New runs
+  snapshot the parsed and raw training config, its SHA-256, and the Git source
+  revision/working-tree state at run creation.
 - `docs/TRAINING_RUN_HISTORY.md` records the historical Windows runs and
   completed Linux run `run_0002`.
 - Git metadata and an upstream tracking branch are present. A separate nested
@@ -162,9 +192,9 @@ or move only completed stages.
 ## Implemented but awaiting external or human validation
 
 - `notebooks/train.ipynb` delegates smoke and staged model selection to the
-  canonical script runner. Historical partial Windows validation metrics are
-  in `runs/yolov8n-obb-256/results.csv`; the completed Linux held-out metrics
-  are in `results/run_0002/checkpoints/heldout_test/test_metrics.json`.
+  canonical script runner. Recovered Windows metrics are in
+  `results/legacy_windows_rtx4070_20260929/`; Linux held-out metrics are in
+  `results/run_0002/run.json`.
 - `config/preprocessing.yaml`, `src/data/export_s2.py`,
   `src/data/normalize.py`, and `tools/calibrate_preprocessing.py` implement the
   recorded repository recipe. `preprocessing_verified` intentionally remains

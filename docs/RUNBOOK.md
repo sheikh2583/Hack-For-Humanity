@@ -22,8 +22,8 @@ imagery/pilot handoff.
   geometry, field, and required-district checks. Source provenance, licence,
   and human review still need confirmation before geographic claims are made.
 - The selected trained checkpoint is
-  `results/run_0002/checkpoints/final/best.pt`; its test metrics are in
-  `results/run_0002/checkpoints/heldout_test/test_metrics.json`. On 2026-10-08,
+  `results/run_0002/checkpoints/final/best.pt`; held-out metrics are recorded in
+  the tracked `results/run_0002/run.json`. On 2026-10-08,
   a local pipeline run completed demo inference, Chapainawabganj raster
   inference, local-PBF OSM extraction for Chapainawabganj and Gazipur, rule
   checks, and priority scoring. No Earth Engine export was made. The real
@@ -40,7 +40,7 @@ python -m pytest -q
 python -m ruff check .
 ```
 
-Latest local verification (2026-10-08): `python -m pytest -q` reported 150
+Latest local verification (2026-10-08): `python -m pytest -q` reported 151
 passed and `ruff check .` passed. The test run emitted dependency deprecation
 warnings and expected warnings from tests that exercise unverified rule
 configuration. The full suite includes the ADM2 boundary test when that file

@@ -12,6 +12,7 @@ import json
 import platform
 import re
 import socket
+import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -57,6 +58,39 @@ def dataset_fingerprint(dataset_dir: Path) -> str:
             for chunk in iter(lambda: source.read(1024 * 1024), b""):
                 digest.update(chunk)
     return digest.hexdigest()
+
+
+def training_provenance(config_path: Path, config: dict[str, Any]) -> dict[str, Any]:
+    """Capture config bytes, parsed settings, and Git source state for a new run."""
+    resolved_config = config_path.resolve()
+    try:
+        config_ref = resolved_config.relative_to(ROOT).as_posix()
+    except ValueError:
+        config_ref = resolved_config.name
+    config_bytes = resolved_config.read_bytes()
+    source_commit: str | None = None
+    changed_paths: list[str] = []
+    try:
+        source_commit = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT, check=True,
+            capture_output=True, text=True,
+        ).stdout.strip()
+        status = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no"], cwd=ROOT,
+            check=True, capture_output=True, text=True,
+        ).stdout
+        changed_paths = [line[3:] for line in status.splitlines() if len(line) >= 4]
+    except (OSError, subprocess.CalledProcessError):
+        pass
+    return {
+        "config_file": config_ref,
+        "config_sha256": hashlib.sha256(config_bytes).hexdigest(),
+        "config_yaml": config_bytes.decode("utf-8"),
+        "config_values": config,
+        "source_commit": source_commit,
+        "source_worktree_dirty": bool(changed_paths),
+        "source_changed_paths": changed_paths,
+    }
 
 
 def prepare_dataset(dataset_dir: Path, test_split: str) -> tuple[Path, str]:

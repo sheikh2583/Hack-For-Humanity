@@ -28,6 +28,7 @@ from src.training.run_store import (
     prepare_dataset,
     read_training_config,
     set_current_run,
+    training_provenance,
     write_json,
 )
 
@@ -57,7 +58,7 @@ def _record_hardware(
 
 
 def _new_run(
-    config: dict[str, Any], dataset_dir: Path, fingerprint: str
+    config: dict[str, Any], dataset_dir: Path, fingerprint: str, config_path: Path
 ) -> tuple[str, Path, dict[str, Any]]:
     """Allocate a sequential run folder and write its initial portable manifest."""
     results_dir = (ROOT / config["results_dir"]).resolve()
@@ -73,6 +74,7 @@ def _new_run(
         "created_utc": datetime.now(UTC).isoformat(),
         "dataset": dataset_value,
         "dataset_fingerprint": fingerprint,
+        "provenance": training_provenance(config_path, config),
         "smoke": {"status": "pending"},
         "stages": {},
         "hardware_history": [],
@@ -86,7 +88,7 @@ def _new_run(
 
 def _select_or_create_run(
     config: dict[str, Any], dataset_dir: Path, fingerprint: str,
-    requested_run_id: str | None, *, continue_current: bool,
+    requested_run_id: str | None, *, continue_current: bool, config_path: Path,
 ) -> tuple[str, Path, dict[str, Any]]:
     """Load an explicit/current incomplete run or reserve the next run number."""
     results_dir = (ROOT / config["results_dir"]).resolve()
@@ -98,7 +100,7 @@ def _select_or_create_run(
             if current.get("status") != "complete":
                 run_id = candidate
     if run_id is None:
-        return _new_run(config, dataset_dir, fingerprint)
+        return _new_run(config, dataset_dir, fingerprint, config_path)
     if not RUN_ID_PATTERN.fullmatch(run_id):
         raise ValueError(f"Invalid run number: {run_id!r}; expected run_0001 or higher")
     run_dir = results_dir / run_id
@@ -341,7 +343,8 @@ def _run_command(args: argparse.Namespace, config: dict[str, Any]) -> int:
         if load_run(results_dir, current_run).get("status") == "complete":
             raise ValueError("The active run is complete; use start to create the next run.")
     run_id, run_dir, state = _select_or_create_run(
-        config, dataset_dir, fingerprint, args.run_id, continue_current=continue_current
+        config, dataset_dir, fingerprint, args.run_id, continue_current=continue_current,
+        config_path=args.config,
     )
     print(f"Run {state['run_number']:04d} ({run_id}); results: {run_dir}")
     if args.command == "smoke":

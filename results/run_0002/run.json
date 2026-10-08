@@ -124,6 +124,15 @@
       "timestamp_utc": "2026-10-07T12:24:21.039881+00:00"
     }
   ],
+  "retrospective_provenance": {
+    "config_snapshot_commit": "23739a899cdbb28e57b54890687981f6b9b22ba4",
+    "config_snapshot_commit_time": "2026-10-07T19:59:46+06:00",
+    "note": "The config snapshot matches the config file in the commit that added this run manifest. That commit postdates the final recorded training event; the exact runtime source revision/config bytes cannot be proven retrospectively.",
+    "runtime_source_commit": null,
+    "status": "retrospectively_documented",
+    "training_config_sha256": "ed280b5a88b8da8def496ca9e36074a8b48e6c9c783e8746a472739c8836b069",
+    "training_config_snapshot": "training_config.yaml"
+  },
   "run_id": "run_0002",
   "run_number": 2,
   "selected_candidate": {

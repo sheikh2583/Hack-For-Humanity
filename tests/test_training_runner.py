@@ -1,5 +1,6 @@
 """Synthetic tests for portable training configuration and run identity."""
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from src.training.run_store import (
     dataset_fingerprint,
     load_run,
     read_training_config,
+    training_provenance,
     write_json,
 )
 
@@ -58,6 +60,24 @@ def test_run_state_is_atomic_json_and_validated(tmp_path: Path) -> None:
     assert load_run(tmp_path, run_id) == state
     with pytest.raises(ValueError, match="Invalid run number"):
         load_run(tmp_path, "../escape")
+
+
+def test_training_provenance_snapshots_config_and_git_state(tmp_path: Path) -> None:
+    """New-run provenance includes exact config bytes and a source revision field."""
+    path = tmp_path / "training.yaml"
+    contents = "batch: 8\nstages: []\n"
+    path.write_bytes(contents.encode("utf-8"))
+    config = {"batch": 8, "stages": []}
+
+    provenance = training_provenance(path, config)
+
+    assert provenance["config_file"] == "training.yaml"
+    assert provenance["config_sha256"] == hashlib.sha256(contents.encode()).hexdigest()
+    assert provenance["config_yaml"] == contents
+    assert provenance["config_values"] == config
+    assert provenance["source_commit"] is None or len(provenance["source_commit"]) == 40
+    assert isinstance(provenance["source_worktree_dirty"], bool)
+    assert isinstance(provenance["source_changed_paths"], list)
 
 
 # ---------------------------------------------------------------------------
