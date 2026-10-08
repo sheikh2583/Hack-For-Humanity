@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-import src.score.priority as priority
+
+from src.score import priority
 from src.score.priority import _score_priority_components
 
 

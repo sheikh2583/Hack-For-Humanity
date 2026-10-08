@@ -32,20 +32,34 @@ imagery/pilot handoff.
 
 ## Local Checks
 
-Run from the project root:
+Run from the project root with the project environment active:
 
-```powershell
+```text
 python -m pip check
 python -m pytest -q
-ruff check src app tests tools
+python -m ruff check .
 ```
 
-Historical local verification: `ruff check src app tests tools` passed and
-the 2026-10-06 test run reported 101 passed and one skipped. Latest targeted
-screening UI, CSV, rule-provenance, OSM-provenance, inference, and pipeline
-checks reported 32 passed and 3 deselected because OSMnx is unavailable in the
-active `.venv`; the full test suite was not run. The full suite includes the
-ADM2 boundary test when that file is present.
+Latest local verification (2026-10-08): `python -m pytest -q` reported 150
+passed and `ruff check .` passed. The test run emitted dependency deprecation
+warnings and expected warnings from tests that exercise unverified rule
+configuration. The full suite includes the ADM2 boundary test when that file
+is present.
+
+## Run the Local Pipeline and Dashboard
+
+From the project root, after the trained checkpoint, prepared test chips,
+exported rasters, and OSM data are available, run:
+
+```bash
+python scripts/run_pipeline.py --weights results/run_0002/checkpoints/final/best.pt --imgsz 512
+streamlit run app/streamlit_app.py
+```
+
+The first command runs inference, OSM enrichment, rule screening, and priority
+scoring. If a local Bangladesh PBF is present, it is used for OSM layers. The
+second command opens the dashboard against the most recently modified
+`kilns*.parquet` output.
 
 ## Dataset Conversion
 
@@ -64,7 +78,12 @@ ADM2 boundary used by AOI and OSM code at the separate path documented in the
 current configuration. Confirm the file CRS, `shapeName` field, and geometry
 coverage before conversion.
 
-## Cross-Platform Training Setup
+## Cross-Platform Setup
+
+For a lightweight source-review, dashboard, and OSM environment, use
+[`SETUP.md`](SETUP.md). It includes separate PowerShell and Linux install
+commands and explains optional inference, compiler, PBF, and Earth Engine
+requirements. The initializer below is for a full CUDA training environment.
 
 GPU runs are user-managed. Do not start or stop training, smoke tests,
 inference, or benchmarks unless the user explicitly asks for that specific

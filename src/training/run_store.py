@@ -27,7 +27,7 @@ def read_training_config(path: Path) -> dict[str, Any]:
     with path.open(encoding="utf-8") as source:
         config = yaml.safe_load(source)
     if not isinstance(config, dict) or not isinstance(config.get("stages"), list):
-        raise ValueError(f"Invalid training configuration: {path}")
+        raise ValueError(f"Invalid training configuration: {path}")  # noqa: TRY004
     required = ("name", "model", "imgsz", "epochs")
     for stage in config["stages"]:
         if not isinstance(stage, dict) or not all(key in stage for key in required):
@@ -70,7 +70,7 @@ def prepare_dataset(dataset_dir: Path, test_split: str) -> tuple[Path, str]:
         raise FileNotFoundError(f"Missing dataset YAML: {source}")
     payload = yaml.safe_load(source.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
-        raise ValueError(f"Invalid dataset YAML: {source}")
+        raise ValueError(f"Invalid dataset YAML: {source}")  # noqa: TRY004
     payload["path"] = str(dataset_dir.resolve())
     local_yaml = dataset_dir / "dataset_local.yaml"
     local_yaml.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")

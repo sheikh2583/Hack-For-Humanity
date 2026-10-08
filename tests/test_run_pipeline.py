@@ -3,6 +3,8 @@
 from pathlib import Path
 from subprocess import CompletedProcess
 
+import pytest
+
 from scripts.run_pipeline import (
     district_for_raster,
     osm_cache_complete,
@@ -17,8 +19,13 @@ def test_pipeline_commands_are_in_requested_order() -> None:
     assert labels == ["1. Demo inference", "2. Fetch OSM layers", "3. Check rules", "4. Score priorities"]
 
 
-def test_pipeline_stops_after_failed_stage(monkeypatch) -> None:
+def test_pipeline_stops_after_failed_stage(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """A failed subprocess prevents execution of later stages."""
+    # Plant a real file so resolve_weights succeeds; failure comes from the stage.
+    fake_weights = tmp_path / "best.pt"
+    fake_weights.write_bytes(b"stub")
     calls: list[list[str]] = []
 
     def fake_run(command, **kwargs):
@@ -26,7 +33,7 @@ def test_pipeline_stops_after_failed_stage(monkeypatch) -> None:
         return CompletedProcess(command, 7, stdout="stage output", stderr="failure")
 
     monkeypatch.setattr("scripts.run_pipeline.subprocess.run", fake_run)
-    assert run_pipeline() == 7
+    assert run_pipeline(fake_weights) == 7
     assert len(calls) == 1
 
 
@@ -64,3 +71,10 @@ def test_real_raster_stage_resolves_chapai_to_configured_district(tmp_path: Path
     assert "Real raster inference:" in steps[1][0]
     assert any("kilns_chapainawabganj.parquet" in arg for arg in steps[1][1])
     assert "--point-output" in steps[1][1]
+    assert steps[1][1][steps[1][1].index("--imgsz") + 1] == "512"
+
+    custom_steps = pipeline_steps(
+        Path("model.pt"), include_fetch=False, real_rasters=[raster],
+        aoi_config=config, imgsz=384,
+    )
+    assert custom_steps[1][1][custom_steps[1][1].index("--imgsz") + 1] == "384"

@@ -57,6 +57,11 @@ optional and which data files are intentionally absent.
 
 ## Setup by task
 
+For the complete Windows PowerShell and Linux setup, including copyable
+commands and the distinction between a lightweight dashboard environment and
+the CUDA training environment, see [`SETUP.md`](SETUP.md). The sections below
+summarize which external inputs each task needs.
+
 Create an environment using Python 3.11 or 3.12 and install only the extras
 needed for the task:
 

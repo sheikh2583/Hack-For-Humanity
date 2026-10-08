@@ -4,6 +4,11 @@ from pathlib import Path
 
 from src.eval.plot_test_predictions import polygon_iou, read_labels, resolve_weights
 
+# Code inspection confirms multi-label chips enter both positive class buckets,
+# selections are de-duplicated, annotations use PIL green/red polygon draws, and
+# per-chip matching counts true positives at IoU >= 0.5. The script also creates
+# results/run_0002/visual_check/ before saving the contact sheet.
+
 
 def test_polygon_iou_identical_synthetic_boxes() -> None:
     """Identical four-corner polygons have IoU one."""

@@ -41,8 +41,9 @@ def pipeline_steps(
     include_fetch: bool = True,
     real_rasters: list[Path] | None = None,
     aoi_config: Path = ROOT / "config/aoi.yaml",
+    imgsz: int = 512,
 ) -> list[tuple[str, list[str]]]:
-    """Return ordered commands, optionally excluding an unnecessary OSM fetch."""
+    """Return ordered commands, optionally excluding fetch and setting raster imgsz."""
     inference = [sys.executable, "-m", "src.eval.demo_inference"]
     if weights is not None:
         inference.extend(["--weights", str(weights)])
@@ -53,7 +54,7 @@ def pipeline_steps(
         output = ROOT / "data/processed" / f"kilns_{output_name}.parquet"
         command = [
             sys.executable, "-m", "src.cli", "infer", str(weights),
-            "--raster-dir", str(raster), "--output", str(output), "--imgsz", "512",
+            "--raster-dir", str(raster), "--output", str(output), "--imgsz", str(imgsz),
             "--point-output", "--district-name", district,
         ]
         steps.append((f"Real raster inference: {raster}", command))
@@ -101,7 +102,7 @@ def resolve_weights(path: Path | None, root: Path = ROOT) -> Path:
     return resolve_demo_weights(path, root)
 
 
-def run_pipeline(weights: Path | None = None) -> int:
+def run_pipeline(weights: Path | None = None, imgsz: int = 512) -> int:
     """Run each stage, print captured output, and stop at the first failure."""
     try:
         resolved_weights = resolve_weights(weights)
@@ -113,7 +114,9 @@ def run_pipeline(weights: Path | None = None) -> int:
     if not fetch_needed:
         print("OSM layers already cached, skipping fetch.")
     rasters = exported_rasters()
-    for label, command in pipeline_steps(resolved_weights, include_fetch=fetch_needed, real_rasters=rasters):
+    for label, command in pipeline_steps(
+        resolved_weights, include_fetch=fetch_needed, real_rasters=rasters, imgsz=imgsz
+    ):
         print(f"\n=== {label} ===", flush=True)
         if label.startswith("Real raster inference: "):
             print(f"Using raster: {label.removeprefix('Real raster inference: ')}", flush=True)
@@ -137,8 +140,9 @@ def main() -> None:
     """Parse optional checkpoint override and run the pipeline."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--weights", type=Path, default=None)
+    parser.add_argument("--imgsz", type=int, default=512)
     args = parser.parse_args()
-    raise SystemExit(run_pipeline(args.weights))
+    raise SystemExit(run_pipeline(args.weights, imgsz=args.imgsz))
 
 
 if __name__ == "__main__":

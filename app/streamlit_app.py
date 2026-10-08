@@ -1,12 +1,13 @@
-"""Offline-safe advisory map for KilnWatch demo detections.
+"""Offline-safe advisory map for KilnWatch detection candidates.
 
-Input schema: ``data/processed/kilns.parquet`` GeoParquet points with
-kiln_id, geometry, class_name, confidence, district, lat, lon. Output: Streamlit
-map and CSV export; rule IDs and priority are shown only when present.
+Input schema: latest ``kilns*.parquet`` GeoParquet with point or polygon
+geometry and either ``class`` or ``class_name``. Output: Streamlit map and CSV
+export; rule IDs and priority are shown only when present.
 """
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,9 @@ import geopandas as gpd
 import pandas as pd
 import streamlit as st
 import yaml
+
+from app.data_loader import load_kilns
+from src.rules.engine import _ensure_class_column
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data/processed"
@@ -28,8 +32,20 @@ def rules_are_verified(config: dict[str, Any]) -> bool:
 
 
 def load_data(path: Path = DATA_DIR / "kilns.parquet") -> gpd.GeoDataFrame:
-    """Load the declared GeoParquet detection schema."""
-    return gpd.read_parquet(path)
+    """Load point or polygon GeoParquet into the dashboard's canonical schema.
+
+    Input schema: pipeline GeoParquet with ``class`` or ``class_name`` and
+    Point or Polygon geometry. Output: GeoDataFrame with canonical ``class``
+    plus WGS84 centroid ``lat``/``lon`` columns.
+    """
+    return _ensure_class_column(load_kilns(path))
+
+
+def class_counts(frame: gpd.GeoDataFrame) -> tuple[int, int]:
+    """Return FCBK and Zigzag counts after the rules engine class normalization."""
+    normalized = _ensure_class_column(frame)
+    classes = normalized["class"]
+    return int((classes == "FCBK").sum()), int((classes == "Zigzag").sum())
 
 
 def latest_kilns_file(data_dir: Path = DATA_DIR) -> Path | None:
@@ -52,9 +68,11 @@ def main() -> None:
         st.info("Run demo_inference.py first")
         return
     frame = load_data(kilns_file)
-    classes = frame.get("class_name", pd.Series(dtype=str))
-    fcbk = int((classes == "FCBK").sum())
-    zigzag = int((classes == "Zigzag").sum())
+    fcbk, zigzag = class_counts(frame)
+    modified = datetime.fromtimestamp(kilns_file.stat().st_mtime).astimezone()
+    st.sidebar.caption(
+        f"Loaded: {kilns_file.name}\nModified: {modified:%Y-%m-%d %H:%M:%S %Z}"
+    )
     st.sidebar.metric("Total detections", len(frame))
     st.sidebar.metric("FCBK count", fcbk)
     st.sidebar.metric("Zigzag count", zigzag)
@@ -83,7 +101,7 @@ def main() -> None:
             breached = []
         confidence = float(row.confidence)
         popup = (
-            f"<b>{row.get('class_name', 'Unknown')}</b><br>Confidence: {confidence:.3f}<br>"
+            f"<b>{row.get('class', 'Unknown')}</b><br>Confidence: {confidence:.3f}<br>"
             f"Breached rule IDs: {', '.join(map(str, breached)) or 'None recorded'}<br>"
             f"Priority rank: {rank if pd.notna(rank) else 'Not calculated'}"
             + ("<br><b>Needs verification</b>" if confidence < 0.3 else "")

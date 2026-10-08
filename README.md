@@ -9,8 +9,8 @@
 > which contain blank labels; inspect representative positive detections before
 > using the model. The local pipeline was exercised on 2026-10-08: demo-chip
 > inference, one exported Chapainawabganj raster, local Bangladesh PBF
-> enrichment, rule checks, and scoring completed. The full suite reported 146
-> passed; the full Ruff scan still reports issues in unrelated files. No Earth
+> enrichment, rule checks, and scoring completed. The full suite reported 150
+> passed, and `ruff check .` passed. No Earth
 > Engine export was made. Real-raster inference used 512 px with a checkpoint
 > trained at 256 px, and the result still needs visual review.
 > GPU workloads remain user-managed unless explicitly requested.
@@ -34,6 +34,16 @@ mapped features. Neither establishes legal status. Distances are to mapped
 features and may differ from distances to legally controlling boundaries.
 See [docs/screening_provenance.md](docs/screening_provenance.md) for signal
 provenance, review states, and unresolved dependencies.
+
+## Quick start
+
+After the trained checkpoint and required local data are set up, run the
+operator commands from [docs/RUNBOOK.md](docs/RUNBOOK.md):
+
+```bash
+python scripts/run_pipeline.py --weights results/run_0002/checkpoints/final/best.pt --imgsz 512
+streamlit run app/streamlit_app.py
+```
 
 ## Dataset
 
@@ -72,9 +82,7 @@ kilnwatch-bd/
 └── README.md
 ```
 
-## Quick Start
-
-### Create a minimal review ZIP
+## Share a review ZIP
 
 Run the same Python command on Windows or Linux from the repository root. It
 includes source, configuration, tests, and documentation, and excludes data,
@@ -90,26 +98,12 @@ See [docs/CLAUDE_SHARING_AND_SETUP.md](docs/CLAUDE_SHARING_AND_SETUP.md) for
 cross-platform checksum checks and OSM, Overpass, inference, and optional Earth
 Engine setup requirements.
 
-```bash
-# Create a virtual environment
-python -m venv .venv && source .venv/bin/activate  # or .venv\Scripts\activate on Windows
-
-# Install only the extras for the stages you will run; see
-# docs/MEMORY_AND_DOWNLOADS.md for which groups pull the model stack.
-pip install -e ".[dev,geo,app]"
-# Add ".[ee]" for Earth Engine export or ".[detect]" for local inference.
-
-# Run the pipeline
-kilnwatch --help
-
-# Launch the dashboard
-streamlit run app/streamlit_app.py
-```
-
-See [docs/MEMORY_AND_DOWNLOADS.md](docs/MEMORY_AND_DOWNLOADS.md) for the
-memory/download review, cache behavior, and unmeasured limitations.
-See [docs/TRAINING_READINESS.md](docs/TRAINING_READINESS.md) for the checked
-prerequisites and the cross-platform training handoff.
+For platform-specific install commands, OSM data, optional inference, and
+training setup, see [docs/SETUP.md](docs/SETUP.md). See
+[docs/MEMORY_AND_DOWNLOADS.md](docs/MEMORY_AND_DOWNLOADS.md) for dependency
+groups, memory/download review, cache behavior, and limitations, and
+[docs/TRAINING_READINESS.md](docs/TRAINING_READINESS.md) for training
+prerequisites.
 
 ## Initialize a Training Machine
 

@@ -12,6 +12,7 @@ Usage
     kilnwatch check-rules   # Step 6: compliance rule evaluation
     kilnwatch score         # Step 7: priority scoring
     kilnwatch audit-sample  # Step 9: generate audit sample
+    kilnwatch audit-results # Step 10: summarize labelled audit results
 """
 
 from __future__ import annotations
@@ -276,6 +277,19 @@ def audit_sample(
     from src.eval.audit_sample import generate_audit_sample
 
     generate_audit_sample(kilns_path=kilns, n=n, output=output)
+
+
+@app.command("audit-results")
+def audit_results(
+    csv_path: Annotated[Path, typer.Argument(help="Path to a labelled audit.csv")],
+) -> None:
+    """Print audit precision by confidence tercile and overall with Wilson 95% CIs."""
+    if not csv_path.is_file():
+        rprint(f"[red]Audit CSV not found:[/red] {csv_path}")
+        raise typer.Exit(code=1)
+    from src.eval.audit_sample import compute_audit_results
+
+    compute_audit_results(audit_csv=csv_path)
 
 
 @app.command("error-analysis")

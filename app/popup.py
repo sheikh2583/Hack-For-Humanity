@@ -95,7 +95,7 @@ def _display(value: object) -> str:
     if value is None:
         return "Not recorded"
     try:
-        if value != value:  # NaN
+        if math.isnan(value):  # NaN
             return "Not recorded"
     except (TypeError, ValueError):
         pass
