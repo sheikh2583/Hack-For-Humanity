@@ -23,9 +23,57 @@ def test_read_labels_accepts_normalized_obb_row(tmp_path: Path) -> None:
     assert read_labels(label, 100) == [(1, [(10.0, 10.0), (90.0, 10.0), (90.0, 90.0), (10.0, 90.0)])]
 
 
-def test_weights_auto_search_uses_results_final_checkpoint(tmp_path: Path) -> None:
-    """Missing explicit checkpoint falls back to a full-training checkpoint."""
+def test_weights_auto_search_uses_preferred_final_checkpoint(tmp_path: Path) -> None:
+    """Default resolution selects the numbered final model, not a runs checkpoint."""
     candidate = tmp_path / "results" / "run-a" / "checkpoints" / "final" / "best.pt"
     candidate.parent.mkdir(parents=True)
     candidate.touch()
-    assert resolve_weights(tmp_path / "missing.pt", root=tmp_path) == candidate.resolve()
+    preferred = tmp_path / "results" / "run_0002" / "checkpoints" / "final" / "best.pt"
+    preferred.parent.mkdir(parents=True)
+    preferred.touch()
+    smoke = tmp_path / "runs" / "smoke" / "weights" / "best.pt"
+    smoke.parent.mkdir(parents=True)
+    smoke.touch()
+
+    assert resolve_weights(None, root=tmp_path) == preferred.resolve()
+
+
+def test_weights_missing_final_fails_closed_even_with_smoke_checkpoint(tmp_path: Path) -> None:
+    """A smoke checkpoint is not selected unless the caller opts in."""
+    smoke = tmp_path / "runs" / "smoke" / "weights" / "best.pt"
+    smoke.parent.mkdir(parents=True)
+    smoke.touch()
+
+    import pytest
+
+    with pytest.raises(FileNotFoundError, match="No full-training checkpoint found"):
+        resolve_weights(None, root=tmp_path)
+
+
+def test_smoke_checkpoint_requires_explicit_opt_in(
+    tmp_path: Path, capsys
+) -> None:
+    """Opting into a smoke-path checkpoint prints a prominent warning."""
+    smoke = tmp_path / "runs" / "smoke" / "weights" / "best.pt"
+    smoke.parent.mkdir(parents=True)
+    smoke.touch()
+
+    assert resolve_weights(None, root=tmp_path, allow_smoke_weights=True) == smoke.resolve()
+    assert "WARNING" in capsys.readouterr().out
+
+    import pytest
+
+    with pytest.raises(FileNotFoundError, match="Pass --allow-smoke-weights"):
+        resolve_weights(smoke, root=tmp_path)
+    assert resolve_weights(smoke, root=tmp_path, allow_smoke_weights=True) == smoke.resolve()
+
+
+def test_explicit_missing_weights_does_not_fall_back(tmp_path: Path) -> None:
+    """An explicit invalid path is an error even if a final model exists."""
+    import pytest
+
+    final = tmp_path / "results" / "run_0002" / "checkpoints" / "final" / "best.pt"
+    final.parent.mkdir(parents=True)
+    final.touch()
+    with pytest.raises(FileNotFoundError, match="Explicit weights file not found"):
+        resolve_weights(tmp_path / "missing.pt", root=tmp_path)

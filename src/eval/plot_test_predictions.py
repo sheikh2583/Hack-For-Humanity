@@ -17,23 +17,47 @@ from src.data.convert_sentinelkilndb import OUTPUT_CLASSES
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def resolve_weights(path: Path | None, root: Path = ROOT) -> Path:
-    """Prefer full-training checkpoints; use runs only as a warned last resort."""
-    if path is not None and path.is_file():
-        return path.resolve()
+def resolve_weights(
+    path: Path | None,
+    root: Path = ROOT,
+    *,
+    allow_smoke_weights: bool = False,
+) -> Path:
+    """Resolve an explicit or final-training checkpoint, optionally smoke weights."""
+    if path is not None:
+        if not path.is_file():
+            raise FileNotFoundError(f"Explicit weights file not found: {path}")
+        resolved = path.resolve()
+        try:
+            resolved.relative_to((root / "runs").resolve())
+        except ValueError:
+            return resolved
+        if not allow_smoke_weights:
+            raise FileNotFoundError(
+                f"Explicit checkpoint is under runs/ and may be a smoke-test model: {resolved}. "
+                "Pass --allow-smoke-weights to opt in."
+            )
+        print(f"WARNING: explicitly allowing a checkpoint under runs/: {resolved}")
+        return resolved
     preferred = root / "results/run_0002/checkpoints/final/best.pt"
     if preferred.is_file():
         return preferred.resolve()
     for match in sorted((root / "results").glob("*/checkpoints/final/best.pt")):
         if match.is_file():
             return match.resolve()
-    for match in sorted((root / "runs").glob("*/weights/best.pt")):
-        if match.is_file():
-            print(f"WARNING: using {match}; this may be a smoke-test checkpoint.")
-            return match.resolve()
+    if allow_smoke_weights:
+        smoke_candidates = sorted((root / "runs").glob("*/weights/best.pt"))
+        smoke_candidates = [match for match in smoke_candidates if match.is_file()]
+        if smoke_candidates:
+            print(
+                "WARNING: explicitly allowing a checkpoint under runs/; it may be a "
+                f"smoke-test checkpoint: {smoke_candidates[0]}"
+            )
+            return smoke_candidates[0].resolve()
     raise FileNotFoundError(
-        f"Weights not found at {path or 'an unspecified path'}; searched results/run_0002/checkpoints/final, "
-        "results/*/checkpoints/final, and runs/*/weights"
+        "No full-training checkpoint found. Searched results/run_0002/checkpoints/final/best.pt "
+        "and results/*/checkpoints/final/best.pt. Supply --weights explicitly, or use "
+        "--allow-smoke-weights only if a smoke checkpoint is intentionally desired."
     )
 
 
@@ -83,13 +107,19 @@ def select_sample(images: list[Path], labels_dir: Path, n: int, seed: int) -> li
     return chosen[:n]
 
 
-def run(n: int = 48, seed: int = 0, weights: Path | None = None) -> Path:
+def run(
+    n: int = 48,
+    seed: int = 0,
+    weights: Path | None = None,
+    *,
+    allow_smoke_weights: bool = False,
+) -> Path:
     """Predict, annotate and save contact sheet; prints per-chip IoU counts."""
+    weights_path = resolve_weights(weights, allow_smoke_weights=allow_smoke_weights)
     from ultralytics import YOLO
     image_dir = ROOT / "data/interim/yolo_obb/test/images"
     labels_dir = ROOT / "data/interim/yolo_obb/test/labels"
     selected = select_sample(sorted(image_dir.glob("*.png")), labels_dir, n, seed)
-    weights_path = resolve_weights(weights)
     print(f"Using weights: {weights_path}")
     model = YOLO(str(weights_path))
     tiles: list[Image.Image] = []
@@ -134,12 +164,16 @@ def main() -> None:
     parser.add_argument("--n", type=int, default=48)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--weights", type=Path, default=None)
+    parser.add_argument(
+        "--allow-smoke-weights", action="store_true",
+        help="Allow a warned fallback to runs/*/weights/best.pt if no final checkpoint exists.",
+    )
     args = parser.parse_args()
     if args.n <= 0 or args.n % 3:
         parser.error("--n must be a positive multiple of 3")
     from src.geo.crs import get_projected_crs
     get_projected_crs(90.0)
-    print(run(args.n, args.seed, args.weights))
+    print(run(args.n, args.seed, args.weights, allow_smoke_weights=args.allow_smoke_weights))
 
 
 if __name__ == "__main__":

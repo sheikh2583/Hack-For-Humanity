@@ -38,9 +38,13 @@ passed and Ruff clean. The runbook records the exact check and warning summary.
   absent from this checkout; checkpoints remain intentionally ignored by Git.
   The matching data and checkpoints must be retained separately for a
   reproducible rerun.
-- The recovered Windows records, manifest update, config snapshot, and docs
-  still need a Git commit. No training or Earth Engine call was made for this
-  evidence repair.
+- The recovered Windows records, manifest update, and documentation were
+  committed locally in `0a822d1` (`Record per-machine training evidence`). No
+  training or Earth Engine call was made for that evidence repair.
+- Added `tools/date_forensics.py` and `docs/DATE_FORENSICS.md` as a future,
+  author-independent diagnostic. It was not run; it does not change the
+  preprocessing verification state. See the diagnostic guide for the command,
+  output columns, and remaining spatial/compositing interpretation limits.
 
 ## Update 2026-10-07: completed Linux training run
 

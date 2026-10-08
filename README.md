@@ -35,6 +35,11 @@ features and may differ from distances to legally controlling boundaries.
 See [docs/screening_provenance.md](docs/screening_provenance.md) for signal
 provenance, review states, and unresolved dependencies.
 
+The SentinelKilnDB imagery-date discrepancy remains unresolved. An optional
+offline-testable diagnostic is documented in
+[docs/DATE_FORENSICS.md](docs/DATE_FORENSICS.md); it requires the user's own
+Earth Engine credentials when run and does not verify a date range by itself.
+
 ## Quick start
 
 After the trained checkpoint and required local data are set up, run the
