@@ -23,9 +23,12 @@ imagery/pilot handoff.
   and human review still need confirmation before geographic claims are made.
 - The selected trained checkpoint is
   `results/run_0002/checkpoints/final/best.pt`; its test metrics are in
-  `results/run_0002/checkpoints/heldout_test/test_metrics.json`. Real-raster
-  inference, geographic-placement checks, Earth Engine exports, OSM caches,
-  and processed detection GeoParquet are not verified here.
+  `results/run_0002/checkpoints/heldout_test/test_metrics.json`. On 2026-10-08,
+  a local pipeline run completed demo inference, Chapainawabganj raster
+  inference, local-PBF OSM extraction for Chapainawabganj and Gazipur, rule
+  checks, and priority scoring. No Earth Engine export was made. The real
+  raster used 512 px inference with a checkpoint trained at 256 px; inspect
+  its detections and geographic placement before relying on them.
 
 ## Local Checks
 
@@ -119,7 +122,7 @@ and set the corresponding paths in the notebook when using those runtimes.
 | Local detector training | No cloud account | Uses the user's Linux RTX 3090 or Windows RTX 4070, CUDA PyTorch, local dataset, and local checkpoints. |
 | GitHub source collaboration | GitHub account | Already set up for pushing the project repository. |
 | New Sentinel-2 imagery export | Google account plus an authorized Google Cloud project registered for Earth Engine | Earth Engine requires an enabled API, project registration, permissions, and authentication. This is the later inference-data stage, not model training. See Google's [access](https://developers.google.com/earth-engine/guides/access) and [authentication](https://developers.google.com/earth-engine/guides/auth) guides. Export is also gated on resolving the published acquisition-date conflict. |
-| OSM enrichment | Network access to the configured OSM service | Used after inference; no Earth Engine or Hugging Face account is involved. Inspect coverage and observe service use policies. |
+| OSM enrichment | Local Bangladesh PBF or network access to Overpass | Place `bangladesh-latest.osm.pbf` at `data/raw/osm/`; it is preferred for offline/restricted networks. Without it, OSMnx queries public Overpass and falls back to a PBF if one exists when a request fails. Install `.[geo]`; no API key is configured or required. Inspect coverage and observe service use policies. |
 | Legal verification | Authoritative Act/gazette sources and human review | No account setup makes unverified thresholds reliable; keep verification flags false until the primary sources are checked. |
 
 The missing steps were not prerequisites to the training stage. This repo

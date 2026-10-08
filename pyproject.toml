@@ -35,6 +35,7 @@ detect = [
 ]
 geo = [
     "osmnx>=2.0",
+    "pyrosm>=0.15.0",
     "folium>=0.15",
 ]
 score = [

@@ -7,9 +7,12 @@
 > and [docs/PROGRESS.md](docs/PROGRESS.md) for evidence and remaining checks.
 > Detection review plots currently cover only the first three test batches,
 > which contain blank labels; inspect representative positive detections before
-> using the model. The current screening UI/export changes have targeted test
-> coverage (32 passed; 3 OSMnx-dependent tests were deselected). Earth Engine
-> export and real-imagery inference have not run.
+> using the model. The local pipeline was exercised on 2026-10-08: demo-chip
+> inference, one exported Chapainawabganj raster, local Bangladesh PBF
+> enrichment, rule checks, and scoring completed. The full suite reported 146
+> passed; the full Ruff scan still reports issues in unrelated files. No Earth
+> Engine export was made. Real-raster inference used 512 px with a checkpoint
+> trained at 256 px, and the result still needs visual review.
 > GPU workloads remain user-managed unless explicitly requested.
 > `config/preprocessing.yaml` deliberately keeps `preprocessing_verified: false`
 > because published SentinelKilnDB date ranges conflict; do not enable export
@@ -73,17 +76,19 @@ kilnwatch-bd/
 
 ### Create a minimal review ZIP
 
-Run the standalone PowerShell script from the repository root (or pass its path
-from another directory). It includes source, configuration, tests, and
-documentation, and excludes data, virtual environments, caches, and model
-weights:
+Run the same Python command on Windows or Linux from the repository root. It
+includes source, configuration, tests, and documentation, and excludes data,
+virtual environments, caches, and model weights:
 
-```powershell
-.\scripts\make_review_zip.ps1
+```bash
+python scripts/make_review_zip.py
 ```
 
 Upload `kilnwatch_bd_share.zip` to Claude Web and use
 [docs/CLAUDE_WEB_PROMPT.md](docs/CLAUDE_WEB_PROMPT.md) for the review prompt.
+See [docs/CLAUDE_SHARING_AND_SETUP.md](docs/CLAUDE_SHARING_AND_SETUP.md) for
+cross-platform checksum checks and OSM, Overpass, inference, and optional Earth
+Engine setup requirements.
 
 ```bash
 # Create a virtual environment

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import sys
 import types
+from pathlib import Path
 
 import pytest
 import yaml
@@ -31,22 +31,22 @@ def test_recipe_config_and_district_crs() -> None:
 
 
 def test_export_stops_while_recipe_unverified(tmp_path: Path) -> None:
-    """Unverified config stops before any Earth Engine authentication attempt."""
+    """Missing pilot dates stop before any Earth Engine authentication attempt."""
     prep = tmp_path / "preprocessing.yaml"
-    prep.write_text("preprocessing_verified: false\n", encoding="utf-8")
+    prep.write_text("pilot: {start_date: '', end_date: null}\n", encoding="utf-8")
     aoi = tmp_path / "aoi.yaml"
     aoi.write_text("districts: []\n", encoding="utf-8")
-    with pytest.raises(RuntimeError, match="preprocessing_verified"):
+    with pytest.raises(RuntimeError, match="pilot.start_date"):
         export_composites(aoi, preprocessing_config=prep, boundaries_path=tmp_path / "missing.geojson")
 
 
 def test_export_stops_when_pilot_date_range_is_missing(tmp_path: Path) -> None:
     """A verified recipe still requires a human-supplied pilot date range."""
     prep = tmp_path / "preprocessing.yaml"
-    prep.write_text("preprocessing_verified: true\npilot_date_range: null\n", encoding="utf-8")
+    prep.write_text("pilot: {start_date: '2025-11-01', end_date: ''}\n", encoding="utf-8")
     aoi = tmp_path / "aoi.yaml"
     aoi.write_text("districts: []\n", encoding="utf-8")
-    with pytest.raises(RuntimeError, match="pilot_date_range"):
+    with pytest.raises(RuntimeError, match="pilot.start_date"):
         export_composites(aoi, preprocessing_config=prep, boundaries_path=tmp_path / "missing.geojson")
 
 
@@ -56,7 +56,7 @@ def test_export_requires_earth_engine_project_before_initialization(
     """Missing project configuration is rejected before calling ``ee.Initialize``."""
     prep = tmp_path / "preprocessing.yaml"
     prep.write_text(
-        "preprocessing_verified: true\npilot_date_range: [2024-01-01, 2024-02-01]\n",
+        "pilot: {start_date: '2024-01-01', end_date: '2024-02-01'}\n",
         encoding="utf-8",
     )
     aoi = tmp_path / "aoi.yaml"
@@ -71,7 +71,8 @@ def test_export_requires_earth_engine_project_before_initialization(
 
     monkeypatch.setitem(sys.modules, "ee", types.SimpleNamespace(Initialize=initialize))
     monkeypatch.delenv("EARTHENGINE_PROJECT", raising=False)
-    with pytest.raises(RuntimeError, match="Earth Engine project"):
+    monkeypatch.delenv("KILNWATCH_EE_PROJECT", raising=False)
+    with pytest.raises(RuntimeError, match="KILNWATCH_EE_PROJECT"):
         export_composites(aoi, preprocessing_config=prep, boundaries_path=boundaries)
     assert initialize_called is False
 

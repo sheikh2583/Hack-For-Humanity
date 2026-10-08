@@ -168,31 +168,39 @@ def export_s2(
     aoi_config: Annotated[
         Path, typer.Option(help="Path to aoi.yaml")
     ] = PROJECT_ROOT / "config" / "aoi.yaml",
-    project_id: Annotated[
-        str | None, typer.Option(help="Google Cloud project ID; defaults to EARTHENGINE_PROJECT")
-    ] = None,
 ) -> None:
     """Step 4a - Export Sentinel-2 composites via Earth Engine."""
     from src.data.export_s2 import export_composites
 
-    export_composites(aoi_config=aoi_config, project_id=project_id)
+    export_composites(aoi_config=aoi_config)
 
 
 @app.command()
 def infer(
     weights: Annotated[Path, typer.Argument(help="Path to best.pt")],
     raster_dir: Annotated[
-        Path, typer.Option(help="Directory containing exported GeoTIFFs")
+        Path, typer.Option(help="Directory containing exported GeoTIFFs or one raster file")
     ] = PROJECT_ROOT / "data" / "interim" / "s2_composites",
     output: Annotated[
         Path, typer.Option(help="Output GeoParquet path")
     ] = PROJECT_ROOT / "data" / "processed" / "kilns.parquet",
     imgsz: Annotated[int, typer.Option(help="Must match the training image size")]=512,
+    point_output: Annotated[bool, typer.Option(help="Write WGS84 centroid Point schema")]=False,
+    district_name: Annotated[str | None, typer.Option(help="District name for point output")]=None,
+    device: Annotated[str, typer.Option(help="Inference device, such as cpu, 0, or cuda:0")]= "cpu",
 ) -> None:
     """Step 4b - Run YOLO-OBB inference and write kilns.parquet."""
     from src.detect.infer import run_inference
 
-    run_inference(weights=weights, raster_dir=raster_dir, output=output, imgsz=imgsz)
+    run_inference(
+        weights=weights,
+        raster_dir=raster_dir,
+        output=output,
+        imgsz=imgsz,
+        point_output=point_output,
+        district_name=district_name,
+        device=device,
+    )
 
 
 @app.command("fetch-osm")

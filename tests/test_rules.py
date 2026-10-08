@@ -13,6 +13,17 @@ import pytest
 import yaml
 from shapely.geometry import Point
 
+from src.rules.engine import _ensure_class_column
+
+
+def test_demo_class_name_is_accepted_by_rule_engine() -> None:
+    """The requested demo schema maps class_name for screening compatibility."""
+    kilns = gpd.GeoDataFrame(
+        {"class_name": ["FCBK"], "geometry": [Point(90, 24)]}, crs="EPSG:4326"
+    )
+    compatible = _ensure_class_column(kilns)
+    assert compatible["class"].tolist() == ["FCBK"]
+
 
 class TestRuleEngine:
     """Integration tests for the compliance rule engine."""

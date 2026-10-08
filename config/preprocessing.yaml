@@ -7,7 +7,9 @@ authors_reference_dates:
   repository_readme: "September 2023 to February 2024"
   paper: "September 2023 to February 2024"
   dataset_card: "November 2023 to February 2024"
-pilot_date_range: null
+pilot:
+  start_date: "2025-11-01"
+  end_date: "2026-02-28"
 cloud_filter:
   property: CLOUDY_PIXEL_PERCENTAGE
   property_less_than: 1

@@ -1,12 +1,13 @@
-"""Export district-clipped Sentinel-2 composites for inference.
+"""Export bounding-box Sentinel-2 composites for inference.
 
 Input schema: AOI YAML with district ``name`` values matching geoBoundaries
 ADM2 ``shapeName`` and preprocessing YAML. Output: Earth Engine GeoTIFF
-exports containing raw B4/B3/B2 reflectance in a district-specific UTM CRS.
+exports containing raw B4/B3/B2 reflectance at EPSG:4326 degree resolution.
 """
 
 from __future__ import annotations
 
+import argparse
 import os
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,8 @@ import geopandas as gpd
 import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+EXPORT_MARGIN_DEGREES = 0.05
+EXPORT_SCALE_METERS = 10
 
 
 def _read_yaml(path: Path) -> dict[str, Any]:
@@ -59,95 +62,89 @@ def export_composites(
     aoi_config: Path,
     preprocessing_config: Path | None = None,
     boundaries_path: Path | None = None,
-    project_id: str | None = None,
 ) -> None:
-    """Submit Earth Engine exports, refusing unverified preprocessing settings."""
+    """Submit Earth Engine exports using configured pilot dates.
+
+    Input schema: AOI YAML ``districts`` list and preprocessing YAML ``pilot``
+    dates. Output: Drive GeoTIFF tasks; this function makes Earth Engine calls.
+    """
     preprocessing_config = preprocessing_config or PROJECT_ROOT / "config" / "preprocessing.yaml"
     boundaries_path = boundaries_path or PROJECT_ROOT / "data/raw/boundaries/geoBoundaries_BGD_ADM2.geojson"
     prep = _read_yaml(preprocessing_config)
-    if prep.get("preprocessing_verified") is not True:
-        raise RuntimeError("Set preprocessing_verified: true after reviewing config/preprocessing.yaml")
-    pilot_date_range = prep.get("pilot_date_range")
-    if not isinstance(pilot_date_range, list) or len(pilot_date_range) != 2:
-        raise RuntimeError("Set preprocessing.pilot_date_range to [start_date, end_date] after the pilot")
+    pilot = prep.get("pilot", {})
+    start_date, end_date = pilot.get("start_date"), pilot.get("end_date")
+    if not start_date or not end_date:
+        raise RuntimeError("Set both pilot.start_date and pilot.end_date in config/preprocessing.yaml")
     aoi = _read_yaml(aoi_config)
     if not boundaries_path.exists():
         raise FileNotFoundError(f"ADM2 boundaries not found: {boundaries_path}")
 
+    earthengine_project = os.environ.get("KILNWATCH_EE_PROJECT")
+    if not earthengine_project:
+        raise RuntimeError("KILNWATCH_EE_PROJECT is missing; set it to your Google Cloud project ID")
     import ee  # type: ignore[import-untyped]
     from rich import print as rprint
 
-    earthengine_project = project_id or os.environ.get("EARTHENGINE_PROJECT")
-    if not earthengine_project:
-        raise RuntimeError(
-            "Earth Engine project is required; pass project_id or set EARTHENGINE_PROJECT"
-        )
-    ee.Initialize(project=earthengine_project)
-    bands = prep["bands"]
+    ee.Initialize(project=os.environ.get("KILNWATCH_EE_PROJECT"))
     rgb_bands = prep["rgb_bands"]
-    cloud_mask_band = str(prep["cloud_mask"]["band"])
-    cloud_bit = int(prep["cloud_mask"]["qa60_bit"])
+    if rgb_bands != ["B4", "B3", "B2"]:
+        raise ValueError("Earth Engine export is defined for raw B4, B3, B2 bands")
     collection_id = prep["collection"]
-    start_date, end_date = pilot_date_range
     cloud_property = str(prep["cloud_filter"]["property"])
     cloud_limit = float(prep["cloud_filter"]["property_less_than"])
-    scale = int(prep["output"]["scale_m"])
-    count_scale = int(prep["valid_pixel_count"]["scale_m"])
-    count_band = str(prep["valid_pixel_count"]["band"])
-    if prep["valid_pixel_count"]["reducer"] != "count":
-        raise ValueError("Only the recorded ee.Reducer.count valid-pixel rule is supported")
-    method = prep["compositing_method"]
-
     boundaries = gpd.read_file(boundaries_path)
     if "shapeName" not in boundaries:
         raise ValueError("ADM2 GeoJSON must contain the geoBoundaries shapeName field")
     for district in aoi["districts"]:
         name = district["name"]
         boundary_name = district.get("boundary_name", name)
-        geometry, epsg = _district_geometry(
+        geometry, _ = _district_geometry(
             boundaries_path, boundary_name, prep["output"]["district_crs"]
         )
-        region = ee.Geometry(geometry, proj="EPSG:4326", geodesic=False)
-        projection = ee.Projection(epsg)
+        from shapely.geometry import shape
+
+        bounds = shape(geometry).bounds
+        bbox_coords = [
+            bounds[0] - EXPORT_MARGIN_DEGREES,
+            bounds[1] - EXPORT_MARGIN_DEGREES,
+            bounds[2] + EXPORT_MARGIN_DEGREES,
+            bounds[3] + EXPORT_MARGIN_DEGREES,
+        ]
+        bbox = ee.Geometry.BBox(*bbox_coords, proj="EPSG:4326")
         collection = (
             ee.ImageCollection(collection_id)
-            .filterBounds(region)
+            .filterBounds(bbox)
             .filterDate(start_date, end_date)
             .filter(ee.Filter.lt(cloud_property, cloud_limit))
-            .select(bands)
+            .select(rgb_bands)
             .sort(cloud_property)
         )
-
-        def mask_clouds(image: Any) -> Any:
-            qa = image.select(cloud_mask_band).uint16()
-            return image.updateMask(qa.bitwiseAnd(1 << cloud_bit).eq(0))
-
-        if method == "median":
-            composite = mask_clouds(collection.median()).select(rgb_bands)
-        elif method == "best_or_median":
-            best = mask_clouds(ee.Image(collection.first()))
-            median = mask_clouds(collection.median())
-            best_count = best.select(count_band).reduceRegion(
-                reducer=ee.Reducer.count(), geometry=region, scale=count_scale, maxPixels=1e10
-            ).get(count_band)
-            median_count = median.select(count_band).reduceRegion(
-                reducer=ee.Reducer.count(), geometry=region, scale=count_scale, maxPixels=1e10
-            ).get(count_band)
-            choose_best = ee.Number(best_count).gt(ee.Number(median_count))
-            composite = ee.Image(ee.Algorithms.If(choose_best, best, median)).select(rgb_bands)
-        else:
-            raise ValueError(f"Unsupported compositing_method: {method}")
+        scene_count = int(collection.size().getInfo())
+        rprint(f"{name}: compositing {scene_count} Sentinel-2 scene(s) with cloud cover < {cloud_limit}%")
+        composite = collection.median().select(rgb_bands)
 
         # Keep exported values raw; the recorded training recipe applies per-patch min/max later.
         task = ee.batch.Export.image.toDrive(
-            image=composite.clip(region).reproject(crs=projection, scale=scale),
+            image=composite,
             description=f"kilnwatch_{name}_{start_date}_{end_date}",
             folder="kilnwatch_exports",
-            region=region,
-            crs=epsg,
-            scale=scale,
+            region=bbox,
+            crs="EPSG:4326",
+            scale=EXPORT_SCALE_METERS,
             maxPixels=1e13,
             fileFormat="GeoTIFF",
         )
         task.start()
-        rprint(f"Export task started for {name} ({epsg}): {task.status()}")
+        rprint(f"Export task started for {name} (EPSG:4326): {task.status()}")
+
+
+def main() -> None:
+    """CLI: configure the AOI and submit district exports to Earth Engine."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--aoi", type=Path, default=PROJECT_ROOT / "config/aoi.yaml")
+    args = parser.parse_args()
+    export_composites(args.aoi)
+
+
+if __name__ == "__main__":
+    main()

@@ -4,9 +4,10 @@ Upload `kilnwatch_bd_share.zip` to Claude Web, then paste this prompt:
 
 ```text
 Review the attached KilnWatch BD project as an independent technical reviewer.
-Read AGENTS.md, README.md, docs/screening_provenance.md, docs/legal_basis.md,
-docs/PROGRESS.md, docs/TRAINING_RUN_HISTORY.md, and kilnwatch_scaffold.md
-first. Inspect the code/config/notebook in the ZIP before
+Read AGENTS.md, README.md, docs/CLAUDE_SHARING_AND_SETUP.md,
+docs/screening_provenance.md, docs/legal_basis.md, docs/PROGRESS.md,
+docs/TRAINING_RUN_HISTORY.md, and kilnwatch_scaffold.md first. Inspect the
+code/config/notebook in the ZIP before
 making claims. Use primary sources and direct links for source-dependent legal
 or dataset claims. Do not edit code or invent schemas, legal rules, thresholds,
 dates, or coordinates.
@@ -29,15 +30,26 @@ dates, or coordinates.
   1,662, test 1,530. Its split report records a 1,300 m Chebyshev leakage
   filter and 1,322.41 m minimum cross-split distance. Starting weights are in
   data/models/; the selected trained checkpoint is separate.
-- Targeted tests for the recent screening UI, CSV, rule provenance, OSM
-  provenance, inference, and pipeline changes reported 32 passed and 3
-  deselected due to OSMnx being unavailable in the active environment. This
-  was not a full suite run. The 2026-10-06 run of 101 passed/one skipped and
-  Ruff are historical only.
-- Earth Engine export and inference on exported real Sentinel-2 imagery have
-  not run. config/preprocessing.yaml remains preprocessing_verified: false
-  because published date ranges conflict and paired-chip calibration has not
-  been completed. Rules in config/rules.yaml remain legally unverified.
+- On 2026-10-08 the Windows workspace completed the full local pipeline using
+  `runs/yolov8n-obb-256/weights/best.pt`: 1,880 demo-chip detections over 1,530
+  chips; 1,219 real-raster detections over 5,440 tiles; local PBF extraction
+  for six OSM layers in Chapainawabganj and Gazipur; rule checks; and priority
+  scoring. This did not call Earth Engine. The runtime outputs and PBF are
+  excluded from the share ZIP.
+- The real-raster run used `imgsz=512` with a checkpoint trained at 256 px and
+  emitted a warning. CPU/CUDA outputs from a prior run differed by one
+  detection. Inspect geographic placement and representative predictions;
+  these results are not field validation.
+- The full pytest suite reported 146 passed on 2026-10-08. Changed OSM files
+  passed Ruff; a repository-wide Ruff scan found six pre-existing findings in
+  `app/popup.py`, `scripts/make_review_zip.py`, `src/training/run_store.py`,
+  and `tests/test_priority.py` at that time. Re-run checks against the actual
+  ZIP contents before relying on these statuses.
+- No Earth Engine export was made. `config/preprocessing.yaml` remains
+  `preprocessing_verified: false` because published date ranges conflict and
+  paired-chip calibration has not been completed. Legal thresholds must only
+  be treated as verified if the included config and primary-source evidence
+  support that status; do not infer verification from an output field alone.
 - No representative positive detections, geographic placement, OSM coverage,
   field accuracy, or legal/administrative status has been confirmed by an
   authorized reviewer. Dashboard and CSV values are advisory screening

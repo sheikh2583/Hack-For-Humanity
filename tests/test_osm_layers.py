@@ -6,6 +6,8 @@ InsufficientResponseError returns an empty GeoDataFrame.
 
 from __future__ import annotations
 
+import sys
+import types
 from pathlib import Path
 from unittest.mock import patch
 
@@ -16,10 +18,12 @@ from shapely.geometry import Point, box
 
 from src.geo.osm_layers import (
     LAYER_TAGS,
+    PBF_DOWNLOAD_ERROR,
+    _annotate_source_provenance,
     _clip_features_to_district,
     _district_bbox,
     _fetch_layer,
-    _annotate_source_provenance,
+    _pbf_reader,
     fetch_all_layers,
 )
 
@@ -87,37 +91,73 @@ def test_fetch_all_layers_reuses_cache_unless_refreshed(tmp_path: Path) -> None:
         assert fetch.call_count == len(LAYER_TAGS) * 2
 
 
+def test_pbf_fallback_extracts_and_annotates_features(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A failed Overpass request falls back to a synthetic Pyrosm reader."""
+    pbf = tmp_path / "bangladesh-latest.osm.pbf"
+    pbf.touch()
+    monkeypatch.setattr("src.geo.osm_layers.DEFAULT_PBF", pbf)
+    features = gpd.GeoDataFrame(
+        {"name": ["school"], "amenity": ["school"], "geometry": [Point(88.2, 24.2)]},
+        index=[123], crs="EPSG:4326",
+    )
+
+    class FakeReader:
+        def get_data_by_custom_criteria(self, **kwargs):
+            assert kwargs["custom_filter"] == {"amenity": ["school"]}
+            assert kwargs["keep_other_tags"] is False
+            return features
+
+    fake_pyrosm = types.ModuleType("pyrosm")
+    fake_pyrosm.OSM = lambda *_args, **_kwargs: FakeReader()
+    monkeypatch.setitem(sys.modules, "pyrosm", fake_pyrosm)
+    _pbf_reader.cache_clear()
+    with patch("osmnx.features_from_bbox", side_effect=ConnectionError("blocked")) as overpass:
+        result = _fetch_layer("schools", {"amenity": "school"}, (88, 24, 89, 25))
+        overpass.assert_not_called()
+    assert result["name"].tolist() == ["school"]
+    assert "local Geofabrik Bangladesh PBF snapshot" in result.iloc[0]["geometry_provenance"]
+
+
+def test_railways_layer_is_configured() -> None:
+    """The OSM cache schema includes the requested railway layer."""
+    assert LAYER_TAGS["railways"] == {"railway": True}
+
+
 class TestFetchLayerErrors:
     """Tests for error handling in _fetch_layer."""
 
-    def test_network_error_raises(self) -> None:
-        """A network error (e.g. ConnectionError) must propagate, not be swallowed."""
+    def test_network_error_raises(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A network error without local PBF produces the actionable message."""
+        monkeypatch.setattr("src.geo.osm_layers.DEFAULT_PBF", tmp_path / "missing.osm.pbf")
         with patch(
             "osmnx.features_from_bbox",
             side_effect=ConnectionError("Simulated network failure"),
-        ), pytest.raises(ConnectionError, match="Simulated network failure"):
+        ), pytest.raises(RuntimeError, match=PBF_DOWNLOAD_ERROR):
             _fetch_layer(
                 "schools",
                 {"amenity": "school"},
                 (88.0, 24.0, 88.5, 24.5),
             )
 
-    def test_timeout_error_raises(self) -> None:
-        """A timeout error must propagate."""
+    def test_timeout_error_raises(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A timeout without local PBF produces the actionable message."""
+        monkeypatch.setattr("src.geo.osm_layers.DEFAULT_PBF", tmp_path / "missing.osm.pbf")
         with patch(
             "osmnx.features_from_bbox",
             side_effect=TimeoutError("Overpass timeout"),
-        ), pytest.raises(TimeoutError, match="Overpass timeout"):
+        ), pytest.raises(RuntimeError, match=PBF_DOWNLOAD_ERROR):
             _fetch_layer(
                 "hospitals",
                 {"amenity": "hospital"},
                 (88.0, 24.0, 88.5, 24.5),
             )
 
-    def test_insufficient_response_returns_empty(self) -> None:
+    def test_insufficient_response_returns_empty(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """InsufficientResponseError should return an empty GeoDataFrame."""
         from osmnx._errors import InsufficientResponseError  # type: ignore[import-untyped]
 
+        # Ensure the real user PBF does not change this test's Overpass-only path.
+        monkeypatch.setattr("src.geo.osm_layers.DEFAULT_PBF", Path("missing-test.osm.pbf"))
         with patch(
             "osmnx.features_from_bbox",
             side_effect=InsufficientResponseError("No data"),

@@ -7,18 +7,28 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from shapely.geometry import Polygon, box
+from shapely.geometry import Point, Polygon, box
 
-from src.detect.infer import _nms_polygons, _pixel_to_geo, _polygon_iou, _predict_tile, _tile_starts
+from src.detect.infer import (
+    _nms_polygons,
+    _pixel_to_geo,
+    _point_output_records,
+    _polygon_iou,
+    _predict_tile,
+    _tile_starts,
+)
 
 
 def test_predict_tile_passes_bgr_and_imgsz() -> None:
     """RGB tile is reversed to BGR and configured imgsz reaches model.predict."""
     class FakeModel:
         def predict(self, image, **kwargs):
+            assert image.dtype == np.uint8
             np.testing.assert_array_equal(image[0, 1], np.array([50, 101, 127]))
             np.testing.assert_array_equal(image[1, 1], np.array([254, 254, 254]))
             assert kwargs["imgsz"] == 384
+            assert kwargs["conf"] == 0.1
+            assert kwargs["device"] == "cpu"
             return "result"
 
     tile = {"array": np.array(
@@ -41,7 +51,7 @@ def test_tile_raster_yields_windows_incrementally(tmp_path) -> None:
     from src.detect.infer import _tile_raster
 
     path = tmp_path / "small.tif"
-    data = np.ones((3, 128, 226), dtype=np.uint8)
+    data = np.ones((3, 128, 226), dtype=np.float64)
     with rasterio.open(
         path,
         "w",
@@ -49,7 +59,7 @@ def test_tile_raster_yields_windows_incrementally(tmp_path) -> None:
         height=128,
         width=226,
         count=3,
-        dtype=data.dtype,
+        dtype="float64",
         crs="EPSG:32646",
         transform=from_origin(400000, 2700000, 10, 10),
     ) as dst:
@@ -59,10 +69,26 @@ def test_tile_raster_yields_windows_incrementally(tmp_path) -> None:
     assert iter(tiles) is tiles
     first = next(tiles)
     assert first["array"].shape == (128, 128, 3)
+    assert first["array"].dtype == np.float64
     second = next(tiles)
     assert second["array"].shape == (128, 128, 3)
     with pytest.raises(StopIteration):
         next(tiles)
+
+
+def test_point_output_schema_uses_wgs84_centroids() -> None:
+    """Polygon detections become Point rows with the requested output columns."""
+    records = _point_output_records(
+        [{"kiln_id": "id-1", "geometry": box(90, 24, 90.2, 24.2), "class": "FCBK", "confidence": 0.8}],
+        "Chapainawabganj",
+    )
+    row = records[0]
+    assert isinstance(row["geometry"], Point)
+    assert abs(row["lat"] - 24.1) < 1e-12
+    assert abs(row["lon"] - 90.1) < 1e-12
+    assert row["class_name"] == "FCBK"
+    assert row["district"] == "Chapainawabganj"
+    assert set(row) == {"kiln_id", "geometry", "class_name", "confidence", "district", "lat", "lon"}
 
 
 class FakeAffine:

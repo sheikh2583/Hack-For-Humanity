@@ -113,6 +113,16 @@ def _optional_text(value: object) -> str | None:
     return str(value)
 
 
+def _ensure_class_column(kilns: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """Accept either legacy ``class`` or demo ``class_name`` detection schema."""
+    if "class" not in kilns.columns and "class_name" in kilns.columns:
+        kilns = kilns.copy()
+        kilns["class"] = kilns["class_name"]
+    if "class" not in kilns.columns:
+        raise ValueError("Kiln data must contain a 'class' or 'class_name' column")
+    return kilns
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -145,7 +155,7 @@ def evaluate_rules(
     from rich import print as rprint
 
     rules = _load_rules(rules_config)
-    kilns = gpd.read_parquet(kilns_path)
+    kilns = _ensure_class_column(gpd.read_parquet(kilns_path))
     proj_crs = get_projected_crs(centroid_longitude(kilns))
 
     # Check if any rule is unverified
@@ -166,7 +176,6 @@ def evaluate_rules(
         warnings.warn(msg, stacklevel=2)
         rprint(f"[bold red]{msg}[/bold red]")
 
-    kilns = gpd.read_parquet(kilns_path)
     rprint(f"[cyan]Evaluating {len(kilns)} kilns against {len(rules.get('siting_rules', []))} siting rules.[/cyan]")
 
     # Project for distance calculations

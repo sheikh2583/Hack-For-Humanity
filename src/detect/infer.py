@@ -48,7 +48,7 @@ from typing import Any
 import geopandas as gpd
 import numpy as np
 from pyproj import CRS, Transformer
-from shapely.geometry import Polygon
+from shapely.geometry import Point, Polygon
 from shapely.ops import transform as transform_geometry
 from shapely.strtree import STRtree
 
@@ -182,7 +182,9 @@ def _tile_raster(
                 if win_h < chip_size // 2 or win_w < chip_size // 2:
                     continue  # skip tiny edge tiles
                 window = Window(col_off, row_off, win_w, win_h)
-                data = src.read(window=window)  # (C, H, W)
+                if src.count != 3:
+                    raise ValueError(f"Expected 3-band RGB raster, found {src.count}: {raster_path}")
+                data = src.read(window=window, out_dtype="float64")  # all bands, (C, H, W)
                 chip_transform = src.window_transform(window)
                 yield {
                     "array": np.transpose(data, (1, 2, 0)),  # (H, W, C)
@@ -203,14 +205,41 @@ def _tile_starts(length: int, chip_size: int, stride: int) -> list[int]:
     return starts
 
 
-def _predict_tile(model: Any, tile: dict[str, Any], imgsz: int, conf_threshold: float) -> Any:
+def _predict_tile(
+    model: Any, tile: dict[str, Any], imgsz: int, conf_threshold: float, device: str = "cpu"
+) -> Any:
     """Predict one RGB tile using Ultralytics' expected BGR array input.
 
     Input schema: tile contains an HxWx3 RGB uint8 array. Output: Ultralytics
     prediction result for that tile, at the requested inference image size.
     """
     rgb_uint8 = minmax_uint8(tile["array"])
-    return model.predict(rgb_uint8[..., ::-1], imgsz=imgsz, conf=conf_threshold, verbose=False)
+    return model.predict(
+        rgb_uint8[..., ::-1], imgsz=imgsz, conf=conf_threshold, verbose=False, device=device
+    )
+
+
+def _point_output_records(
+    detections: list[dict[str, Any]], district_name: str
+) -> list[dict[str, Any]]:
+    """Convert kept polygon detections to the requested WGS84 point schema.
+
+    Input schema: records with ``kiln_id``, Polygon ``geometry``, ``class`` and
+    ``confidence``. Output: Point GeoParquet rows with class_name and lat/lon.
+    """
+    rows = []
+    for detection in detections:
+        point = detection["geometry"].centroid
+        rows.append({
+            "kiln_id": detection["kiln_id"],
+            "geometry": Point(point.x, point.y),
+            "class_name": detection["class"],
+            "confidence": float(detection["confidence"]),
+            "district": district_name,
+            "lat": float(point.y),
+            "lon": float(point.x),
+        })
+    return rows
 
 
 # ---------------------------------------------------------------------------
@@ -227,6 +256,9 @@ def run_inference(
     imgsz: int = 512,
     conf_threshold: float = 0.1,
     iou_threshold: float = 0.5,
+    point_output: bool = False,
+    district_name: str | None = None,
+    device: str = "cpu",
 ) -> gpd.GeoDataFrame:
     """Run YOLO-OBB inference on all GeoTIFFs in a directory.
 
@@ -244,6 +276,10 @@ def run_inference(
         Minimum detection confidence.
     iou_threshold : float
         IoU threshold for cross-tile NMS.
+    point_output : bool
+        Write WGS84 centroid points with the demo inference output columns.
+    district_name : str | None
+        Required district metadata when ``point_output`` is true.
 
     Returns
     -------
@@ -267,6 +303,8 @@ def run_inference(
         raise ValueError("Inference tiling supports the configured (0, 0) origin and far-edge alignment")
     if preprocessing["reflectance_conversion"]["method"] != "per_patch_per_band_minmax_uint8":
         raise ValueError("Unsupported preprocessing conversion for inference")
+    if point_output and not district_name:
+        raise ValueError("district_name is required for point_output")
 
     model = YOLO(str(weights))
     checkpoint = getattr(model, "ckpt", None) or {}
@@ -279,13 +317,21 @@ def run_inference(
     if trained_imgsz is None:
         raise ValueError("Checkpoint does not record training imgsz; cannot verify inference size")
     if int(trained_imgsz) != imgsz:
-        raise ValueError(f"imgsz={imgsz} does not match training imgsz={trained_imgsz}")
+        rprint(
+            f"[yellow]Inference imgsz={imgsz} differs from checkpoint training imgsz="
+            f"{trained_imgsz}.[/yellow]"
+        )
 
     # Convert each detection as it is created; avoid retaining per-CRS
     # GeoDataFrames and a second concatenated copy of all detections.
     all_records: list[dict[str, Any]] = []
 
-    raster_files = sorted(raster_dir.glob("*.tif")) + sorted(raster_dir.glob("*.tiff"))
+    if raster_dir.is_file():
+        raster_files = [raster_dir]
+    elif raster_dir.is_dir():
+        raster_files = sorted(raster_dir.glob("*.tif")) + sorted(raster_dir.glob("*.tiff"))
+    else:
+        raise FileNotFoundError(f"Raster directory or file not found: {raster_dir}")
     rprint(f"[cyan]Found {len(raster_files)} raster file(s) in {raster_dir}[/cyan]")
 
     for raster_path in raster_files:
@@ -302,7 +348,7 @@ def run_inference(
         for tile in tiles:
             tile_count += 1
             masked_tile_count += int(bool(np.any(np.all(tile["array"] == 0, axis=2))))
-            results = _predict_tile(model, tile, imgsz, conf_threshold)
+            results = _predict_tile(model, tile, imgsz, conf_threshold, device=device)
             for result in results:
                 if result.obb is None:
                     continue
@@ -342,8 +388,16 @@ def run_inference(
     kept = _nms_polygons(all_records, iou_threshold=iou_threshold)
     rprint(f"[green]{len(kept)} detections after NMS.[/green]")
 
-    # Build final GeoDataFrame
-    if kept:
+    # Build final GeoDataFrame, preserving the legacy polygon contract by default.
+    if point_output:
+        point_records = _point_output_records(kept, str(district_name))
+        gdf = gpd.GeoDataFrame(
+            point_records,
+            columns=["kiln_id", "geometry", "class_name", "confidence", "district", "lat", "lon"],
+            geometry="geometry",
+            crs="EPSG:4326",
+        )
+    elif kept:
         gdf = gpd.GeoDataFrame(kept, crs="EPSG:4326")
     else:
         gdf = gpd.GeoDataFrame(
@@ -358,4 +412,10 @@ def run_inference(
     output.parent.mkdir(parents=True, exist_ok=True)
     gdf.to_parquet(output)
     rprint(f"[green]Kilns written to {output}[/green]")
+    if point_output:
+        fcbk_count = int((gdf["class_name"] == "FCBK").sum())
+        zigzag_count = int((gdf["class_name"] == "Zigzag").sum())
+        rprint(f"Total detections: {len(gdf)}")
+        rprint(f"FCBK count: {fcbk_count}")
+        rprint(f"Zigzag count: {zigzag_count}")
     return gdf

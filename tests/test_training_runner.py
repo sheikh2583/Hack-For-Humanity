@@ -110,6 +110,8 @@ def test_validation_map50_rejects_missing_fitness_column(tmp_path: Path) -> None
 
 def test_validation_map50_does_not_substitute_map50_95(tmp_path: Path) -> None:
     """A missing mAP50 column must not silently return the mAP50-95 value."""
+    from src.training.engine import validation_map50
+
     stage = _write_results(
         tmp_path / "s", [(0.4, 0.2)],
         header="epoch,time,metrics/mAP50-95(B)\n",
