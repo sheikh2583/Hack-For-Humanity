@@ -10,3 +10,4 @@ Rules:
 5. Pipeline outputs are GeoParquet in data/processed/.
 6. Do not start, stop, or run training, inference, benchmarks, smoke tests, or other GPU workloads unless the user explicitly asks for that specific GPU work. GPU use is user-managed by default. Keep training workflows in notebooks/scripts; do not treat CUDA availability or prior smoke-test approval as permission to run another GPU workload.
 7. After each task, list what you could not verify and what I must check by hand.
+8. Never render developer-facing advisory, verification-status, preprocessing, or legal-status wording in the UI. Keep those details in logs and documentation only. In particular, do not display: "Outputs are screening candidates only. Field verification required before any inspection action."

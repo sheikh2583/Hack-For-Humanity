@@ -7,3 +7,6 @@ textColor = "#fafafa"
 
 [server]
 maxUploadSize = 200
+
+[client]
+toolbarMode = "viewer"

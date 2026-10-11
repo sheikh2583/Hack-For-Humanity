@@ -161,28 +161,41 @@ def render_header(gdf: gpd.GeoDataFrame) -> None:
     """Render the app identity, advisory, and four metric chips."""
     st.markdown("<h1 style='margin-bottom:0'>Dhoa</h1>", unsafe_allow_html=True)
     st.caption("Satellite Kiln Inspection Tool — Bangladesh")
-    st.markdown("<div style='color:#f0b429;font-weight:600'>Outputs are screening candidates only. Field verification required before any inspection action.</div>", unsafe_allow_html=True)
     high = int(gdf["priority_band"].eq("High").sum())
     st.markdown(f"<div style='display:flex;gap:28px;margin:18px 0'><div><b>{len(gdf):,}</b><br><small>Total Candidates</small></div><div><b>{high:,}</b><br><small>High Priority</small></div><div><b>{gdf['district'].nunique()}</b><br><small>Districts Scanned</small></div><div><b>{datetime.now(UTC).date().isoformat()}</b><br><small>Last Updated</small></div></div>", unsafe_allow_html=True)
 
 
 def render_sidebar(gdf: gpd.GeoDataFrame) -> dict[str, Any]:
     """Render controls and return a filter mapping."""
-    with st.sidebar:
-        district = st.selectbox("Select District", DISTRICTS)
-        kiln_type = st.radio("Kiln Type", ["All types", "Fixed-chimney (FCBK)", "Zigzag"])
-        priority_labels = st.multiselect(
-            "Priority",
-            ["🔴 High", "🟠 Medium", "🟢 Low"],
-            default=["🔴 High", "🟠 Medium", "🟢 Low"],
-            key="dhoa_priority_filter",
+    with st.sidebar, st.expander("Filter", expanded=False):
+        st.caption("Find candidates by district, type, severity, and confidence.")
+        district = st.selectbox("Select district", DISTRICTS, key="dhoa_district_filter")
+        kiln_type = st.selectbox(
+            "Kiln type",
+            ["All types", "Fixed-chimney (FCBK)", "Zigzag"],
+            key="dhoa_kiln_type_filter",
         )
-        priorities = {
-            band for band, label in (("High", "🔴 High"), ("Medium", "🟠 Medium"), ("Low", "🟢 Low"))
-            if label in priority_labels
-        }
-        confidence = st.slider("How certain?", 0.1, 0.9, 0.35, 0.05, format="%d%%")
-    filters = {"district": district, "kiln_type": kiln_type, "priorities": priorities, "confidence": confidence}
+        severity = st.selectbox(
+            "Severity", ["All severities", "High", "Medium", "Low"],
+            key="dhoa_severity_filter",
+        )
+        priorities = {severity} if severity != "All severities" else {"High", "Medium", "Low"}
+        confidence_pct = st.slider(
+            "How certain should the detection be?",
+            10,
+            90,
+            35,
+            5,
+            format="%d%%",
+            key="dhoa_confidence_filter",
+        )
+        confidence = confidence_pct / 100
+    filters = {
+        "district": district,
+        "kiln_type": kiln_type,
+        "priorities": priorities,
+        "confidence": confidence,
+    }
     visible = _filtered(gdf, filters)
     with st.sidebar:
         st.markdown(f"**Showing {len(visible):,} candidates**")
@@ -203,8 +216,16 @@ def build_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]):
     selected = gdf if filters["district"] == "All Districts" else gdf[gdf["district"].astype(str) == filters["district"]]
     selected = selected if not selected.empty else gdf
     center = [float(selected.lat.mean()), float(selected.lon.mean())]
-    fmap = folium.Map(location=center, zoom_start=7 if filters["district"] == "All Districts" else 10, tiles="OpenStreetMap")
-    folium.TileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", attr="Esri", name="Satellite").add_to(fmap)
+    fmap = folium.Map(
+        location=center,
+        zoom_start=7 if filters["district"] == "All Districts" else 10,
+        tiles="OpenStreetMap",
+    )
+    folium.TileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        attr="Esri",
+        name="Satellite imagery",
+    ).add_to(fmap)
     for _, row in filtered.iterrows():
         color = color_for_kiln(row)
         folium.CircleMarker([float(row.lat), float(row.lon)], radius=7, color=color, fill=True, fill_color=color, fill_opacity=.8, popup=folium.Popup(build_popup(row), max_width=360)).add_to(fmap)
