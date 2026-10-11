@@ -113,15 +113,12 @@ def _priority_reason(row: pd.Series) -> str:
 def build_popup(row: pd.Series) -> str:
     """Build one self-contained plain-English popup for a candidate row."""
     lat, lon = float(row.lat), float(row.lon)
-    confidence = float(row.get("confidence", 0) or 0)
-    confidence_label = "High confidence detection" if confidence >= 0.7 else "Review confidence"
     directions = f"https://www.google.com/maps/dir/?api=1&destination={lat:.6f},{lon:.6f}&travelmode=driving"
     location = f"https://www.google.com/maps?q={lat:.6f},{lon:.6f}"
     earth = f"https://earth.google.com/web/@{lat:.6f},{lon:.6f},500a,500d,35y,0h,0t,0r"
     return (
         f"<b>Kiln Candidate #{html.escape(str(row.get('kiln_id', 'unknown')))}</b><br>"
         f"Type: {html.escape(_type_label(row.get('class')))}<br>"
-        f"Confidence: {confidence:.0%} — {confidence_label}<br>"
         f"Priority: {html.escape(str(row.get('priority_band', 'Not ranked')))} — {html.escape(_priority_reason(row))}<br>"
         f"District: {html.escape(str(row.get('district', 'Not recorded')))}<br>"
         f"📍 {lat:.4f}° N, {lon:.4f}° E<br>"
@@ -139,7 +136,7 @@ def _filtered(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> gpd.GeoDataF
         load_config()["rules"],
         districts=None if filters["district"] == "All Districts" else {filters["district"]},
         classes=None if filters["kiln_type"] == "All types" else {"FCBK" if "FCBK" in filters["kiln_type"] else "Zigzag"},
-        confidence_range=(filters["confidence"], 1.0),
+        confidence_range=(0.0, 1.0),
         priority_bands=filters["priorities"] or {"__none__"},
     )
 
@@ -168,33 +165,29 @@ def render_header(gdf: gpd.GeoDataFrame) -> None:
 def render_sidebar(gdf: gpd.GeoDataFrame) -> dict[str, Any]:
     """Render controls and return a filter mapping."""
     with st.sidebar, st.expander("Filter", expanded=False):
-        st.caption("Find candidates by district, type, severity, and confidence.")
+        st.caption("Find candidates by district, type, map, and severity.")
         district = st.selectbox("Select district", DISTRICTS, key="dhoa_district_filter")
         kiln_type = st.selectbox(
             "Kiln type",
             ["All types", "Fixed-chimney (FCBK)", "Zigzag"],
             key="dhoa_kiln_type_filter",
         )
+        map_style = st.selectbox(
+            "Map view",
+            ["Street map", "Satellite imagery"],
+            help="Choose the map background for candidate locations.",
+            key="dhoa_map_style_filter",
+        )
         severity = st.selectbox(
             "Severity", ["All severities", "High", "Medium", "Low"],
             key="dhoa_severity_filter",
         )
         priorities = {severity} if severity != "All severities" else {"High", "Medium", "Low"}
-        confidence_pct = st.slider(
-            "How certain should the detection be?",
-            10,
-            90,
-            35,
-            5,
-            format="%d%%",
-            key="dhoa_confidence_filter",
-        )
-        confidence = confidence_pct / 100
     filters = {
         "district": district,
         "kiln_type": kiln_type,
+        "map_style": map_style,
         "priorities": priorities,
-        "confidence": confidence,
     }
     visible = _filtered(gdf, filters)
     with st.sidebar:
@@ -216,15 +209,18 @@ def build_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]):
     selected = gdf if filters["district"] == "All Districts" else gdf[gdf["district"].astype(str) == filters["district"]]
     selected = selected if not selected.empty else gdf
     center = [float(selected.lat.mean()), float(selected.lon.mean())]
+    satellite = filters.get("map_style") == "Satellite imagery"
     fmap = folium.Map(
         location=center,
         zoom_start=7 if filters["district"] == "All Districts" else 10,
-        tiles="OpenStreetMap",
+        tiles=None,
     )
+    folium.TileLayer("OpenStreetMap", name="Street map", show=not satellite).add_to(fmap)
     folium.TileLayer(
         "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
         attr="Esri",
         name="Satellite imagery",
+        show=satellite,
     ).add_to(fmap)
     for _, row in filtered.iterrows():
         color = color_for_kiln(row)
