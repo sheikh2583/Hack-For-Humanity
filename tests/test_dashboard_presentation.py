@@ -53,32 +53,21 @@ def test_dashboard_labels_are_non_conclusive() -> None:
     assert "signal_provenance" in table_columns
 
 
-def test_dashboard_advisory_banner_is_configured_unconditionally() -> None:
-    """The dashboard presents the required field-review advisory on every run."""
-    from app.streamlit_app import ADVISORY_BANNER
-
-    assert ADVISORY_BANNER == (
-        "This tool identifies kiln candidates for human review. Detections and rule signals "
-        "are preliminary screening candidates. Review results in the field before any "
-        "inspection decision."
-    )
-
-
-def test_dashboard_renders_advisory_before_data_loading(monkeypatch) -> None:
-    """The advisory is rendered before the dashboard checks for data."""
+def test_dashboard_does_not_render_the_developer_banner(monkeypatch) -> None:
+    """The removed developer-facing advisory is not displayed by the dashboard."""
     import app.streamlit_app as dashboard
 
     monkeypatch.setattr(dashboard, "dashboard_kilns_file", lambda: None)
-    displayed: list[str] = []
+    warnings: list[str] = []
     monkeypatch.setattr(dashboard.st, "set_page_config", lambda **kwargs: None)
     monkeypatch.setattr(dashboard.st, "title", lambda *args, **kwargs: None)
     monkeypatch.setattr(dashboard.st, "caption", lambda *args, **kwargs: None)
     monkeypatch.setattr(
-        dashboard.st, "warning", lambda message, **kwargs: displayed.append(message)
+        dashboard.st, "warning", lambda message, **kwargs: warnings.append(message)
     )
     monkeypatch.setattr(dashboard.st, "info", lambda *args, **kwargs: None)
     dashboard.main()
-    assert displayed == [dashboard.ADVISORY_BANNER]
+    assert warnings == []
 
 
 def test_marker_tooltip_keeps_model_confidence_separate() -> None:

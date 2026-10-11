@@ -7,6 +7,13 @@ and advisory CSV export.
 
 from __future__ import annotations
 
+# isort: off
+import sys, os
+# isort: on
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# isort: off
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -16,22 +23,18 @@ import pandas as pd
 import streamlit as st
 import yaml
 
-from app.dashboard_filters import add_priority_bands, apply_candidate_filters
-from app.data_loader import load_kilns
-from app.popup import sanitize_popup_text
-from app.presentation import screening_csv
-from app.startup import check_prioritised_data
+from dashboard_filters import add_priority_bands, apply_candidate_filters
+from data_loader import load_kilns
+from popup import sanitize_popup_text
+from presentation import screening_csv
+from startup import check_prioritised_data
 from src.rules.engine import _ensure_class_column
+# isort: on
 
-ROOT = Path(__file__).resolve().parents[1]
-DATA_DIR = ROOT / "data/processed"
-RULES = ROOT / "config/rules.yaml"
-# Kept as a compatibility constant for existing integrations; it is not rendered.
-ADVISORY_BANNER = (
-    "This tool identifies kiln candidates for human review. Detections and rule signals "
-    "are preliminary screening candidates. Review results in the field before any "
-    "inspection decision."
-)
+BASE_DIR = Path(__file__).parent.parent
+CONFIG_DIR = BASE_DIR / "config"
+DATA_DIR = BASE_DIR / "data" / "processed"
+RULES = CONFIG_DIR / "rules.yaml"
 PRIORITY_COLORS = {"High": "red", "Medium": "orange", "Low": "green"}
 
 
@@ -90,7 +93,6 @@ def main() -> None:
     )
     st.title("KilnWatch BD", icon=":material/public:")
     st.caption("Explore kiln candidates across Bangladesh")
-    st.warning(ADVISORY_BANNER, icon=":material/info:")
     missing_data = check_prioritised_data()
     if missing_data is not None:
         st.error(missing_data)

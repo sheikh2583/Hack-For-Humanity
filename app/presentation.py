@@ -9,15 +9,21 @@ from __future__ import annotations
 import html
 import json
 import math
+import os
+import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# isort: off
 import pandas as pd
 
-from app.popup import (
+from popup import (
     ADVISORY_NOTICE,
     parse_candidate_signals,
     parse_signal_provenance,
     unavailable_provenance,
 )
+# isort: on
 
 DASHBOARD_LABELS = {
     "page_title": "KilnWatch BD — Screening Candidates",

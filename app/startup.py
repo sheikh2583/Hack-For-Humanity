@@ -9,12 +9,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_DATA_DIR = ROOT / "data" / "processed"
+BASE_DIR = Path(__file__).resolve().parent.parent
+CONFIG_DIR = BASE_DIR / "config"
+DATA_DIR = BASE_DIR / "data" / "processed"
 DATA_FILENAME = "kilns_prioritised.parquet"
 
 
-def check_prioritised_data(data_dir: Path = DEFAULT_DATA_DIR) -> str | None:
+def check_prioritised_data(data_dir: Path = DATA_DIR) -> str | None:
     """Print and return setup guidance when the prioritized parquet is absent."""
     data_path = data_dir / DATA_FILENAME
     if data_path.is_file():
