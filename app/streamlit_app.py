@@ -214,6 +214,10 @@ def build_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]):
         location=center,
         zoom_start=7 if filters["district"] == "All Districts" else 10,
         tiles=None,
+        scrollWheelZoom=False,
+        min_zoom=5,
+        max_zoom=14,
+        control_scale=True,
     )
     folium.TileLayer("OpenStreetMap", name="Street map", show=not satellite).add_to(fmap)
     folium.TileLayer(
