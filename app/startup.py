@@ -7,9 +7,14 @@ printable instruction string when it is missing; no data is generated.
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+if str(BASE_DIR / "app") not in sys.path:
+    sys.path.insert(0, str(BASE_DIR / "app"))
 CONFIG_DIR = BASE_DIR / "config"
 DATA_DIR = BASE_DIR / "data" / "processed"
 DATA_FILENAME = "kilns_prioritised.parquet"

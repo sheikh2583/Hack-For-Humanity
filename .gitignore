@@ -36,6 +36,8 @@ data/interim/*
 !data/interim/.gitkeep
 data/processed/*
 !data/processed/.gitkeep
+!data/processed/kilns_prioritised.parquet
+!data/processed/kilns_scored.parquet
 
 # Model weights and training outputs
 *.pt

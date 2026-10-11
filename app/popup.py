@@ -11,7 +11,15 @@ import html
 import json
 import math
 import re
+import sys
 from collections.abc import Mapping
+from pathlib import Path
+
+_ROOT = Path(__file__).resolve().parent.parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+if str(_ROOT / "app") not in sys.path:
+    sys.path.insert(0, str(_ROOT / "app"))
 
 ADVISORY_NOTICE = (
     "Screening outputs only. Model detections and mapped-feature signals are "

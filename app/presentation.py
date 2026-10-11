@@ -9,21 +9,22 @@ from __future__ import annotations
 import html
 import json
 import math
-import os
 import sys
+from pathlib import Path
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_ROOT = Path(__file__).resolve().parent.parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+if str(_ROOT / "app") not in sys.path:
+    sys.path.insert(0, str(_ROOT / "app"))
 
-# isort: off
 import pandas as pd
-
 from popup import (
     ADVISORY_NOTICE,
     parse_candidate_signals,
     parse_signal_provenance,
     unavailable_provenance,
 )
-# isort: on
 
 DASHBOARD_LABELS = {
     "page_title": "KilnWatch BD — Screening Candidates",

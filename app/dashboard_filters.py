@@ -11,10 +11,18 @@ from __future__ import annotations
 
 import json
 import math
+import sys
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
+
+_ROOT = Path(__file__).resolve().parent.parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+if str(_ROOT / "app") not in sys.path:
+    sys.path.insert(0, str(_ROOT / "app"))
 
 UNKNOWN_SIGNAL = "Unknown / not available"
 SIGNAL_PRESENT = "Signal present"
