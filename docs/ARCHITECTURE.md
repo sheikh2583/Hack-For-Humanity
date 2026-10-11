@@ -1,4 +1,4 @@
-# KilnWatch BD architecture
+# Dhoa architecture
 
 ## Screening flow
 

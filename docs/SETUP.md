@@ -1,4 +1,4 @@
-# KilnWatch BD setup (Windows and Linux)
+# Dhoa setup (Windows and Linux)
 
 Use Python 3.11 or 3.12. Run commands from the repository root. The project
 does not start training or inference during installation. Choose the smallest

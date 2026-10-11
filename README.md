@@ -1,6 +1,6 @@
-﻿# KilnWatch BD
+﻿# Dhoa
 
-> **Current status (Round 2 prototype):** KilnWatch BD screens kiln candidates
+> **Current status (Round 2 prototype):** Dhoa screens kiln candidates
 > across five pilot districts: Chapainawabganj, Gazipur, Rajshahi, Dhaka, and
 > Chittagong. The processed priority dataset currently contains 2,150 candidate
 > rows. The selected model is `results/run_0002/checkpoints/final/best.pt` at
@@ -15,7 +15,7 @@
 
 ## Overview
 
-KilnWatch BD detects kiln candidates in Sentinel-2 satellite imagery, compares
+Dhoa detects kiln candidates in Sentinel-2 satellite imagery, compares
 them with configured siting and technology rules as GIS screening signals,
 ranks them by screening priority, and displays the results on an interactive
 map. These outputs are screening candidates, not legal or administrative determinations.

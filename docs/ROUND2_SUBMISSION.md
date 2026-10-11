@@ -1,4 +1,4 @@
-# KilnWatch BD — Round 2 submission
+# Dhoa — Round 2 submission
 
 ## The problem
 
@@ -6,7 +6,7 @@ The project brief reports 112 brick kilns in Chapainawabganj without valid Depar
 
 ## What we built
 
-KilnWatch BD combines free Sentinel-2 imagery, YOLOv8s-OBB kiln detection, project rule signals informed by the [Brick Manufacturing and Kiln Establishment (Control) Act, 2013 (Act 59 of 2013)](https://bdlaws.minlaw.gov.bd/act-details-1140.html), an exposure-weighted priority score, and a Streamlit inspector dashboard. The rule signals and mapped features are screening proxies; they do not determine legal status.
+Dhoa combines free Sentinel-2 imagery, YOLOv8s-OBB kiln detection, project rule signals informed by the [Brick Manufacturing and Kiln Establishment (Control) Act, 2013 (Act 59 of 2013)](https://bdlaws.minlaw.gov.bd/act-details-1140.html), an exposure-weighted priority score, and a Streamlit inspector dashboard. The rule signals and mapped features are screening proxies; they do not determine legal status.
 
 The workflow is:
 

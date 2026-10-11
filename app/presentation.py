@@ -27,7 +27,7 @@ from popup import (
 )
 
 DASHBOARD_LABELS = {
-    "page_title": "KilnWatch BD — Screening Candidates",
+    "page_title": "Dhoa — Screening Candidates",
     "subtitle": "Satellite-based kiln-candidate screening dashboard",
     "map_title": "Kiln Candidate Map",
     "table_title": "Kiln Candidate Details",
@@ -127,7 +127,7 @@ def screening_csv(df: pd.DataFrame) -> str:
     ]
     exported = exported[order]
     preamble = (
-        "# KilnWatch BD advisory screening export. Detections and mapped-feature "
+        "# Dhoa advisory screening export. Detections and mapped-feature "
         "signals are screening candidates for human review. "
         "Distances are to mapped feature geometries and may not be distances to "
         "legally controlling boundaries.\n"

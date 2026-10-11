@@ -102,7 +102,7 @@ def test_csv_has_advisory_notice_and_non_conclusive_columns() -> None:
     )
 
     result = screening_csv(frame)
-    assert result.startswith("# KilnWatch BD advisory screening export.")
+    assert result.startswith("# Dhoa advisory screening export.")
     assert "legally controlling boundaries" in result
     exported = pd.read_csv(StringIO(result), comment="#")
     assert {
@@ -129,7 +129,7 @@ def test_csv_has_advisory_notice_and_non_conclusive_columns() -> None:
 def test_empty_csv_still_has_advisory_preamble() -> None:
     """An empty selection still downloads with an advisory-use statement."""
     result = screening_csv(pd.DataFrame(columns=["kiln_id", "geometry"]))
-    assert result.startswith("# KilnWatch BD advisory screening export.")
+    assert result.startswith("# Dhoa advisory screening export.")
     assert "screening candidates for human review" in result
 
 

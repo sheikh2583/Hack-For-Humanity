@@ -1,4 +1,4 @@
-# KilnWatch BD deployment
+# Dhoa deployment
 
 The dashboard displays precomputed screening results. Keep
 `data/processed/kilns_prioritised.parquet` available in the checkout or Space

@@ -3,7 +3,7 @@
 Upload `kilnwatch_bd_share.zip` to Claude Web, then paste this prompt:
 
 ```text
-Review the attached KilnWatch BD project as an independent technical reviewer.
+Review the attached Dhoa project as an independent technical reviewer.
 Read AGENTS.md, README.md, docs/CLAUDE_SHARING_AND_SETUP.md,
 docs/screening_provenance.md, docs/legal_basis.md, docs/PROGRESS.md,
 docs/TRAINING_RUN_HISTORY.md, and kilnwatch_scaffold.md first. Inspect the

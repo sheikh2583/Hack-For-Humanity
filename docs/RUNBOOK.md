@@ -1,4 +1,4 @@
-# KilnWatch BD Operator Runbook
+# Dhoa Operator Runbook
 
 **Updated:** 2026-10-08. **Scope:** completed local GPU training and the later
 imagery/pilot handoff.

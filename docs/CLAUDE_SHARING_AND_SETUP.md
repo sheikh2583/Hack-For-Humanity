@@ -1,7 +1,7 @@
 # Claude sharing and operator setup
 
 Updated 2026-10-08. This guide explains how to create a portable source ZIP
-and which local services or files are needed for each KilnWatch BD stage.
+and which local services or files are needed for each Dhoa stage.
 
 ## Create a Claude review ZIP
 

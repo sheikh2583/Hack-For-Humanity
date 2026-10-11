@@ -1,4 +1,4 @@
-# KilnWatch BD: agent rules
+# Dhoa: agent rules
 Goal: detect brick kilns in Sentinel-2 imagery of Bangladesh, check them against siting/technology rules in config/rules.yaml, rank by exposure, show on a map.
 Stack: Python 3.11, PyTorch, ultralytics (YOLO OBB), geopandas, shapely, pyproj, osmnx, earthengine-api, streamlit, folium, pytest.
 

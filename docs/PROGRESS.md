@@ -1,4 +1,4 @@
-# KilnWatch BD progress and verification
+# Dhoa progress and verification
 
 **Updated:** 2026-10-08. This document tracks implementation against
 [`kilnwatch_scaffold.md`](../kilnwatch_scaffold.md) and later project requests.

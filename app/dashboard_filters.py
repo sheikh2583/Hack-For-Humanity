@@ -1,4 +1,4 @@
-"""Filter and present existing KilnWatch candidate fields.
+"""Filter and present existing Dhoa candidate fields.
 
 Input schema: candidate DataFrame/GeoDataFrame with optional ``district``,
 ``class``/``class_name``, ``confidence``, priority, rule-signal, and distance
