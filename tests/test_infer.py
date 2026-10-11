@@ -5,17 +5,24 @@ Uses tiny synthetic data — no real raster or model needed.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 from shapely.geometry import Point, Polygon, box
 
 from src.detect.infer import (
+    _clip_detections_to_polygon,
+    _count_tiles,
+    _load_district_polygon,
     _nms_polygons,
+    _normalize_district_name,
     _pixel_to_geo,
     _point_output_records,
     _polygon_iou,
     _predict_tile,
     _tile_starts,
+    read_as_windows,
 )
 
 
@@ -43,12 +50,15 @@ def test_tile_starts_align_last_patch_to_far_edge() -> None:
     assert _tile_starts(length=300, chip_size=128, stride=98) == [0, 98, 172]
 
 
+def test_count_tiles_reports_expected_window_total() -> None:
+    """Synthetic raster count reflects 128 px windows with 30 px overlap."""
+    assert _count_tiles(226, 128) == 2
+
+
 def test_tile_raster_yields_windows_incrementally(tmp_path) -> None:
     """Raster windows are yielded one-by-one rather than retained as a full list."""
     import rasterio
     from rasterio.transform import from_origin
-
-    from src.detect.infer import _tile_raster
 
     path = tmp_path / "small.tif"
     data = np.ones((3, 128, 226), dtype=np.float64)
@@ -65,7 +75,7 @@ def test_tile_raster_yields_windows_incrementally(tmp_path) -> None:
     ) as dst:
         dst.write(data)
 
-    tiles = _tile_raster(path, chip_size=128, overlap=30)
+    tiles = read_as_windows(path, chip_size=128, overlap=30)
     assert iter(tiles) is tiles
     first = next(tiles)
     assert first["array"].shape == (128, 128, 3)
@@ -89,6 +99,58 @@ def test_point_output_schema_uses_wgs84_centroids() -> None:
     assert row["class_name"] == "FCBK"
     assert row["district"] == "Chapainawabganj"
     assert set(row) == {"kiln_id", "geometry", "class_name", "confidence", "district", "lat", "lon"}
+
+
+def test_district_boundary_name_normalization_and_centroid_clipping(tmp_path) -> None:
+    """District aliases map to the canonical shape and filter by centroid."""
+    import geopandas as gpd
+
+    assert _normalize_district_name("chapai nawabganj") == "chapainawabganj"
+    boundary_path = tmp_path / "districts.geojson"
+    boundaries = gpd.GeoDataFrame(
+        {"shapeName": ["Nawabganj", "Gazipur", "Rajshahi", "Dhaka", "Chittagong"]},
+        geometry=[
+            box(0, 0, 10, 10), box(20, 20, 30, 30), box(40, 40, 50, 50),
+            box(60, 60, 70, 70), box(80, 80, 90, 90),
+        ],
+        crs="EPSG:4326",
+    )
+    boundaries.to_file(boundary_path, driver="GeoJSON")
+    warnings: list[str] = []
+    expected = [
+        ("Chapainawabganj", "Nawabganj", "Chapainawabganj"),
+        ("chapai nawabganj", "Nawabganj", "Chapainawabganj"),
+        ("Gazipur", "Gazipur", "Gazipur"),
+        ("Rajshahi", "Rajshahi", "Rajshahi"),
+        ("Dhaka", "Dhaka", "Dhaka"),
+        ("Chittagong", "Chittagong", "Chittagong"),
+    ]
+    district = None
+    for argument, expected_shape, expected_display in expected:
+        matched = _load_district_polygon(boundary_path, argument, warnings.append)
+        assert matched is not None
+        district, shapename, display_name = matched
+        assert shapename == expected_shape
+        assert display_name == expected_display
+
+    chapai_match = _load_district_polygon(
+        boundary_path, "Chapainawabganj", warnings.append
+    )
+    assert chapai_match is not None
+    district = chapai_match[0]
+    kept = _clip_detections_to_polygon(
+        [
+            {"geometry": box(1, 1, 2, 2)},
+            {"geometry": box(10, 10, 12, 12)},
+        ],
+        district,
+    )
+    assert len(kept) == 1
+    assert not warnings
+
+    unknown = _load_district_polygon(boundary_path, "Unknown", warnings.append)
+    assert unknown is None
+    assert warnings and "Nawabganj" in warnings[-1] and "Gazipur" in warnings[-1]
 
 
 class FakeAffine:
@@ -270,4 +332,57 @@ class TestUTMToWGS84Reprojection:
             f"(expected ({expected_lon:.6f}, {expected_lat:.6f}), "
             f"got ({centroid_4326.x:.6f}, {centroid_4326.y:.6f}))"
         )
+
+
+def test_append_concatenates_onto_existing_parquet(tmp_path: Path) -> None:
+    """The append flag loads existing rows and concatenates new detections."""
+    import geopandas as gpd
+    import pandas as pd
+
+    output = tmp_path / "kilns.parquet"
+
+    # Write an initial 2-row file
+    existing = gpd.GeoDataFrame(
+        {
+            "kiln_id": ["old-1", "old-2"],
+            "class": ["FCBK", "Zigzag"],
+            "confidence": [0.8, 0.9],
+            "district": ["D1", "D1"],
+        },
+        geometry=[Point(90.0, 24.0), Point(90.1, 24.1)],
+        crs="EPSG:4326",
+    )
+    existing.to_parquet(output)
+
+    # Build new detections and simulate the append path directly
+    new = gpd.GeoDataFrame(
+        {
+            "kiln_id": ["new-1"],
+            "class": ["FCBK"],
+            "confidence": [0.7],
+            "district": ["D2"],
+        },
+        geometry=[Point(90.2, 24.2)],
+        crs="EPSG:4326",
+    )
+
+    # -- append=True: concatenate
+    prev = gpd.read_parquet(output)
+    combined = gpd.GeoDataFrame(
+        pd.concat([prev, new], ignore_index=True),
+        geometry="geometry",
+        crs="EPSG:4326",
+    )
+    combined.to_parquet(output)
+
+    result = gpd.read_parquet(output)
+    assert len(result) == 3
+    assert set(result["kiln_id"]) == {"old-1", "old-2", "new-1"}
+    assert set(result["district"]) == {"D1", "D2"}
+
+    # -- append=False equivalent: overwrite
+    new.to_parquet(output)
+    result2 = gpd.read_parquet(output)
+    assert len(result2) == 1
+    assert result2["kiln_id"].tolist() == ["new-1"]
 

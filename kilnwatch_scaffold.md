@@ -54,7 +54,7 @@ Do not fill config/rules.yaml; I will provide it.
 
 ```
 Goal: build a Bangladesh-only YOLOv8-OBB training set from SentinelKilnDB (CC BY-NC 4.0).
-Facts from the dataset card: 128x128 PNG chips at 10 m; files named "lat,lon.png"/"lat,lon.txt"; label formats YOLO-OBB (class, x1..y4), YOLO-AA, DOTA; detector output classes are FCBK and Zigzag; patches overlap by 30 px; the shipped split is class-wise stratified.
+Facts from the dataset card: 128x128 PNG chips at 10 m; image names use underscore-separated latitude and longitude; label formats include YOLO-OBB, YOLO-AA, and DOTA; the converter maps the rare source class into FCBK, producing detector classes FCBK and Zigzag; patches overlap by 30 px; the shipped split is class-wise stratified.
 Step 1: print the actual directory structure and 5 sample label files, then STOP and wait for my confirmation.
 Step 2: after confirmation, write src/data/convert_sentinelkilndb.py to:
  - filter chips to Bangladesh using a boundary polygon file at data/raw/bangladesh_boundary.geojson (not a bbox), using chip lat/lon from filenames;
@@ -78,13 +78,9 @@ current split report in `data/interim/yolo_obb/split_report.json`.
 ## Step 3: Baseline training
 
 ```
-Use `notebooks/train.ipynb` on a Colab/Kaggle GPU. First run the 3-epoch
-`yolov8n-obb` smoke test at imgsz 256. If it passes, train `yolov8n-obb` at
-imgsz 256/384/512, then `yolov8s-obb` at the size with best validation mAP50
-(50 epochs, patience 10, `degrees=90`, `flipud=0.5`, seed 0). Evaluate the
-selected run on test once. The notebook saves `best.pt`, metrics, confusion
-matrices, and PR curves. See `docs/TRAINING_READINESS.md` for the checked
-dataset and the remaining host setup needed to start.
+This original training prompt is superseded by the completed-run evidence in
+[`docs/TRAINING_RUN_HISTORY.md`](docs/TRAINING_RUN_HISTORY.md). Use the current
+checkpoint documented there; this scaffold is not the training configuration.
 
 Report metrics for the two detector output classes: FCBK and Zigzag. The
 separate false-positive/missed-kiln crop review in `src/eval/error_analysis.py`
@@ -165,7 +161,7 @@ not_implemented:
 ### Engine prompt
 
 ```
-Write src/rules/engine.py. Read config/rules.yaml. For each kiln in kilns.parquet return: list of breached rule ids, breach count, severity-weighted breach score, distance to nearest feature of each type, and rules_version.
+Write src/rules/engine.py. Read config/rules.yaml. For each kiln in kilns.parquet return: configured rule-signal IDs, signal count, severity-weighted screening score, distance to nearest feature of each type, and rules_version.
 Project to EPSG:9680 for distances. If any rule has verified: false, add a column "rules_verified"=false and print a loud warning. Do not hardcode any numbers. Include a test with synthetic kilns and features at known distances.
 ```
 
@@ -189,7 +185,7 @@ Write src/score/priority.py. Normalize school count, hospital count, and settlem
 ## Step 8: Dashboard
 
 ```
-Build app/streamlit_app.py: Folium map of kilns coloured by priority; sidebar filters (district, kiln class, min confidence); a detail panel listing breached rules, distances and nearby sites; a "needs verification" badge below a confidence threshold; a banner "Advisory only: verify before inspection"; CSV export of the filtered list; and a "rules not verified" banner if rules_verified is false.
+Build app/streamlit_app.py: Folium map of kiln candidates coloured by priority; sidebar filters (district, kiln class, min confidence); a detail panel listing rule signals, distances and nearby sites; a human-review badge below a confidence threshold; an always-visible advisory banner; and CSV export of the filtered list. The current app implements the advisory independently of the rule-status field.
 Load only from data/processed/. Must run offline with no external API calls.
 ```
 

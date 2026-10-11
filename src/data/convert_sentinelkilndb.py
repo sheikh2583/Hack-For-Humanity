@@ -90,7 +90,7 @@ COL_IMAGE_NAME: str = "image_name"
 COL_IMAGE: str = "image"
 COL_OBB: str = "yolo_obb_label"
 
-#: Original class IDs in the Parquet data (verified against DOTA labels).
+#: Original class IDs in the Parquet data (cross-checked against DOTA labels).
 ORIGINAL_CLASSES: dict[int, str] = {0: "CFCBK", 1: "FCBK", 2: "Zigzag"}
 
 #: Remap source class 0 and FCBK (1) → FCBK (0), Zigzag (2) → Zigzag (1).

@@ -34,11 +34,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import geopandas as gpd
 import numpy as np
 import pandas as pd
-
-from src.geo.crs import centroid_longitude, get_projected_crs
 
 
 def _wilson_interval(
@@ -95,7 +92,10 @@ def generate_audit_sample(
     pd.DataFrame
         The audit sample DataFrame (also written to ``output``).
     """
+    import geopandas as gpd
     from rich import print as rprint
+
+    from src.geo.crs import centroid_longitude, get_projected_crs
 
     kilns = gpd.read_parquet(kilns_path)
 
@@ -166,11 +166,23 @@ def compute_audit_results(
     from rich import print as rprint
 
     df = pd.read_csv(audit_csv)
-    if "label" not in df.columns or df["label"].isna().all():
+    if not {"label", "confidence"} <= set(df.columns):
+        raise ValueError("Audit CSV must contain 'confidence' and 'label' columns")
+    if df["label"].isna().all():
         rprint("[red]No labels found. Fill the 'label' column first.[/red]")
         return {}
 
-    results: dict = {"by_tercile": {}, "overall": {}}
+    normalized_labels = df["label"].astype("string").str.strip().str.casefold()
+    unsure_count = int(normalized_labels.eq("unsure").sum())
+    df["label"] = normalized_labels.map({"tp": "kiln", "fp": "not_kiln"}).fillna(normalized_labels)
+    df["tercile"] = pd.qcut(
+        pd.to_numeric(df["confidence"], errors="raise"),
+        q=3,
+        labels=["low", "mid", "high"],
+        duplicates="drop",
+    )
+
+    results: dict = {"by_tercile": {}, "overall": {}, "unsure_count": unsure_count}
 
     # Overall
     labelled = df[df["label"].isin(["kiln", "not_kiln"])]
@@ -207,7 +219,37 @@ def compute_audit_results(
     output_json.parent.mkdir(parents=True, exist_ok=True)
     output_json.write_text(json.dumps(results, indent=2))
     rprint(f"[green]Audit results written to {output_json}[/green]")
-    rprint(json.dumps(results, indent=2))
+    rows = [(name, results["by_tercile"][name]) for name in ("low", "mid", "high")]
+    rows.append(("Overall", results["overall"]))
+    rprint("\nConfidence group | TP / labelled | Precision (95% Wilson CI)")
+    for name, summary in rows:
+        rprint(
+            f"{name} | {summary['true_positives']} / {summary['n']} | "
+            f"{summary['precision']:.1%} ({summary['ci_95_lower']:.1%}–"
+            f"{summary['ci_95_upper']:.1%})"
+        )
+    rprint(f"Unsure labels excluded: {unsure_count}")
+    docs_path = Path(__file__).resolve().parents[2] / "docs" / "AUDIT_SUMMARY.md"
+    docs_path.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        "# Pilot audit summary", "", "| Confidence group | TP / labelled | Precision | 95% Wilson CI |",
+        "|---|---:|---:|---:|",
+    ]
+    for name, summary in rows:
+        lines.append(
+            f"| {name} | {summary['true_positives']} / {summary['n']} | "
+            f"{summary['precision']:.1%} | {summary['ci_95_lower']:.1%}–"
+            f"{summary['ci_95_upper']:.1%} |"
+        )
+    lines.extend(["", f"Unsure labels excluded from precision: {unsure_count}.", ""])
+    overall = results["overall"]
+    lines.append(
+        f"Finding: {overall['true_positives']} of {overall['n']} labelled candidates "
+        f"were classified as kilns ({overall['precision']:.1%} precision); "
+        f"{unsure_count} unsure labels were excluded."
+    )
+    docs_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    rprint(f"[green]Audit summary written to {docs_path}[/green]")
     return results
 
 
@@ -241,7 +283,10 @@ def sample_negative_regions(
     pd.DataFrame
         The negative-region audit sample.
     """
+    import geopandas as gpd
     from shapely.strtree import STRtree
+
+    from src.geo.crs import centroid_longitude, get_projected_crs
 
     detections = gpd.read_parquet(detections_path)
     boundary_wgs84 = gpd.read_file(boundary_path).to_crs("EPSG:4326")

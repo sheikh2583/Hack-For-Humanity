@@ -6,7 +6,7 @@ the standalone exploration scripts (`explore_parquet.py`, `explore_labels.py`)
 that **contradicts the actual on-disk dataset**.  Each item lists what the old
 code assumed, what the data actually is, and how the code was fixed.
 
-## Verified facts about the dataset
+## Documented facts about the dataset
 
 The dataset ships as three Parquet files, one row group each:
 
@@ -27,7 +27,7 @@ Each row has exactly five columns:
 | `yolo_aa_label` | list&lt;string&gt;    | YOLO-AABB lines (empty list = negative chip)             |
 | `yolo_obb_label`| list&lt;string&gt;    | YOLO-OBB lines (empty list = negative chip)               |
 
-### Label format (verified, NOT ambiguous)
+### Label format (documented, not ambiguous)
 
 Each entry in `yolo_obb_label` is a **single string** that is one label line:
 
@@ -61,13 +61,13 @@ contradictions below), but the data itself is internally consistent.
 
 ## Contradictions between code assumptions and the real dataset
 
-### C1 — Filename delimiter: comma vs underscore
+### C1 — Dataset image filename delimiter
 
 | | Assumed by old code | Actual data |
 |---|---|---|
-| `README.md` (line 39) | `lat,lon.png` (comma) | `lat_lon.png` (underscore) |
-| `convert_sentinelkilndb.py` `_parse_latlon_from_filename` | `stem.split(",")` (comma) | underscore |
-| `explore_labels.py` | regex with `_` (underscore) | underscore ✓ (already correct) |
+| Old parser assumption | Comma-separated coordinates | Actual filenames use underscore-separated coordinates |
+| `convert_sentinelkilndb.py` `_parse_latlon_from_filename` | Earlier implementation expected commas | Current implementation parses underscores |
+| `explore_labels.py` | Regex with underscore | Matches the current image filenames |
 
 **Fix:** the parser now uses the regex `^(-?\d+\.\d+)_(-?\d+\.\d+)\.png$` —
 underscore only, matching the real `image_name` values (e.g. `20.1249_72.7295.png`).
@@ -150,12 +150,12 @@ easily land in different splits (e.g. the same kiln appearing in both train and
 test).  The converter now reports, per 0.25° grid cell, how many cells contain
 chips from more than one shipped split, as a quantitative leakage indicator.
 
-### C9 — Class merging: rare source class kept separate vs merged into FCBK
+### C9 — Source class remapping
 
 | | Assumed by old code / README | Task requirement |
 |---|---|---|
-| `README.md` (lines 43-47) | Three classes: rare source class, FCBK, Zigzag | **Merge rare source class into FCBK** (rare source class has only 2 Bangladesh records; severe imbalance) |
-| `convert_sentinelkilndb.py` | `CLASS_NAMES = {0: rare source class, 1: FCBK, 2: Zigzag}` — three output classes | Must produce two output classes: FCBK (0), Zigzag (1) |
+| Original dataset labels | Rare source class, FCBK, and Zigzag | Merge the rare source class into FCBK (the rare class has only two Bangladesh records) |
+| `convert_sentinelkilndb.py` | Original source class IDs are mapped during conversion | Output has two detector classes: FCBK (0) and Zigzag (1) |
 
 **Fix:** class 0 (rare source class) and class 1 (FCBK) are both remapped to output class
 0 (FCBK); class 2 (Zigzag) → output class 1 (Zigzag).

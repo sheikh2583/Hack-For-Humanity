@@ -12,7 +12,7 @@ making claims. Use primary sources and direct links for source-dependent legal
 or dataset claims. Do not edit code or invent schemas, legal rules, thresholds,
 dates, or coordinates.
 
-## Current verified state
+## Current run record
 
 - Linux run results/run_0002 completed on host NDAG-M-Lab using an RTX 3090,
   Python 3.12.2, PyTorch 2.14.0+cu130, and Ultralytics 8.4.165. The smoke gate,
@@ -30,14 +30,14 @@ dates, or coordinates.
   1,662, test 1,530. Its split report records a 1,300 m Chebyshev leakage
   filter and 1,322.41 m minimum cross-split distance. Starting weights are in
   data/models/; the selected trained checkpoint is separate.
-- On 2026-10-08 the Windows workspace completed the full local pipeline using
-  `runs/yolov8n-obb-256/weights/best.pt`: 1,880 demo-chip detections over 1,530
+- A historical 2026-10-08 Windows workspace run completed the local pipeline using
+  an earlier legacy checkpoint (not the current final model): 1,880 demo-chip detections over 1,530
   chips; 1,219 real-raster detections over 5,440 tiles; local PBF extraction
   for six OSM layers in Chapainawabganj and Gazipur; rule checks; and priority
   scoring. This did not call Earth Engine. The runtime outputs and PBF are
   excluded from the share ZIP.
-- The real-raster run used `imgsz=512` with a checkpoint trained at 256 px and
-  emitted a warning. CPU/CUDA outputs from a prior run differed by one
+- The real-raster run used an inference image size that differed from the checkpoint training
+  size and emitted a warning. CPU/CUDA outputs from a prior run differed by one
   detection. Inspect geographic placement and representative predictions;
   these results are not field validation.
 - The full pytest suite reported 146 passed on 2026-10-08. Changed OSM files
@@ -48,10 +48,10 @@ dates, or coordinates.
 - No Earth Engine export was made. `config/preprocessing.yaml` remains
   `preprocessing_verified: false` because published date ranges conflict and
   paired-chip calibration has not been completed. Legal thresholds must only
-  be treated as verified if the included config and primary-source evidence
+  be treated as established if the included config and primary-source evidence
   support that status; do not infer verification from an output field alone.
 - No representative positive detections, geographic placement, OSM coverage,
-  field accuracy, or legal/administrative status has been confirmed by an
+  field accuracy, or legal/administrative status has been attested by an
   authorized reviewer. Dashboard and CSV values are advisory screening
   candidates. Rule signals default to `unverified_candidate`; detector
   confidence is not legal confirmation. See docs/screening_provenance.md for
@@ -91,12 +91,12 @@ dates, or coordinates.
 - A short next-step sequence. Preserve the completed model/run artifacts and
   do not rerun training or held-out test evaluation as part of this review.
 
-Do not describe a model or GIS result as a breach, illegal, non-compliant, or
-verified. Distances are to mapped features and may not match legally controlling
-boundaries. Do not change legal thresholds or verification fields based on
-secondary sources alone.
+Describe model and GIS results as candidates, rule signals, and screening outputs.
+Distances are to mapped features and may not match legally controlling boundaries.
+Do not change legal thresholds or configuration status fields based on secondary
+sources alone.
 
-Be explicit about uncertainty and distinguish verified facts, code-inspection
-conclusions, and inference. Do not mark preprocessing or legal rules verified
+Be explicit about uncertainty and distinguish primary-source evidence, code-inspection
+conclusions, and inference. Do not mark preprocessing or legal rules as established
 without evidence.
 ```

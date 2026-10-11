@@ -165,7 +165,7 @@ def main() -> int:
         return 1
 
     size_mb = result.stat().st_size / (1024 * 1024)
-    print(f"Created and verified {result} ({size_mb:.1f} MB)")
+    print(f"Created and checked {result} ({size_mb:.1f} MB)")
     return 0
 
 

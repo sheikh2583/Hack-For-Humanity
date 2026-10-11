@@ -1,0 +1,11 @@
+streamlit
+geopandas
+folium
+streamlit-folium
+pandas
+pyarrow
+pyyaml
+shapely
+pyproj
+numpy
+rich

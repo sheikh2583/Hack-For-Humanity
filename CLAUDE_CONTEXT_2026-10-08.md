@@ -1,5 +1,9 @@
 # Claude handoff context — 2026-10-08
 
+> Historical session record. The current selected checkpoint is
+> `results/run_0002/checkpoints/final/best.pt` at 512 px. Earlier experiment
+> details below are archival and are not the current model configuration.
+
 Copy this file into Claude to continue work on KilnWatch BD.
 
 ## Project
@@ -12,7 +16,7 @@ Read `AGENTS.md` before changing code. Key requirements:
 - Store geometry in EPSG:4326; do spatial distance/area calculations in EPSG:9680, with the documented UTM fallback.
 - Modules need type hints, input/output schema docstrings, and a synthetic-data pytest.
 - Do not call Earth Engine unless specifically directed. GPU workloads also require explicit user authorization.
-- At the end, report what could not be verified and what needs a manual check.
+- At the end, report what could not be established and what needs a manual check.
 
 ## Work completed today
 
@@ -29,14 +33,14 @@ Read `AGENTS.md` before changing code. Key requirements:
 
 Input raster: `data/raw/exports/kilnwatch_chapai_test.tif` (the user reported it was inspected: EPSG:4326; pixel size 8.983e-5 degrees; 6680 x 7793; three float64 bands; reflectance 137–4784; no zero pixels).
 
-Checkpoint: `runs/yolov8n-obb-256/weights/best.pt` (the non-smoke checkpoint available in the workspace).
+A legacy non-smoke checkpoint from an earlier experiment was used at the time; it is not the current model.
 
 - First run used CPU and wrote `data/processed/kilns_chapai_real.parquet`: 5,440 tiles; 1,219 detections (18 FCBK, 1,201 Zigzag).
 - The user then authorized GPU use and asked to restart with CUDA. CUDA was available as an NVIDIA GeForce RTX 4070 Laptop GPU.
 - The first CUDA CLI attempt failed because `infer` had no `--device` option. Added `device` argument through CLI and inference functions, defaulting to CPU. Then reran with `--device 0`.
 - CUDA run wrote `data/processed/kilns_chapai_real_cuda.parquet`: 5,440 tiles; 1,220 detections (18 FCBK, 1,202 Zigzag).
-- The CUDA output was read back and verified in the prior CPU run; the CUDA command completed successfully and printed counts. Both outputs are intentionally preserved.
-- Inference requested `imgsz=512`, while the checkpoint records training `imgsz=256`; the code prints a warning and continues. This difference may affect detections. CPU and CUDA totals differed by one detection.
+- The CUDA output was read back and checked in the prior CPU run; the CUDA command completed successfully and printed counts. Both outputs are intentionally preserved.
+- Inference requested `imgsz=512`, while the checkpoint recorded a different training image size; the code prints a warning and continues. This difference may affect detections. CPU and CUDA totals differed by one detection.
 
 ## Verification
 

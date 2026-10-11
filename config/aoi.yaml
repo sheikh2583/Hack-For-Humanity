@@ -2,5 +2,36 @@
 districts:
   - name: Chapainawabganj
     boundary_name: Nawabganj
+    bbox:
+      west: 88.0
+      south: 24.3
+      east: 88.7
+      north: 24.9
   - name: Gazipur
     boundary_name: Gazipur
+    bbox:
+      west: 89.85
+      south: 23.85
+      east: 90.55
+      north: 24.35
+  - name: Rajshahi
+    boundary_name: Rajshahi
+    bbox:
+      west: 88.1
+      south: 24.0
+      east: 88.8
+      north: 24.6
+  - name: Dhaka
+    boundary_name: Dhaka
+    bbox:
+      west: 89.9
+      south: 23.5
+      east: 90.7
+      north: 24.1
+  - name: Chittagong
+    boundary_name: Chittagong
+    bbox:
+      west: 91.6
+      south: 22.1
+      east: 92.4
+      north: 22.9

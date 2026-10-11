@@ -42,11 +42,11 @@ def test_marker_popup_is_advisory_and_explains_mapped_distances() -> None:
     assert "Kiln candidate" in popup
     assert "Detector confidence" in popup
     assert "Candidate rule signals" in popup
-    assert "unverified_candidate" in popup
+    assert "screened" in popup
     assert "way/123" in popup
     assert "mapped feature" in popup
     assert "legally controlling boundaries" in popup
-    assert "not legal or administrative findings" in popup
+    assert "Screening outputs only" in popup
 
 
 def test_marker_popup_escapes_untrusted_feature_text() -> None:
@@ -78,6 +78,27 @@ def test_legacy_signal_popup_marks_missing_provenance_explicitly() -> None:
         total=1,
     )
     assert "near_school" in popup
-    assert "unverified_candidate" in popup
+    assert "screened" in popup
     assert "Not retained in this legacy dataset" in popup
     assert "missing provenance is not evidence" in popup
+
+
+def test_popup_rewrites_prohibited_legal_terms() -> None:
+    """Visible popup text uses candidate screening language for flagged content."""
+    from app.popup import sanitize_popup_text
+
+    text = sanitize_popup_text(
+        "breach violation non-compliant illegal verified unverified_candidate "
+        "confirmed legal finding"
+    ).casefold()
+    for prohibited in (
+        "breach", "violation", "non-compliant", "illegal", "verified", "confirmed",
+        "legal finding",
+    ):
+        assert prohibited not in text
+    assert "rule signal" in text
+    assert "candidate signal" in text
+    assert "flagged for review" in text
+    assert "kiln candidate" in text
+    assert "screening output" in text
+    assert "screened" in text

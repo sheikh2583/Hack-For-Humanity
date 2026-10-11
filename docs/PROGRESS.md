@@ -141,9 +141,8 @@ or move only completed stages.
   create a new transfer archive from that directory.
 - The pretrained starting weights `data/models/yolov8n-obb.pt` and
   `data/models/yolov8s-obb.pt` load as Ultralytics OBB models. An interrupted
-  YOLOv8n checkpoint exists under ignored `runs/yolov8n-obb-256/weights/`;
-  it has not been evaluated on the held-out test split and is not a final
-  model.
+  An interrupted legacy checkpoint remains under ignored local `runs/`; it
+  has not been evaluated on the held-out test split and is not a final model.
 - Both boundary files are present. The ADM2 file has 64 valid EPSG:4326
   features, a `shapeName` field, and includes `Nawabganj` and `Gazipur`. The
   country boundary is one valid EPSG:4326 feature. Their provenance, licence,

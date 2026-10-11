@@ -1,4 +1,4 @@
-"""Tests for src.eval.audit_sample — Wilson interval and sampling."""
+﻿"""Tests for src.eval.audit_sample â€” Wilson interval and sampling."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ def test_audit_results_cli_reports_known_synthetic_precision(tmp_path: Path) -> 
     ]
     audit_csv = tmp_path / "audit.csv"
     pd.DataFrame(
-        {"tercile": [tercile for tercile, _ in labels], "label": [label for _, label in labels]}
+        {"tercile": [tercile for tercile, _ in labels], "label": [label for _, label in labels], "confidence": [i / 10 for i in range(10)]}
     ).to_csv(audit_csv, index=False)
 
     results = compute_audit_results(audit_csv, tmp_path / "direct-results.json")
@@ -30,10 +30,10 @@ def test_audit_results_cli_reports_known_synthetic_precision(tmp_path: Path) -> 
     for summary in [results["overall"], *results["by_tercile"].values()]:
         assert summary["ci_95_lower"] < summary["precision"] < summary["ci_95_upper"]
 
-    command_result = CliRunner().invoke(app, ["audit-results", str(audit_csv)])
+    command_result = CliRunner().invoke(app, ["audit-results", "--labels", str(audit_csv)])
     assert command_result.exit_code == 0, command_result.output
-    assert "by_tercile" in command_result.output
-    assert "ci_95_lower" in command_result.output
+    assert "Confidence group" in command_result.output
+    assert "95% Wilson CI" in command_result.output
     assert (tmp_path / "audit_results.json").is_file()
 
 

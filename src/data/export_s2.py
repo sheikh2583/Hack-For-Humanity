@@ -1,13 +1,15 @@
 """Export bounding-box Sentinel-2 composites for inference.
 
-Input schema: AOI YAML with district ``name`` values matching geoBoundaries
-ADM2 ``shapeName`` and preprocessing YAML. Output: Earth Engine GeoTIFF
-exports containing raw B4/B3/B2 reflectance at EPSG:4326 degree resolution.
+Input schema: AOI YAML with district ``name`` values and optional
+``boundary_name`` values matching geoBoundaries ADM2 ``shapeName``, plus
+preprocessing YAML. Output: Earth Engine GeoTIFF exports containing raw
+B4/B3/B2 reflectance at EPSG:4326 degree resolution.
 """
 
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 from pathlib import Path
 from typing import Any
@@ -18,6 +20,19 @@ import yaml
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 EXPORT_MARGIN_DEGREES = 0.05
 EXPORT_SCALE_METERS = 10
+BBOX_KEYS = ("west", "south", "east", "north")
+LOGGER = logging.getLogger(__name__)
+
+
+def _require_preprocessing_verification(prep: dict[str, Any], source: Path) -> None:
+    """Keep uncalibrated exports blocked and write the warning to logs only."""
+    if prep.get("preprocessing_verified") is not True:
+        LOGGER.warning(
+            "%s has preprocessing_verified=false; the Earth Engine export is blocked "
+            "until source dates and paired-chip calibration are reviewed.",
+            source,
+        )
+        raise RuntimeError("Preprocessing review is required before imagery export.")
 
 
 def _read_yaml(path: Path) -> dict[str, Any]:
@@ -37,6 +52,32 @@ def district_epsg(
 ) -> str:
     """Return the prescribed Bangladesh UTM CRS for a district centroid."""
     return west_epsg if longitude < threshold else east_epsg
+
+
+def _earth_engine_bbox(geometry_api: Any, bounds: tuple[float, float, float, float]) -> Any:
+    """Build an Earth Engine BBox from west/south/east/north EPSG:4326 degrees."""
+    return geometry_api.BBox(*bounds)
+
+
+def configured_bbox(district: dict[str, Any]) -> tuple[float, float, float, float] | None:
+    """Return a configured west/south/east/north AOI box, if supplied.
+
+    Input schema: one ``districts`` item with optional ``bbox`` mapping. Output:
+    an EPSG:4326 ``(west, south, east, north)`` tuple, or ``None`` when no box
+    is configured. Malformed configured boxes raise ``ValueError``.
+    """
+    bbox = district.get("bbox")
+    if bbox is None:
+        return None
+    if not isinstance(bbox, dict) or any(key not in bbox for key in BBOX_KEYS):
+        raise ValueError(f"District {district.get('name')!r} bbox must contain {BBOX_KEYS}")
+    try:
+        west, south, east, north = (float(bbox[key]) for key in BBOX_KEYS)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"District {district.get('name')!r} bbox values must be numbers") from exc
+    if west >= east or south >= north:
+        raise ValueError(f"District {district.get('name')!r} bbox must have west < east and south < north")
+    return west, south, east, north
 
 
 def _district_geometry(
@@ -62,7 +103,10 @@ def export_composites(
     aoi_config: Path,
     preprocessing_config: Path | None = None,
     boundaries_path: Path | None = None,
-) -> None:
+    *,
+    district_name: str | None = None,
+    project: str | None = None,
+) -> list[str]:
     """Submit Earth Engine exports using configured pilot dates.
 
     Input schema: AOI YAML ``districts`` list and preprocessing YAML ``pilot``
@@ -71,6 +115,7 @@ def export_composites(
     preprocessing_config = preprocessing_config or PROJECT_ROOT / "config" / "preprocessing.yaml"
     boundaries_path = boundaries_path or PROJECT_ROOT / "data/raw/boundaries/geoBoundaries_BGD_ADM2.geojson"
     prep = _read_yaml(preprocessing_config)
+    _require_preprocessing_verification(prep, preprocessing_config)
     pilot = prep.get("pilot", {})
     start_date, end_date = pilot.get("start_date"), pilot.get("end_date")
     if not start_date or not end_date:
@@ -79,13 +124,13 @@ def export_composites(
     if not boundaries_path.exists():
         raise FileNotFoundError(f"ADM2 boundaries not found: {boundaries_path}")
 
-    earthengine_project = os.environ.get("KILNWATCH_EE_PROJECT")
+    earthengine_project = project or os.environ.get("KILNWATCH_EE_PROJECT")
     if not earthengine_project:
         raise RuntimeError("KILNWATCH_EE_PROJECT is missing; set it to your Google Cloud project ID")
     import ee  # type: ignore[import-untyped]
     from rich import print as rprint
 
-    ee.Initialize(project=os.environ.get("KILNWATCH_EE_PROJECT"))
+    ee.Initialize(project=earthengine_project)
     rgb_bands = prep["rgb_bands"]
     if rgb_bands != ["B4", "B3", "B2"]:
         raise ValueError("Earth Engine export is defined for raw B4, B3, B2 bands")
@@ -95,7 +140,16 @@ def export_composites(
     boundaries = gpd.read_file(boundaries_path)
     if "shapeName" not in boundaries:
         raise ValueError("ADM2 GeoJSON must contain the geoBoundaries shapeName field")
-    for district in aoi["districts"]:
+    configured_districts = aoi["districts"]
+    if district_name is not None:
+        configured_districts = [
+            district for district in configured_districts
+            if str(district["name"]).casefold() == district_name.casefold()
+        ]
+        if not configured_districts:
+            raise ValueError(f"District {district_name!r} is not configured in {aoi_config}")
+    task_ids: list[str] = []
+    for district in configured_districts:
         name = district["name"]
         boundary_name = district.get("boundary_name", name)
         geometry, _ = _district_geometry(
@@ -104,13 +158,13 @@ def export_composites(
         from shapely.geometry import shape
 
         bounds = shape(geometry).bounds
-        bbox_coords = [
+        bbox_coords = configured_bbox(district) or (
             bounds[0] - EXPORT_MARGIN_DEGREES,
             bounds[1] - EXPORT_MARGIN_DEGREES,
             bounds[2] + EXPORT_MARGIN_DEGREES,
             bounds[3] + EXPORT_MARGIN_DEGREES,
-        ]
-        bbox = ee.Geometry.BBox(*bbox_coords, proj="EPSG:4326")
+        )
+        bbox = _earth_engine_bbox(ee.Geometry, bbox_coords)
         collection = (
             ee.ImageCollection(collection_id)
             .filterBounds(bbox)
@@ -135,7 +189,10 @@ def export_composites(
             fileFormat="GeoTIFF",
         )
         task.start()
-        rprint(f"Export task started for {name} (EPSG:4326): {task.status()}")
+        task_id = str(task.id)
+        task_ids.append(task_id)
+        rprint(f"Export task started for {name} (EPSG:4326): {task_id} {task.status()}")
+    return task_ids
 
 
 def main() -> None:

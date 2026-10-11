@@ -40,6 +40,8 @@ Contract
 
 from __future__ import annotations
 
+import re
+import unicodedata
 import uuid
 from collections.abc import Iterator
 from pathlib import Path
@@ -49,6 +51,7 @@ import geopandas as gpd
 import numpy as np
 from pyproj import CRS, Transformer
 from shapely.geometry import Point, Polygon
+from shapely.geometry.base import BaseGeometry
 from shapely.ops import transform as transform_geometry
 from shapely.strtree import STRtree
 
@@ -145,7 +148,7 @@ def _nms_polygons(
 # ---------------------------------------------------------------------------
 
 
-def _tile_raster(
+def read_as_windows(
     raster_path: Path,
     chip_size: int = 128,
     overlap: int = 30,
@@ -194,6 +197,15 @@ def _tile_raster(
                 }
 
 
+def _tile_raster(
+    raster_path: Path,
+    chip_size: int = 128,
+    overlap: int = 30,
+) -> Iterator[dict[str, Any]]:
+    """Backward-compatible alias for the streaming window reader."""
+    return read_as_windows(raster_path, chip_size=chip_size, overlap=overlap)
+
+
 def _tile_starts(length: int, chip_size: int, stride: int) -> list[int]:
     """Return chip origins including a final window aligned to the far edge."""
     if length <= chip_size:
@@ -203,6 +215,14 @@ def _tile_starts(length: int, chip_size: int, stride: int) -> list[int]:
     if starts[-1] != far_edge:
         starts.append(far_edge)
     return starts
+
+
+def _count_tiles(width: int, height: int, chip_size: int = 128, overlap: int = 30) -> int:
+    """Count non-tiny raster windows for the configured tile size and overlap."""
+    stride = chip_size - overlap
+    rows = sum(min(chip_size, height - start) >= chip_size // 2 for start in _tile_starts(height, chip_size, stride))
+    cols = sum(min(chip_size, width - start) >= chip_size // 2 for start in _tile_starts(width, chip_size, stride))
+    return rows * cols
 
 
 def _predict_tile(
@@ -242,6 +262,107 @@ def _point_output_records(
     return rows
 
 
+def _normalize_district_name(name: str) -> str:
+    """Normalize a district label for boundary matching.
+
+    Input schema: one district-name string. Output: lowercase, unaccented
+    text with whitespace removed.
+    """
+    unaccented = "".join(
+        char for char in unicodedata.normalize("NFD", name)
+        if unicodedata.category(char) != "Mn"
+    )
+    return re.sub(r"\s+", "", unaccented).lower()
+
+
+def _load_district_polygon(
+    boundary_path: Path, district_name: str, warning: Any
+) -> tuple[BaseGeometry, str, str] | None:
+    """Load one district boundary by normalized name from GeoJSON properties.
+
+    Input schema: GeoJSON properties containing ``shapeName`` plus polygon
+    geometry. Output: WGS84 geometry, matched shapeName, and canonical display
+    name, or ``None`` when no matching boundary is available.
+    """
+    DISTRICT_ALIASES = {
+        "chapainawabganj": "Nawabganj",
+        "chapai nawabganj": "Nawabganj",
+        "nawabganj": "Nawabganj",
+        "gazipur": "Gazipur",
+        "rajshahi": "Rajshahi",
+        "dhaka": "Dhaka",
+        "chittagong": "Chittagong",
+    }
+    DISTRICT_DISPLAY_NAMES = {
+        "Nawabganj": "Chapainawabganj",
+        "Gazipur": "Gazipur",
+        "Rajshahi": "Rajshahi",
+        "Dhaka": "Dhaka",
+        "Chittagong": "Chittagong",
+    }
+
+    if not boundary_path.is_file():
+        warning(f"District boundary file not found: {boundary_path}; continuing without clipping.")
+        return None
+    print(f"Using district boundary file: {boundary_path}")
+    try:
+        boundaries = gpd.read_file(boundary_path)
+    except Exception as exc:  # noqa: BLE001 - unreadable optional boundary must not stop inference
+        warning(f"Could not read district boundary file {boundary_path}: {exc}; continuing without clipping.")
+        return None
+    if "shapeName" not in boundaries.columns:
+        warning(f"No shapeName column in {boundary_path}; continuing without clipping.")
+        return None
+    available_names = sorted(boundaries["shapeName"].dropna().astype(str).unique().tolist())
+    normalized_aliases = {
+        _normalize_district_name(alias): shape_name
+        for alias, shape_name in DISTRICT_ALIASES.items()
+    }
+    matched_shapename = normalized_aliases.get(_normalize_district_name(district_name))
+    if matched_shapename is None:
+        warning(
+            f"Unknown district '{district_name}'. Available shapeName values: "
+            f"{available_names}; continuing without clipping."
+        )
+        return None
+    matched = boundaries["shapeName"].astype("string").str.casefold().eq(
+        matched_shapename.casefold()
+    )
+    selected = boundaries.loc[matched]
+    if selected.empty:
+        warning(
+            f"Mapped shapeName '{matched_shapename}' for district '{district_name}' "
+            f"was not found. Available shapeName values: {available_names}; "
+            "continuing without clipping."
+        )
+        return None
+    if selected.crs is None:
+        warning(f"District boundary CRS is missing in {boundary_path}; continuing without clipping.")
+        return None
+    selected = selected.to_crs("EPSG:4326")
+    from shapely import union_all
+
+    return (
+        union_all(selected.geometry.values),
+        str(selected["shapeName"].iloc[0]),
+        DISTRICT_DISPLAY_NAMES[matched_shapename],
+    )
+
+
+def _clip_detections_to_polygon(
+    detections: list[dict[str, Any]], district_polygon: BaseGeometry
+) -> list[dict[str, Any]]:
+    """Keep detection records whose WGS84 centroid is within the district.
+
+    Input schema: detection mappings with Polygon ``geometry`` in EPSG:4326.
+    Output schema: the same records filtered by centroid inclusion.
+    """
+    return [
+        detection for detection in detections
+        if detection["geometry"].centroid.within(district_polygon)
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Main inference
 # ---------------------------------------------------------------------------
@@ -259,6 +380,7 @@ def run_inference(
     point_output: bool = False,
     district_name: str | None = None,
     device: str = "cpu",
+    append: bool = False,
 ) -> gpd.GeoDataFrame:
     """Run YOLO-OBB inference on all GeoTIFFs in a directory.
 
@@ -280,6 +402,10 @@ def run_inference(
         Write WGS84 centroid points with the demo inference output columns.
     district_name : str | None
         Required district metadata when ``point_output`` is true.
+    append : bool
+        If True and ``output`` already exists, load the existing GeoParquet
+        and concatenate new detections before writing.  Allows incremental
+        multi-district inference into a single output file.
 
     Returns
     -------
@@ -340,9 +466,14 @@ def run_inference(
 
         with rasterio.open(raster_path) as src:
             raster_crs = CRS.from_user_input(src.crs).to_string()
+            raster_width, raster_height = src.width, src.height
         transformer = Transformer.from_crs(raster_crs, "EPSG:4326", always_xy=True)
 
-        tiles = _tile_raster(raster_path, chip_size=chip_size, overlap=overlap)
+        rprint(
+            f"Processing raster {raster_width}x{raster_height} px in "
+            f"{_count_tiles(raster_width, raster_height, chip_size, overlap)} tiles"
+        )
+        tiles = read_as_windows(raster_path, chip_size=chip_size, overlap=overlap)
         tile_count = 0
         masked_tile_count = 0
         for tile in tiles:
@@ -388,9 +519,29 @@ def run_inference(
     kept = _nms_polygons(all_records, iou_threshold=iou_threshold)
     rprint(f"[green]{len(kept)} detections after NMS.[/green]")
 
+    project_root = Path(__file__).resolve().parents[2]
+    boundary_candidates = [
+        project_root / "data" / "raw" / "boundaries" / "geoBoundaries_BGD_ADM2.geojson",
+        project_root / "geoBoundaries_BGD_ADM2.geojson",
+    ]
+    boundary_path = next((path for path in boundary_candidates if path.is_file()), boundary_candidates[0])
+    if district_name:
+        district_match = _load_district_polygon(boundary_path, district_name, rprint)
+    else:
+        district_match = None
+        rprint("[yellow]No --district-name provided; continuing without district polygon clipping.[/yellow]")
+    district_display_name = str(district_name) if district_name else ""
+    if district_match is not None:
+        district_polygon, _matched_shapename, district_display_name = district_match
+        count_before_clip = len(kept)
+        kept = _clip_detections_to_polygon(kept, district_polygon)
+        for detection in kept:
+            detection["district"] = district_display_name
+        rprint(f"Clipped {count_before_clip} -> {len(kept)} detections to district polygon.")
+
     # Build final GeoDataFrame, preserving the legacy polygon contract by default.
     if point_output:
-        point_records = _point_output_records(kept, str(district_name))
+        point_records = _point_output_records(kept, district_display_name)
         gdf = gpd.GeoDataFrame(
             point_records,
             columns=["kiln_id", "geometry", "class_name", "confidence", "district", "lat", "lon"],
@@ -410,8 +561,18 @@ def run_inference(
         )
 
     output.parent.mkdir(parents=True, exist_ok=True)
+    if append and output.is_file():
+        import pandas as pd
+
+        existing = gpd.read_parquet(output)
+        rprint(f"[cyan]Appending {len(gdf)} new detections to {len(existing)} existing rows.[/cyan]")
+        gdf = gpd.GeoDataFrame(
+            pd.concat([existing, gdf], ignore_index=True),
+            geometry="geometry",
+            crs=gdf.crs or existing.crs,
+        )
     gdf.to_parquet(output)
-    rprint(f"[green]Kilns written to {output}[/green]")
+    rprint(f"[green]Kilns written to {output} ({len(gdf)} total rows)[/green]")
     if point_output:
         fcbk_count = int((gdf["class_name"] == "FCBK").sum())
         zigzag_count = int((gdf["class_name"] == "Zigzag").sum())

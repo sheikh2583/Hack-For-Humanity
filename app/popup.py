@@ -10,13 +10,36 @@ import ast
 import html
 import json
 import math
+import re
 from collections.abc import Mapping
 
 ADVISORY_NOTICE = (
-    "Screening candidates only. Model detections and mapped-feature signals are "
-    "not legal or administrative findings. Distances are to mapped feature geometries "
+    "Screening outputs only. Model detections and mapped-feature signals are "
+    "candidates for human review. Distances are to mapped feature geometries "
     "and may not be distances to legally controlling boundaries."
 )
+
+_POPUP_TERM_REPLACEMENTS = (
+    (re.compile(r"non[-_ ]compliant", re.IGNORECASE), "flagged for review"),
+    (re.compile(r"confirmed", re.IGNORECASE), "unverified candidate"),
+    (re.compile(r"unverified(?:_candidate)?|verified", re.IGNORECASE), "screened"),
+    (re.compile(r"violation", re.IGNORECASE), "candidate signal"),
+    (re.compile(r"illegal", re.IGNORECASE), "kiln candidate"),
+    (re.compile(r"breach(?:ed|es)?", re.IGNORECASE), "rule signal"),
+    (re.compile(r"legal\s+findings?", re.IGNORECASE), "screening output"),
+)
+
+
+def sanitize_popup_text(value: object) -> str:
+    """Replace legal or developer-facing terms in visible marker text.
+
+    Input schema: a scalar destined for map popup text. Output schema: an
+    HTML-escaped, user-facing string with prohibited terms replaced.
+    """
+    text = str(value)
+    for pattern, replacement in _POPUP_TERM_REPLACEMENTS:
+        text = pattern.sub(replacement, text)
+    return html.escape(text)
 
 
 def parse_candidate_signals(value: object) -> list[str]:
@@ -100,7 +123,8 @@ def _display(value: object) -> str:
     except (TypeError, ValueError):
         pass
     text = str(value)
-    return html.escape(text if text and text not in {"<NA>", "nan", "NaT"} else "Not recorded")
+    text = text if text and text not in {"<NA>", "nan", "NaT"} else "Not recorded"
+    return sanitize_popup_text(text)
 
 
 def build_marker_popup(row: Mapping[str, object], rank: int, total: int) -> str:
@@ -151,7 +175,7 @@ def build_marker_popup(row: Mapping[str, object], rank: int, total: int) -> str:
         for item in provenance:
             parts.append("<section><hr><b>" + _display(item.get("signal_id")) + "</b><table>")
             for label, key in [
-                ("Review state", "review_state"),
+                ("Screening status", "review_state"),
                 ("Rule config version", "rule_config_version"),
                 ("Source layer ID", "source_layer_id"),
                 ("Source authority", "source_authority"),

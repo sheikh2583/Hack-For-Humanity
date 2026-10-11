@@ -6,12 +6,35 @@ from io import StringIO
 
 import pandas as pd
 
+from app.dashboard_filters import add_priority_bands
 from app.presentation import (
     DASHBOARD_LABELS,
     DETAIL_COLUMN_RENAMES,
     marker_tooltip,
     screening_csv,
 )
+from app.streamlit_app import color_for_kiln
+
+
+def test_colour_for_kiln_uses_three_priority_rank_bands() -> None:
+    """Low, middle, and high ranks receive distinct marker colours."""
+    candidates = pd.DataFrame({"priority_rank": [1, 2, 3]})
+    display_bands = add_priority_bands(candidates)
+    colours = {color_for_kiln(row) for _, row in display_bands.iterrows()}
+    assert colours == {"red", "orange", "green"}
+
+
+def test_colour_for_kiln_handles_tied_ranks_across_three_bands() -> None:
+    """When many rows share the same priority_rank (method='min' ties),
+    banding must still produce High/Medium/Low rather than all-High."""
+    # Simulate real data: 3 distinct ranks + 6 rows tied at rank 3
+    candidates = pd.DataFrame({"priority_rank": [1, 2, 3, 3, 3, 3, 3, 3, 3]})
+    display_bands = add_priority_bands(candidates)
+    colours = {color_for_kiln(row) for _, row in display_bands.iterrows()}
+    assert colours == {"red", "orange", "green"}, (
+        f"Expected three distinct colours but got {colours}; "
+        f"bands: {display_bands['priority_band'].value_counts().to_dict()}"
+    )
 
 
 def test_dashboard_labels_are_non_conclusive() -> None:
@@ -21,13 +44,41 @@ def test_dashboard_labels_are_non_conclusive() -> None:
         assert prohibited not in visible
     assert "candidate" in visible
     assert "screening" in visible
-    assert "legal or administrative findings" in DASHBOARD_LABELS["advisory"]
+    assert "screening outputs" in DASHBOARD_LABELS["advisory"].casefold()
     assert "legally controlling boundaries" in DASHBOARD_LABELS["advisory"]
     table_columns = " ".join(DETAIL_COLUMN_RENAMES.values()).casefold()
     for prohibited in ("breach", "illegal", "non-compliant", "verified"):
         assert prohibited not in table_columns
     assert "candidate_rule_signals" in table_columns
     assert "signal_provenance" in table_columns
+
+
+def test_dashboard_advisory_banner_is_configured_unconditionally() -> None:
+    """The dashboard presents the required field-review advisory on every run."""
+    from app.streamlit_app import ADVISORY_BANNER
+
+    assert ADVISORY_BANNER == (
+        "This tool identifies kiln candidates for human review. Detections and rule signals "
+        "are preliminary screening candidates. Review results in the field before any "
+        "inspection decision."
+    )
+
+
+def test_dashboard_renders_advisory_before_data_loading(monkeypatch) -> None:
+    """The advisory is rendered before the dashboard checks for data."""
+    import app.streamlit_app as dashboard
+
+    monkeypatch.setattr(dashboard, "dashboard_kilns_file", lambda: None)
+    displayed: list[str] = []
+    monkeypatch.setattr(dashboard.st, "set_page_config", lambda **kwargs: None)
+    monkeypatch.setattr(dashboard.st, "title", lambda *args, **kwargs: None)
+    monkeypatch.setattr(dashboard.st, "caption", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        dashboard.st, "warning", lambda message, **kwargs: displayed.append(message)
+    )
+    monkeypatch.setattr(dashboard.st, "info", lambda *args, **kwargs: None)
+    dashboard.main()
+    assert displayed == [dashboard.ADVISORY_BANNER]
 
 
 def test_marker_tooltip_keeps_model_confidence_separate() -> None:
@@ -83,14 +134,14 @@ def test_csv_has_advisory_notice_and_non_conclusive_columns() -> None:
     for prohibited in ("breach", "illegal", "non-compliant", "verified"):
         assert prohibited not in lowered
     assert "rules_verified" not in exported.columns
-    assert "unverified_candidate" in exported.loc[0, "signal_provenance_json"]
+    assert "unscreened_candidate" in exported.loc[0, "signal_provenance_json"]
 
 
 def test_empty_csv_still_has_advisory_preamble() -> None:
     """An empty selection still downloads with an advisory-use statement."""
     result = screening_csv(pd.DataFrame(columns=["kiln_id", "geometry"]))
     assert result.startswith("# KilnWatch BD advisory screening export.")
-    assert "not legal or administrative findings" in result
+    assert "screening candidates for human review" in result
 
 
 def test_legacy_rows_get_explicit_missing_provenance_records() -> None:
@@ -100,7 +151,7 @@ def test_legacy_rows_get_explicit_missing_provenance_records() -> None:
     )
     exported = pd.read_csv(StringIO(result), comment="#")
     provenance = exported.loc[0, "signal_provenance_json"]
-    assert "unverified_candidate" in provenance
+    assert "unscreened_candidate" in provenance
     assert "near_school" in provenance
     assert "Not retained in this legacy dataset" in provenance
     assert "missing provenance is not evidence" in provenance

@@ -1,7 +1,7 @@
 """Tests for src.rules.engine — rule evaluation with synthetic data.
 
-Uses tiny synthetic kilns and features at known distances to verify
-that breach detection and distance calculations are correct.
+Uses tiny synthetic kilns and features at known distances to check
+rule-signal detection and distance calculations.
 """
 
 from __future__ import annotations
@@ -106,8 +106,8 @@ class TestRuleEngine:
             "output": tmp_path / "scored.parquet",
         }
 
-    def test_breach_detection(self, setup_data: dict) -> None:
-        """Verify that a kiln within buffer distance triggers a breach."""
+    def test_rule_signal_detection(self, setup_data: dict) -> None:
+        """A kiln within the configured buffer receives a screening signal."""
         from src.rules.engine import evaluate_rules
 
         result = evaluate_rules(
@@ -120,7 +120,7 @@ class TestRuleEngine:
         near_kiln = result[result["kiln_id"] == "kiln_near"].iloc[0]
         far_kiln = result[result["kiln_id"] == "kiln_far"].iloc[0]
 
-        # Near kiln: FCBK (technology flagged) + near school → 2 breaches
+        # Near kiln: FCBK (technology flagged) + near school -> two signals
         assert "technology_flagged" in near_kiln["breached_rules"]
         assert "near_school" in near_kiln["breached_rules"]
         assert near_kiln["breach_count"] >= 2

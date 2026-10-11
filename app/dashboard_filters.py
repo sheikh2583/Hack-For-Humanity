@@ -127,13 +127,20 @@ def add_priority_bands(frame: pd.DataFrame) -> pd.DataFrame:
         rank = pd.to_numeric(result["priority_rank"], errors="coerce")
         if not rank.notna().any() and "priority" in result.columns:
             rank = pd.to_numeric(result["priority"], errors="coerce").rank(
-                method="min", ascending=False
+                method="first", ascending=False
             )
     elif "priority" in result.columns:
         priority = pd.to_numeric(result["priority"], errors="coerce")
-        rank = priority.rank(method="min", ascending=False)
+        rank = priority.rank(method="first", ascending=False)
     else:
         return result
+
+    # Re-rank with method="first" for banding: the pipeline's stored
+    # priority_rank may use method="min", which leaves large groups of
+    # tied rows sharing the same numeric rank.  Banding into thirds
+    # requires unique ordinal positions so that each band gets roughly
+    # a third of the rows rather than all ties landing in one band.
+    band_rank = rank.rank(method="first")
 
     valid = rank.notna()
     count = int(valid.sum())
@@ -144,9 +151,10 @@ def add_priority_bands(frame: pd.DataFrame) -> pd.DataFrame:
     high_cutoff = math.ceil(count / 3)
     medium_cutoff = math.ceil(2 * count / 3)
     result["priority_band"] = UNKNOWN_SIGNAL
-    result.loc[valid & (rank <= high_cutoff), "priority_band"] = "High"
-    result.loc[valid & (rank > high_cutoff) & (rank <= medium_cutoff), "priority_band"] = "Medium"
-    result.loc[valid & (rank > medium_cutoff), "priority_band"] = "Low"
+    result.loc[valid & (band_rank <= high_cutoff), "priority_band"] = "High"
+    medium_mask = valid & (band_rank > high_cutoff) & (band_rank <= medium_cutoff)
+    result.loc[medium_mask, "priority_band"] = "Medium"
+    result.loc[valid & (band_rank > medium_cutoff), "priority_band"] = "Low"
     return result
 
 

@@ -63,10 +63,16 @@ def with_signal_provenance(df: pd.DataFrame) -> pd.DataFrame:
     result = df.copy()
     result["signal_provenance_json"] = [
         json.dumps(
-            parse_signal_provenance(row.get("signal_provenance_json"))
-            or unavailable_provenance(
-                parse_candidate_signals(row.get("breached_rules", [])), row
-            ),
+            [
+                {**item, "review_state": "unscreened_candidate"}
+                if item.get("review_state") == "unverified_candidate" else item
+                for item in (
+                    parse_signal_provenance(row.get("signal_provenance_json"))
+                    or unavailable_provenance(
+                        parse_candidate_signals(row.get("breached_rules", [])), row
+                    )
+                )
+            ],
             ensure_ascii=False,
             default=str,
         )
@@ -115,7 +121,7 @@ def screening_csv(df: pd.DataFrame) -> str:
     exported = exported[order]
     preamble = (
         "# KilnWatch BD advisory screening export. Detections and mapped-feature "
-        "signals are unverified candidates, not legal or administrative findings. "
+        "signals are screening candidates for human review. "
         "Distances are to mapped feature geometries and may not be distances to "
         "legally controlling boundaries.\n"
     )

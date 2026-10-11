@@ -23,7 +23,7 @@ technology:
   verified: false
 
 siting_rules:
-  # These are unverified screening proxies, not findings of legal breach.
+  # These are screening proxies, not legal determinations.
   # School/hospital and settlement geometry does not fully represent the
   # Act's legal categories or reference boundaries. See docs/legal_basis.md.
   - {id: near_school,     feature: schools,      buffer_m: 1000, severity: 3, verified: false}

@@ -1,7 +1,7 @@
 # Training setup and completed run
 
 **Updated:** 2026-10-08. The Linux RTX 3090 training run completed as
-`results/run_0002/`. This document records the verified run and the remaining
+`results/run_0002/`. This document records the completed run and the remaining
 review steps. Run-by-run evidence is in
 [`TRAINING_RUN_HISTORY.md`](TRAINING_RUN_HISTORY.md).
 
@@ -71,7 +71,7 @@ specific GPU work.
   `preprocessing_verified: false` because published acquisition dates conflict
   and paired exported chips have not been calibrated.
 - Legal rule thresholds. Values in `config/rules.yaml` remain unverified and
-  must not be treated as legal findings.
+  must not be treated as legal determinations.
 - OSM coverage for the intended pilot area.
 
 The advisory dashboard/export semantics and signal provenance requirements are

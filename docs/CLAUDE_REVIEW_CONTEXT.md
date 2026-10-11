@@ -1,7 +1,7 @@
 # Claude review context: training artifacts and prediction plots
 
 This note records the visual sampling limitation in the completed benchmark
-run; it is not a statement that the dashboard outputs are confirmed findings.
+run; it is not a statement that the dashboard outputs establish a finding.
 Current candidate wording, CSV notices, provenance fields, and unresolved legal
 and spatial source dependencies are documented in
 [`screening_provenance.md`](screening_provenance.md).
@@ -56,4 +56,4 @@ code proposal.
 The ZIP intentionally excludes `results/run_0002/`, model weights, and dataset
 files. The descriptions above record the observed state so the source review
 has current context; the image artifacts remain local if direct inspection is
-needed. No geographic placement or legal conclusions have been verified.
+needed. No geographic placement or legal conclusions have been established.

@@ -9,8 +9,8 @@ from src.score import priority
 from src.score.priority import _score_priority_components
 
 
-def test_zero_exposure_preserves_breach_order() -> None:
-    """With no exposure, the higher breach score retains higher priority."""
+def test_zero_exposure_preserves_signal_score_order() -> None:
+    """With no exposure, the higher screening-signal score retains higher priority."""
     kilns = pd.DataFrame({"breach_score": [5.0, 1.0], "confidence": [0.8, 1.0]})
     scored = _score_priority_components(
         kilns, np.zeros(2), np.zeros(2), np.zeros(2),

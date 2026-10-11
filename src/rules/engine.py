@@ -34,6 +34,7 @@ Contract
 from __future__ import annotations
 
 import json
+import os
 import warnings
 from pathlib import Path
 from typing import Any
@@ -173,8 +174,13 @@ def evaluate_rules(
             "All output will be marked rules_verified=false. "
             "Verify thresholds against the Act before use."
         )
-        warnings.warn(msg, stacklevel=2)
-        rprint(f"[bold red]{msg}[/bold red]")
+        suppress_dev_warnings = bool(os.environ.get("STREAMLIT_SERVER_PORT")) or (
+            os.environ.get("KILNWATCH_SUPPRESS_DEV_WARNINGS", "").strip().lower()
+            in {"1", "true", "yes", "on"}
+        )
+        if not suppress_dev_warnings:
+            warnings.warn(msg, UserWarning, stacklevel=2)
+            rprint(f"[bold red]{msg}[/bold red]")
 
     rprint(f"[cyan]Evaluating {len(kilns)} kilns against {len(rules.get('siting_rules', []))} siting rules.[/cyan]")
 
@@ -257,7 +263,7 @@ def evaluate_rules(
         col_name = f"dist_{feature_layer}_m"
         distance_cols[col_name] = distances
 
-        # Check breaches
+        # Check whether each configured signal applies.
         for i, dist in enumerate(distances):
             if dist < buffer_m:
                 breach_data[i].append(rule_id)

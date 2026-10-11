@@ -324,7 +324,7 @@ def main() -> int:
     if not is_valid_converted_dataset(DATASET_ROOT):
         raise ValueError(
             f"Converted dataset at {DATASET_ROOT} is incomplete or predates the "
-            "verified 1,300 m leakage-filter conversion. Rebuild it from reviewed inputs."
+            "checked 1,300 m leakage-filter conversion. Rebuild it from reviewed inputs."
         )
     _ensure_starting_weights()
     print(f"Training dataset ready: {DATASET_ROOT}")

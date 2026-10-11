@@ -3,7 +3,7 @@
 **Updated:** 2026-10-08. **Scope:** completed local GPU training and the later
 imagery/pilot handoff.
 
-## Current Verified State
+## Current recorded state
 
 - Raw SentinelKilnDB Parquet files are present in
   `data/raw/sentinelkilndb/{train,val,test}/` and were readable with PyArrow.
@@ -53,13 +53,31 @@ exported rasters, and OSM data are available, run:
 
 ```bash
 python scripts/run_pipeline.py --weights results/run_0002/checkpoints/final/best.pt --imgsz 512
-streamlit run app/streamlit_app.py
+```
+
+Start the dashboard from the same project environment. In Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\streamlit.exe run app\streamlit_app.py
+```
+
+On Linux/macOS:
+
+```bash
+.venv/bin/streamlit run app/streamlit_app.py
 ```
 
 The first command runs inference, OSM enrichment, rule screening, and priority
 scoring. If a local Bangladesh PBF is present, it is used for OSM layers. The
 second command opens the dashboard against the most recently modified
 `kilns*.parquet` output.
+
+When `temporary doc share/audit_labeled.csv` is present, the pipeline also runs
+`kilnwatch audit-results --labels` on it after scoring and refreshes
+`docs/AUDIT_SUMMARY.md`. To use another labelled audit file, pass
+`--audit-labels path\to\audit_labeled.csv` to `scripts/run_pipeline.py`. The
+audit stage only summarizes labels; it does not change the confidence threshold
+or model outputs.
 
 ## Dataset Conversion
 

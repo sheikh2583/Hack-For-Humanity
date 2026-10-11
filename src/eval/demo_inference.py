@@ -38,7 +38,10 @@ def resolve_weights(path: Path | None, root: Path = ROOT) -> Path:
             return match.resolve()
     for match in run_checkpoints:
         if match.is_file():
-            print(f"WARNING: using smoke-test checkpoint {match} as the only available fallback.")
+            print(
+                f"WARNING: {match} may be a smoke-test checkpoint; "
+                "using it as the only available fallback."
+            )
             return match.resolve()
     raise FileNotFoundError(
         f"Weights not found at {path or 'an unspecified path'}; searched results/run_0002/checkpoints/final, "

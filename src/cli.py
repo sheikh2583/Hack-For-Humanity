@@ -13,6 +13,8 @@ Usage
     kilnwatch score         # Step 7: priority scoring
     kilnwatch audit-sample  # Step 9: generate audit sample
     kilnwatch audit-results # Step 10: summarize labelled audit results
+    kilnwatch audit-results-r2 # Merge and summarize Round 2 labels and key
+    kilnwatch audit-round2-results # Summarize blinded Round 2 labels
 """
 
 from __future__ import annotations
@@ -189,6 +191,7 @@ def infer(
     point_output: Annotated[bool, typer.Option(help="Write WGS84 centroid Point schema")]=False,
     district_name: Annotated[str | None, typer.Option(help="District name for point output")]=None,
     device: Annotated[str, typer.Option(help="Inference device, such as cpu, 0, or cuda:0")]= "cpu",
+    append: Annotated[bool, typer.Option(help="Append to existing output instead of overwriting")]=False,
 ) -> None:
     """Step 4b - Run YOLO-OBB inference and write kilns.parquet."""
     from src.detect.infer import run_inference
@@ -201,6 +204,7 @@ def infer(
         point_output=point_output,
         district_name=district_name,
         device=device,
+        append=append,
     )
 
 
@@ -281,7 +285,7 @@ def audit_sample(
 
 @app.command("audit-results")
 def audit_results(
-    csv_path: Annotated[Path, typer.Argument(help="Path to a labelled audit.csv")],
+    csv_path: Annotated[Path, typer.Option("--labels", help="Path to audit_labeled.csv")],
 ) -> None:
     """Print audit precision by confidence tercile and overall with Wilson 95% CIs."""
     if not csv_path.is_file():
@@ -290,6 +294,74 @@ def audit_results(
     from src.eval.audit_sample import compute_audit_results
 
     compute_audit_results(audit_csv=csv_path)
+
+
+@app.command("audit-results-r2")
+def audit_results_r2(
+    labels_path: Annotated[Path, typer.Option("--labels", help="Completed Round 2 labels CSV")],
+    key_path: Annotated[Path, typer.Option("--key", help="Round 2 confidence key CSV")],
+    output_csv: Annotated[
+        Path,
+        typer.Option("--output", help="Merged CSV output path"),
+    ] = PROJECT_ROOT / "data" / "processed" / "audit_round2_merged.csv",
+    summary_path: Annotated[
+        Path,
+        typer.Option("--summary", help="Markdown summary output path"),
+    ] = PROJECT_ROOT / "docs" / "AUDIT_ROUND2_SUMMARY.md",
+) -> None:
+    """Merge Round 2 labels and report precision by confidence tercile."""
+    for csv_path, label in ((labels_path, "Labels"), (key_path, "Key")):
+        if not csv_path.is_file():
+            rprint(f"[red]{label} CSV not found:[/red] {csv_path}")
+            raise typer.Exit(code=1)
+    from src.eval.merge_audit_round2 import merge_audit_round2
+
+    try:
+        merge_audit_round2(labels_path, key_path, output_csv, summary_path)
+    except (ValueError, KeyError) as exc:
+        rprint(f"[red]Round 2 audit error:[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+
+
+@app.command("audit-round2-results")
+def audit_round2_results(
+    sheet_a: Annotated[
+        Path, typer.Option(help="Completed blind label sheet A")
+    ] = PROJECT_ROOT / "data" / "processed" / "audit_round2" / "audit_blind_A.csv",
+    sheet_b: Annotated[
+        Path, typer.Option(help="Completed blind label sheet B")
+    ] = PROJECT_ROOT / "data" / "processed" / "audit_round2" / "audit_blind_B.csv",
+    key: Annotated[
+        Path, typer.Option(help="Separate audit key; keep away from labelers")
+    ] = PROJECT_ROOT / "data" / "processed" / "audit_round2" / "audit_key.csv",
+    sampling_report: Annotated[
+        Path, typer.Option(help="Population counts from the sampling report")
+    ] = PROJECT_ROOT / "data" / "processed" / "audit_round2" / "audit_sampling_report.md",
+    old_labels: Annotated[
+        Path | None, typer.Option(help="Optional earlier Chapainawabganj labels")
+    ] = PROJECT_ROOT / "temporary doc share" / "audit_labeled.csv",
+) -> None:
+    """Summarize Round 2 blinded candidate labels and agreement."""
+    for path in (sheet_a, sheet_b, key, sampling_report):
+        if not path.is_file():
+            rprint(f"[red]Required Round 2 file not found:[/red] {path}")
+            raise typer.Exit(code=1)
+    if old_labels is not None and not old_labels.is_file():
+        rprint(f"[red]Earlier label file not found:[/red] {old_labels}")
+        raise typer.Exit(code=1)
+    from src.eval.audit_round2 import analyze_round2
+
+    report = sheet_a.parent / "audit_round2_results.md"
+    csv = sheet_a.parent / "audit_round2_results.csv"
+    try:
+        analyze_round2(
+            sheet_a, sheet_b, key, sampling_report,
+            old_labels=old_labels, report_path=report, csv_path=csv,
+        )
+    except ValueError as error:
+        rprint(f"[red]Cannot analyze Round 2 labels:[/red] {error}")
+        raise typer.Exit(code=1) from error
+    rprint(f"Round 2 screening results written to {report} and {csv}")
 
 
 @app.command("error-analysis")

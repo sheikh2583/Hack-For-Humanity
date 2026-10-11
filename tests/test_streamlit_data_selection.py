@@ -7,7 +7,7 @@ import geopandas as gpd
 import pytest
 from shapely.geometry import Point, box
 
-from app.streamlit_app import class_counts, latest_kilns_file, load_data
+from app.streamlit_app import class_counts, dashboard_kilns_file, latest_kilns_file, load_data
 
 
 def test_latest_kilns_file_selects_by_modification_time(tmp_path: Path) -> None:
@@ -24,6 +24,14 @@ def test_latest_kilns_file_selects_by_modification_time(tmp_path: Path) -> None:
 def test_latest_kilns_file_returns_none_for_empty_directory(tmp_path: Path) -> None:
     """No processed detections returns no path."""
     assert latest_kilns_file(tmp_path) is None
+
+
+def test_dashboard_prefers_final_prioritised_file(tmp_path: Path) -> None:
+    """The dashboard uses the stable final output rather than modification time."""
+    (tmp_path / "kilns.parquet").touch()
+    final = tmp_path / "kilns_prioritised.parquet"
+    final.touch()
+    assert dashboard_kilns_file(tmp_path) == final
 
 
 @pytest.mark.parametrize(

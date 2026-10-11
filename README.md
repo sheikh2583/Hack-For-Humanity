@@ -1,22 +1,14 @@
-# KilnWatch BD 🏭🛰️
+﻿# KilnWatch BD
 
-> **Current status (2026-10-08):** Linux run `run_0002` completed all four
-> training stages and one held-out test evaluation on an RTX 3090. The selected
-> model is `results/run_0002/checkpoints/final/best.pt`; test mAP50 was 0.7524
-> and mAP50-95 was 0.4930. See [docs/TRAINING_RUN_HISTORY.md](docs/TRAINING_RUN_HISTORY.md)
-> and [docs/PROGRESS.md](docs/PROGRESS.md) for evidence and remaining checks.
-> Detection review plots currently cover only the first three test batches,
-> which contain blank labels; inspect representative positive detections before
-> using the model. The local pipeline was exercised on 2026-10-08: demo-chip
-> inference, one exported Chapainawabganj raster, local Bangladesh PBF
-> enrichment, rule checks, and scoring completed. The full suite reported 151
-> passed, and `ruff check .` passed. No Earth
-> Engine export was made. Real-raster inference used 512 px with a checkpoint
-> trained at 256 px, and the result still needs visual review.
-> GPU workloads remain user-managed unless explicitly requested.
-> `config/preprocessing.yaml` deliberately keeps `preprocessing_verified: false`
-> because published SentinelKilnDB date ranges conflict; do not enable export
-> until the authors' intended dates and a paired-chip calibration are reviewed.
+> **Current status (Round 2 prototype):** KilnWatch BD screens kiln candidates
+> across five pilot districts: Chapainawabganj, Gazipur, Rajshahi, Dhaka, and
+> Chittagong. The processed priority dataset currently contains 2,150 candidate
+> rows. The selected model is `results/run_0002/checkpoints/final/best.pt` at
+> 512 px. Model metrics are held-out SentinelKilnDB dataset-chip results only;
+> they do not describe the raster pilot or field accuracy. Preprocessing remains
+> gated by `preprocessing_verified: false` until source dates and calibration
+> are reviewed. See [docs/ROUND2_SUBMISSION.md](docs/ROUND2_SUBMISSION.md) and
+> [docs/PROGRESS.md](docs/PROGRESS.md) for status and limitations.
 
 > Satellite-based brick kiln candidate screening for Bangladesh
 > *Hack for Humanity Bangladesh 2026*
@@ -26,7 +18,7 @@
 KilnWatch BD detects kiln candidates in Sentinel-2 satellite imagery, compares
 them with configured siting and technology rules as GIS screening signals,
 ranks them by screening priority, and displays the results on an interactive
-map. These outputs are not legal or administrative determinations.
+map. These outputs are screening candidates, not legal or administrative determinations.
 
 **Advisory screening only.** Detector confidence describes the model's
 assessment that a kiln candidate exists; rule signals describe comparisons to
@@ -38,53 +30,73 @@ provenance, review states, and unresolved dependencies.
 The SentinelKilnDB imagery-date discrepancy remains unresolved. An optional
 offline-testable diagnostic is documented in
 [docs/DATE_FORENSICS.md](docs/DATE_FORENSICS.md); it requires the user's own
-Earth Engine credentials when run and does not verify a date range by itself.
+Earth Engine credentials when run and does not establish a date range by itself.
 
 ## Quick start
 
-After the trained checkpoint and required local data are set up, run the
-operator commands from [docs/RUNBOOK.md](docs/RUNBOOK.md):
+After the trained checkpoint, exported rasters in `data/raw/exports/`, and
+required local data are ready, run the pipeline and then open the dashboard. The
+pipeline defaults to CPU; this command also makes that explicit:
 
 ```bash
-python scripts/run_pipeline.py --weights results/run_0002/checkpoints/final/best.pt --imgsz 512
+python scripts/run_pipeline.py --weights results/run_0002/checkpoints/final/best.pt --imgsz 512 --device cpu
 streamlit run app/streamlit_app.py
 ```
 
+On Windows PowerShell, start the dashboard through the project environment so
+the command works even when the virtual environment is not activated:
+
+```powershell
+.\.venv\Scripts\streamlit.exe run app\streamlit_app.py
+```
+
+On Linux/macOS, use:
+
+```bash
+.venv/bin/streamlit run app/streamlit_app.py
+```
+
+## Pilot districts
+
+Chapainawabganj, Gazipur, Rajshahi, Dhaka, and Chittagong.
+
 ## Dataset
 
-- **SentinelKilnDB** (CC BY-NC 4.0) — 128×128 px Sentinel-2 chips at 10 m
-  resolution. The detector outputs FCBK and Zigzag; two rare source records
-  in the Bangladesh data are merged into FCBK.
+- **SentinelKilnDB, Mondal et al., NeurIPS 2025** ([paper](https://openreview.net/forum?id=efGzsxVSEC), [dataset](https://huggingface.co/datasets/SustainabilityLabIITGN/SentinelKilnDB)) is licensed **CC BY-NC 4.0**. Attribution and non-commercial terms apply to the dataset. It contains 128 by 128 px Sentinel-2 chips at 10 m resolution. The detector outputs FCBK and Zigzag; a rare source category is merged into FCBK.
+
+## Advisory use
+
+All detections and rule signals are screening candidates for human review. The dashboard does not determine legal status. Review mapped distances and signals against authoritative records and field evidence before any inspection decision.
 
 ## Project Structure
 
 ```
 kilnwatch-bd/
-├── AGENTS.md                # Agent rules
-├── config/
-│   ├── aoi.yaml             # Areas of interest & season
-│   └── rules.yaml           # Unverified screening configuration
-├── data/
-│   ├── raw/                 # Original downloads (not committed)
-│   ├── interim/             # Intermediate artefacts
-│   └── processed/           # Pipeline outputs (GeoParquet)
-├── src/
-│   ├── cli.py               # Typer CLI — one command per pipeline stage
-│   ├── data/                # Dataset conversion & export
-│   ├── detect/              # YOLO inference & NMS
-│   ├── geo/                 # OSM layers & spatial utilities
-│   ├── rules/               # Candidate rule-signal engine
-│   ├── score/               # Priority scoring
-│   ├── eval/                # Error analysis & audit sampling
-│   └── app/                 # (reserved)
-├── app/
-│   └── streamlit_app.py     # Interactive dashboard
-├── notebooks/               # Training notebooks (local GPU / Colab / Kaggle)
-├── scripts/                 # Cross-platform setup and review-archive helpers
-├── results/                 # Numbered run manifests, GPU provenance, logs
-├── tests/                   # Pytest suite
-├── pyproject.toml
-└── README.md
+â”œâ”€â”€ AGENTS.md                # Agent rules
+â”œâ”€â”€ config/
+â”‚   â”œâ”€â”€ aoi.yaml             # Areas of interest & season
+â”‚   â””â”€â”€ rules.yaml           # Unverified screening configuration
+â”œâ”€â”€ data/
+â”‚   â”œâ”€â”€ raw/                 # Original downloads (not committed)
+â”‚   â”œâ”€â”€ interim/             # Intermediate artefacts
+â”‚   â””â”€â”€ processed/           # Pipeline outputs (GeoParquet)
+â”œâ”€â”€ src/
+â”‚   â”œâ”€â”€ cli.py               # Typer CLI â€” one command per pipeline stage
+â”‚   â”œâ”€â”€ data/                # Dataset conversion & export
+â”‚   â”œâ”€â”€ detect/              # YOLO inference & NMS
+â”‚   â”œâ”€â”€ geo/                 # OSM layers & spatial utilities
+â”‚   â”œâ”€â”€ rules/               # Candidate rule-signal engine
+â”‚   â”œâ”€â”€ score/               # Priority scoring
+â”‚   â”œâ”€â”€ eval/                # Error analysis & audit sampling
+â”‚   â””â”€â”€ app/                 # (reserved)
+â”œâ”€â”€ app/
+â”‚   â””â”€â”€ streamlit_app.py     # Interactive dashboard
+â”œâ”€â”€ notebooks/               # Training notebooks (local GPU / Colab / Kaggle)
+â”œâ”€â”€ scripts/                 # Cross-platform setup and review-archive helpers
+â”œâ”€â”€ results/                 # Numbered run manifests, GPU provenance, logs
+â”œâ”€â”€ tests/                   # Pytest suite
+â”œâ”€â”€ pyproject.toml
+â””â”€â”€ README.md
 ```
 
 ## Share a review ZIP
@@ -201,8 +213,8 @@ model, VRAM, host, runtime, and stage. Metric chunks and the manifest are
 automatically staged in Git; inspect and commit them manually. Checkpoints and
 plots remain out of Git.
 
-The earlier partial output under `runs/yolov8n-obb-256/` is preserved, but is
-not automatically imported into the numbered runner. New runs start from the
+An earlier partial Windows training attempt is archived under
+`results/legacy_windows_rtx4070_20260929/`; it was not imported into the numbered runner. New runs start from the
 configured pretrained weights; numbered runs created by this runner resume
 from their own checkpoints.
 
@@ -224,15 +236,14 @@ commands; it does not define a separate training pipeline.
 
 ## Screening and legal status
 
-Generated detections and rule signals default to `unverified_candidate`.
-Configured thresholds and source layers have not been confirmed as authoritative
-legal boundaries or legal interpretations. Do not use screening outputs to
-assert that a kiln is illegal or non-compliant. See
+Generated detections and rule signals remain candidates for human review.
+Configured thresholds and source layers have not been established as authoritative
+legal boundaries or interpretations. Do not use screening outputs to make a legal determination about a kiln. See
 [docs/legal_basis.md](docs/legal_basis.md) for legal research and
 [docs/screening_provenance.md](docs/screening_provenance.md) for unresolved
 legal and spatial-data dependencies.
 
 ## Licence
 
-Code: MIT  
-Dataset: SentinelKilnDB is CC BY-NC 4.0 — cite the authors.
+Code: MIT
+Dataset: SentinelKilnDB is CC BY-NC 4.0 â€” cite the authors.

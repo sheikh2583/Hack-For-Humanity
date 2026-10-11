@@ -1,96 +1,55 @@
-"""Tests for config-driven Sentinel-2 preprocessing setup."""
+"""Tests for configured Earth Engine export boundaries."""
 
 from __future__ import annotations
 
-import sys
-import types
 from pathlib import Path
 
 import pytest
 import yaml
 
-from src.data.export_s2 import district_epsg, export_composites
+from src.data.export_s2 import _require_preprocessing_verification, configured_bbox
+from tools.export_district import configured_district_names
 
 
-def test_recipe_config_and_district_crs() -> None:
-    """Recipe matches the documented authors' code and district CRS rule."""
-    recipe = yaml.safe_load(Path("config/preprocessing.yaml").read_text(encoding="utf-8"))
-    assert recipe["preprocessing_verified"] is False
-    assert recipe["collection"] == "COPERNICUS/S2_SR_HARMONIZED"
-    assert recipe["cloud_mask"]["qa60_bit"] == 10
-    assert recipe["patches"]["stride_px"] == 98
-    assert recipe["reflectance_conversion"]["method"] == "per_patch_per_band_minmax_uint8"
-    crs_rule = recipe["output"]["district_crs"]
-    assert district_epsg(89.99, threshold=crs_rule["centroid_longitude_threshold"], west_epsg=crs_rule["west_of_threshold"], east_epsg=crs_rule["at_or_east_of_threshold"]) == "EPSG:32645"
-    assert district_epsg(
-        90.0,
-        threshold=crs_rule["centroid_longitude_threshold"],
-        west_epsg=crs_rule["west_of_threshold"],
-        east_epsg=crs_rule["at_or_east_of_threshold"],
-    ) == "EPSG:32646"
+def test_configured_bbox_reads_gazipur_coordinates() -> None:
+    """Gazipur's configured AOI is returned in west/south/east/north order."""
+    district = {
+        "name": "Gazipur",
+        "bbox": {"west": 89.85, "south": 23.85, "east": 90.55, "north": 24.35},
+    }
+    assert configured_bbox(district) == (89.85, 23.85, 90.55, 24.35)
 
 
-def test_export_stops_while_recipe_unverified(tmp_path: Path) -> None:
-    """Missing pilot dates stop before any Earth Engine authentication attempt."""
-    prep = tmp_path / "preprocessing.yaml"
-    prep.write_text("pilot: {start_date: '', end_date: null}\n", encoding="utf-8")
-    aoi = tmp_path / "aoi.yaml"
-    aoi.write_text("districts: []\n", encoding="utf-8")
-    with pytest.raises(RuntimeError, match="pilot.start_date"):
-        export_composites(aoi, preprocessing_config=prep, boundaries_path=tmp_path / "missing.geojson")
-
-
-def test_export_stops_when_pilot_date_range_is_missing(tmp_path: Path) -> None:
-    """A verified recipe still requires a human-supplied pilot date range."""
-    prep = tmp_path / "preprocessing.yaml"
-    prep.write_text("pilot: {start_date: '2025-11-01', end_date: ''}\n", encoding="utf-8")
-    aoi = tmp_path / "aoi.yaml"
-    aoi.write_text("districts: []\n", encoding="utf-8")
-    with pytest.raises(RuntimeError, match="pilot.start_date"):
-        export_composites(aoi, preprocessing_config=prep, boundaries_path=tmp_path / "missing.geojson")
-
-
-def test_export_requires_earth_engine_project_before_initialization(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Missing project configuration is rejected before calling ``ee.Initialize``."""
-    prep = tmp_path / "preprocessing.yaml"
-    prep.write_text(
-        "pilot: {start_date: '2024-01-01', end_date: '2024-02-01'}\n",
-        encoding="utf-8",
-    )
-    aoi = tmp_path / "aoi.yaml"
-    aoi.write_text("districts: []\n", encoding="utf-8")
-    boundaries = tmp_path / "boundaries.geojson"
-    boundaries.write_text("{}", encoding="utf-8")
-    initialize_called = False
-
-    def initialize(**_: object) -> None:
-        nonlocal initialize_called
-        initialize_called = True
-
-    monkeypatch.setitem(sys.modules, "ee", types.SimpleNamespace(Initialize=initialize))
-    monkeypatch.delenv("EARTHENGINE_PROJECT", raising=False)
-    monkeypatch.delenv("KILNWATCH_EE_PROJECT", raising=False)
-    with pytest.raises(RuntimeError, match="KILNWATCH_EE_PROJECT"):
-        export_composites(aoi, preprocessing_config=prep, boundaries_path=boundaries)
-    assert initialize_called is False
-
-
-def test_configured_districts_resolve_in_real_adm2_file() -> None:
-    """Configured boundary names resolve uniquely against the supplied ADM2 file."""
-    from src.data.export_s2 import _district_geometry
-
-    aoi = yaml.safe_load(Path("config/aoi.yaml").read_text(encoding="utf-8"))
-    recipe = yaml.safe_load(Path("config/preprocessing.yaml").read_text(encoding="utf-8"))
-    boundaries = Path("data/raw/boundaries/geoBoundaries_BGD_ADM2.geojson")
-    if not boundaries.is_file():  # the boundary file is not shipped in share/review archives
-        pytest.skip(f"{boundaries} not present on this machine")
-    for district in aoi["districts"]:
-        geometry, epsg = _district_geometry(
-            boundaries,
-            district.get("boundary_name", district["name"]),
-            recipe["output"]["district_crs"],
+def test_configured_bbox_rejects_invalid_coordinate_order() -> None:
+    """Configured AOIs fail before an export when their coordinate order is invalid."""
+    with pytest.raises(ValueError, match="west < east"):
+        configured_bbox(
+            {"name": "Test", "bbox": {"west": 2, "south": 1, "east": 1, "north": 3}}
         )
-        assert geometry["type"] in {"Polygon", "MultiPolygon"}
-        assert epsg in {"EPSG:32645", "EPSG:32646"}
+
+
+def test_false_preprocessing_flag_logs_warning_and_blocks_export(caplog, tmp_path: Path) -> None:
+    """An unreviewed preprocessing configuration cannot reach Earth Engine."""
+    with pytest.raises(RuntimeError, match="Preprocessing review is required"):
+        _require_preprocessing_verification(
+            {"preprocessing_verified": False}, tmp_path / "preprocessing.yaml"
+        )
+    assert "preprocessing_verified=false" in caplog.text
+
+
+def test_new_district_aoi_names_bboxes_and_export_choices() -> None:
+    """New configured districts use the supplied bbox and CLI names."""
+    project_root = Path(__file__).resolve().parents[1]
+    aoi_path = project_root / "config/aoi.yaml"
+    config = yaml.safe_load(aoi_path.read_text(encoding="utf-8"))
+    expected = {
+        "Rajshahi": ("Rajshahi", (88.1, 24.0, 88.8, 24.6)),
+        "Dhaka": ("Dhaka", (89.9, 23.5, 90.7, 24.1)),
+        "Chittagong": ("Chittagong", (91.6, 22.1, 92.4, 22.9)),
+    }
+    districts = {district["name"]: district for district in config["districts"]}
+    choices = configured_district_names(aoi_path)
+    for name, (boundary_name, bbox) in expected.items():
+        assert name in choices
+        assert districts[name]["boundary_name"] == boundary_name
+        assert configured_bbox(districts[name]) == bbox

@@ -1,55 +1,51 @@
-# KilnWatch BD — 5-minute finale demo
+# KilnWatch BD — five-minute finale demo
 
-## Before the judges arrive
+## Before the demo
 
-Start the local Streamlit dashboard with a processed GeoParquet available in `data/processed/`. Confirm which `kilns*.parquet` file the app will select. Keep [ROUND2_SUBMISSION.md](ROUND2_SUBMISSION.md) open for the pipeline and limitations.
-
-**Current-build note:** the checked-in dashboard shows map markers, summary counts, class/confidence/rule IDs/priority in the marker popup, and a CSV download. It currently has no district/class filter controls, and its popup does not show the school-distance field. The source parquet may contain `dist_schools_m`, but the dashboard popup does not display it. Do not pretend those two requested interactions work: state the gap plainly and use the time to show the available counts and CSV fields. The script below preserves the requested timing and gives an honest fallback.
+Open the Streamlit dashboard with the current processed GeoParquet selected. Confirm all five districts appear, the map renders, filters respond, and the CSV button works. Choose a high-priority marker with non-empty class, confidence, rule-signal, and nearest-mapped-school fields. The school distance is to mapped data and is not a legal boundary measurement.
 
 ## Run of show (5:00)
 
-### 1. Open the dashboard and orient the judges (0:00–0:30)
+### 1. Map and priority colors (0:00–0:30)
 
-**Say:** “This is KilnWatch BD, a local screening dashboard for possible brick-kiln locations in Bangladesh. Each marker is a model candidate, colored by screening priority. The basemap can switch between street and satellite views. A marker is a lead for review, not a legal finding.”
+**Show:** The map with candidates from Chapainawabganj, Gazipur, Rajshahi, Dhaka, and Chittagong.
 
-Point out the total detections, class counts, district summary, and layer control. Basemap tiles need an internet connection.
+**Say:** “Each point is a kiln candidate for human review. Red marks high priority, orange medium, and green low priority. These colors order a review queue; they do not represent legal status.”
 
 ### 2. Inspect a high-priority candidate (0:30–1:30)
 
-Click a red/high-priority marker. Point to the detected class, detector confidence, candidate rule IDs, and priority rank.
+**Show:** Click the highest-priority red marker and point to its class, confidence, rule signals, and distance to the nearest mapped school.
 
-**Say:** “The popup separates the model's confidence from the mapped-feature rule signals. In this dashboard build the popup does not expose the nearest-school distance, so I won't infer one from the marker. The processed output can include `dist_schools_m`; exposing it here is a follow-up.”
+**Say:** “This popup shows the model class and confidence, the project rule signals associated with the point, and its distance to the nearest mapped school. Those signals depend on available mapped data and need human checking. The marker is a screening candidate, not a screening output that establishes legal status.”
 
-If judges require the school distance, open the matching row in the exported/processed data only if the currently selected file actually has a non-null `dist_schools_m` value. Describe it as distance to mapped feature geometry, not a legally controlling boundary.
+### 3. Filter to FCBK (1:30–2:00)
 
-### 3. Explain district and class counts (1:30–2:00)
+**Show:** Use the kiln-class filter to select FCBK only.
 
-**Say:** “The sidebar currently reports overall FCBK and Zigzag counts and the district names represented in the loaded file. Interactive district and class filters are not implemented in this build, so these totals do not change when I select a filter.”
+**Say:** “The map now shows FCBK candidates. Our project flags this class for technology review as a screening heuristic. The class alone does not establish kiln age, actual technology, or legal status.”
 
-Show the class totals and explain that filtering is a requested interface improvement, not a capability to claim in this live demo.
+### 4. Export CSV (2:00–2:30)
 
-### 4. Export and inspect the CSV (2:00–2:30)
+**Show:** Download the CSV and point out candidate ID, district, class, confidence, signals, and priority fields that are present.
 
-Click **Export CSV**, open the downloaded file, and show a few headers. The dashboard exports the loaded GeoParquet attributes with geometry removed. In the current prioritized sample these include `kiln_id`, `class`/`class_name`, `confidence`, `district`, `lat`, `lon`, `dist_schools_m`, `dist_hospitals_m`, `dist_settlements_m`, `breached_rules`, `breach_score`, `priority`, and `priority_rank`; exact columns depend on the selected input file.
+**Say:** “This export is a ranked review queue an inspector can check and annotate. It is a starting point for human review, not an official work order or evidence for enforcement.”
 
-**Say:** “These fields let an analyst review candidate type, confidence, mapped distances, rule signals, and rank. They remain advisory attributes.”
+### 5. Explain the pipeline (2:30–3:30)
 
-### 5. Walk through the pipeline (2:30–3:30)
+**Show:** The pipeline diagram in [ROUND2_SUBMISSION.md](ROUND2_SUBMISSION.md).
 
-Show the Mermaid diagram in [ROUND2_SUBMISSION.md](ROUND2_SUBMISSION.md).
-
-**Say:** “Sentinel-2 chips go through preprocessing and tiling. YOLOv8s-OBB proposes oriented kiln candidates. We place them geographically, compare their locations with available mapped features and configured draft rules, then calculate a screening priority from exposure. The dashboard reads the resulting GeoParquet. The rule stage identifies candidate signals; it does not establish a legal violation.”
-
-Mention that the team re-split chips by spatial blocks and applied a 1,300 m cross-split leakage filter; the exact Bangladesh chip count is being reconciled between the brief and generated report.
+**Say:** “We start with Sentinel-2 imagery, run the YOLOv8s-OBB detector to propose kiln candidates, compare those locations with configured project signals and mapped features, then calculate an exposure-weighted priority score. The dashboard lets a reviewer explore and export the results. Sentinel-2 data products are free; Earth Engine account, quota, and export conditions may still apply.”
 
 ### 6. State limitations (3:30–4:00)
 
-**Say:** “This is advisory screening, not legal evidence. Preprocessing remains unverified because published SentinelKilnDB acquisition dates conflict and exported chips have not been calibrated against the training chips. We have no field validation, legal rules remain unverified, and the FCBK test AP50 is weaker than Zigzag. These markers are candidates for human review, not findings.”
+**Say:** “This is an advisory five-district pilot. Outputs are preliminary screening candidates. The model’s held-out chip metrics are not field accuracy, and rule signals, mapped-feature coverage, preprocessing, and candidate locations need review. A human must review results before any inspection decision.”
 
-### 7. Judge Q&A preparation (4:00–5:00)
+### 7. Likely judge Q&A (4:00–5:00)
 
-1. **How accurate is it in the field?** “We do not have field-validation results. The reported test mAP50 is 0.752 on a held-out dataset split; it should not be read as field accuracy.”
-2. **Why is FCBK weaker?** “Its test AP50 is 0.601 versus 0.904 for Zigzag. That gap is a known limitation; we need representative error review and more validation before operational use.”
-3. **Are the legal thresholds verified?** “No. The project records the Act section and candidate distances, but rule values, current legal force, feature coverage, and GIS boundary interpretation remain unverified.”
-4. **Why is preprocessing unverified?** “The dataset's published date sources conflict, and we do not have paired exported chips to calibrate the Earth Engine preprocessing against the training data. The export gate stays closed until those checks are resolved.”
-5. **How did you prevent train/test leakage, and how many chips are used?** “We re-split spatially using 0.25° cells and a 1,300 m Chebyshev-distance filter. The Round 2 brief says 11,409 Bangladesh chips, while the current report says 11,517 inside Bangladesh and 11,250 written after filtering; we will reconcile that count before making a final dataset-size claim.”
+Keep answers short; offer to follow up on evidence that is not in the demo.
+
+1. **“Why not use existing kiln maps?”** — “Our goal is to help prioritize review by mapped exposure. Existing maps can be useful inputs; we have not completed a comparative evaluation to claim our ranking is novel.”
+2. **“How accurate is it?”** — “Held-out SentinelKilnDB chip mAP50 is 0.752. An earlier exploratory Google Earth review found visible kiln structures in 15 of 15 candidates above confidence 0.44, but that cutoff was examined on the same small sample and the review came from a prior run. It is not a field-accuracy estimate.”
+3. **“What if you flag a legal kiln?”** — “The dashboard cannot establish legal status. A reviewer must check the candidate against authoritative records and field evidence before taking action.”
+4. **“Does it scale?”** — “We have processed five districts. A new district needs an imagery export and configuration, plus boundary-name and mapped-feature checks. We still need to validate that workflow in additional districts.”
+5. **“What’s next?”** — “A Department of Environment pilot, field validation, checking the source for the reported 2022 clearance count, and then adding districts with validated data.”

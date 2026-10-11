@@ -1,0 +1,33 @@
+{
+  "by_tercile": {
+    "low": {
+      "precision": 0.0,
+      "ci_95_lower": 0.0,
+      "ci_95_upper": 0.2775,
+      "n": 10,
+      "true_positives": 0
+    },
+    "mid": {
+      "precision": 0.7,
+      "ci_95_lower": 0.3968,
+      "ci_95_upper": 0.8922,
+      "n": 10,
+      "true_positives": 7
+    },
+    "high": {
+      "precision": 1.0,
+      "ci_95_lower": 0.7225,
+      "ci_95_upper": 1.0,
+      "n": 10,
+      "true_positives": 10
+    }
+  },
+  "overall": {
+    "precision": 0.5667,
+    "ci_95_lower": 0.392,
+    "ci_95_upper": 0.7262,
+    "n": 30,
+    "true_positives": 17
+  },
+  "unsure_count": 0
+}

@@ -137,6 +137,6 @@ def test_priority_bands_are_relative_deterministic_and_leave_scores_unchanged() 
 
 
 def test_advisory_notice_remains_explicit() -> None:
-    """Candidate review language still rejects legal or administrative findings."""
-    assert "Screening candidates only" in ADVISORY_NOTICE
-    assert "not legal or administrative findings" in ADVISORY_NOTICE
+    """Advisory language clearly presents screening outputs for human review."""
+    assert "Screening outputs only" in ADVISORY_NOTICE
+    assert "candidates for human review" in ADVISORY_NOTICE
