@@ -76,11 +76,13 @@ html, body, [data-testid="stAppViewContainer"] { overflow-x: hidden; }
 }
 [data-testid="stAppViewContainer"] .main h1 { margin-top: 0.25rem !important; line-height: 1.25 !important; overflow: visible; }
 [data-testid="stMainBlockContainer"] h1 { line-height: 1.25 !important; overflow: visible; }
-.dhoa-brand-title {
+/* Hide Streamlit's heading permalink affordances; preserve normal content links. */
+[data-testid="stHeaderActionElements"] { display: none !important; }
+[data-testid="stAppViewContainer"] .main h1.dhoa-brand-title {
     display: block;
     margin-top: 0.35rem !important;
-    padding: 0.22em 0 0.08em;
-    line-height: 1.65 !important;
+    padding: 0.28em 0 0.08em;
+    line-height: 1.75 !important;
     overflow: visible !important;
 }
 [data-testid="stAppViewContainer"] .main [data-testid="stCaptionContainer"] { margin-top: 0.2rem; }
@@ -123,7 +125,10 @@ html, body, [data-testid="stAppViewContainer"] { overflow-x: hidden; }
         max-height: 500px !important;
     }
     h1 { font-size: 1.9rem !important; line-height: 1.4 !important; padding-top: 0.15rem; }
-    .dhoa-brand-title { padding-top: 0.38em; line-height: 1.8 !important; }
+    [data-testid="stAppViewContainer"] .main h1.dhoa-brand-title {
+        padding-top: 0.4em;
+        line-height: 1.85 !important;
+    }
     h2 { font-size: 1.35rem !important; }
     h3 { font-size: 1.15rem !important; }
     [data-testid="stMetricValue"] { font-size: 1.35rem; }
