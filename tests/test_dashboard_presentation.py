@@ -182,6 +182,9 @@ def test_responsive_css_contains_mobile_breakpoints_and_map_rules() -> None:
     assert "@media (max-width: 480px)" in css
     assert "min-height: 320px" in css
     assert "height: 60vh" in css
+    assert '[data-testid="stMainBlockContainer"] h1.dhoa-brand-title' in css
+    assert "padding: 0.38em 0 0.12em !important" in css
+    assert "padding-top: 0.38em !important" in css
 
 
 def test_header_marks_metrics_for_mobile_grid(monkeypatch) -> None:
@@ -190,13 +193,12 @@ def test_header_marks_metrics_for_mobile_grid(monkeypatch) -> None:
 
     markup: list[str] = []
     monkeypatch.setattr(dashboard.st, "markdown", lambda value, **_kwargs: markup.append(value))
-    monkeypatch.setattr(dashboard.st, "title", lambda value: markup.append(value))
     monkeypatch.setattr(dashboard.st, "caption", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(dashboard, "load_config", lambda: {"rules": {}})
     dashboard.render_header(
         pd.DataFrame({"priority_band": ["High"], "district": ["Dhaka"]})
     )
-    assert "\u09a7\u09cb\u0981\u09af\u09bc\u09be" in markup
+    assert any("h1 class='dhoa-brand-title'" in value for value in markup)
     assert any("class='dhoa-metrics'" in value for value in markup)
 
 
