@@ -190,11 +190,13 @@ def test_header_marks_metrics_for_mobile_grid(monkeypatch) -> None:
 
     markup: list[str] = []
     monkeypatch.setattr(dashboard.st, "markdown", lambda value, **_kwargs: markup.append(value))
+    monkeypatch.setattr(dashboard.st, "title", lambda value: markup.append(value))
     monkeypatch.setattr(dashboard.st, "caption", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(dashboard, "load_config", lambda: {"rules": {}})
     dashboard.render_header(
         pd.DataFrame({"priority_band": ["High"], "district": ["Dhaka"]})
     )
+    assert "\u09a7\u09cb\u0981\u09af\u09bc\u09be" in markup
     assert any("class='dhoa-metrics'" in value for value in markup)
 
 
