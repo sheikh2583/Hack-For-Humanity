@@ -78,15 +78,38 @@ html, body, [data-testid="stAppViewContainer"] { overflow-x: hidden; }
 [data-testid="stMainBlockContainer"] h1 { line-height: 1.25 !important; overflow: visible; }
 /* Hide Streamlit's heading permalink affordances; preserve normal content links. */
 [data-testid="stHeaderActionElements"] { display: none !important; }
-[data-testid="stAppViewContainer"] .main h1.dhoa-brand-title {
+.dhoa-brand-title {
     display: block;
-    margin-top: 0.35rem !important;
-    padding: 0.28em 0 0.08em;
-    line-height: 1.75 !important;
+    margin: 0.35rem 0 0.2rem;
+    padding: 0.22em 0 0.12em;
+    font-size: 2.75rem;
+    font-weight: 750;
+    line-height: 1.65;
     overflow: visible !important;
 }
 [data-testid="stAppViewContainer"] .main [data-testid="stCaptionContainer"] { margin-top: 0.2rem; }
 [data-testid="stMetric"] { min-width: 0; }
+/* Replace Streamlit's developer-oriented running icon with a Bengali loading cue. */
+[data-testid="stStatusWidgetRunningIcon"] {
+    width: auto !important;
+    height: auto !important;
+    min-width: 0;
+    margin-right: 0.4rem !important;
+    overflow: visible !important;
+}
+[data-testid="stStatusWidgetRunningIcon"] svg,
+[data-testid="stStatusWidgetRunningIcon"] img { display: none !important; }
+[data-testid="stStatusWidgetRunningIcon"]::after {
+    content: "পৃষ্ঠা লোড হচ্ছে, অপেক্ষা করুন…";
+    display: block;
+    max-width: 220px;
+    color: #dbe3ec;
+    font-family: "Noto Sans Bengali", "Nirmala UI", "Vrinda", sans-serif;
+    font-size: 0.82rem;
+    font-weight: 500;
+    line-height: 1.35;
+    white-space: nowrap;
+}
 .dhoa-metrics {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -114,6 +137,13 @@ html, body, [data-testid="stAppViewContainer"] { overflow-x: hidden; }
     [data-testid="stMainBlockContainer"] { padding-top: 1.35rem !important; }
     [data-testid="stHorizontalBlock"] { flex-direction: column; gap: 0.75rem; }
     [data-testid="stMetricContainer"] { min-width: 0; }
+    [data-testid="stStatusWidgetRunningIcon"]::after {
+        max-width: 115px;
+        font-size: 0.7rem;
+        line-height: 1.3;
+        white-space: normal;
+        text-align: right;
+    }
     [data-testid="stIFrame"] iframe {
         width: 100% !important; height: 52vh !important;
         min-height: 280px !important; max-height: 500px !important;
@@ -125,10 +155,7 @@ html, body, [data-testid="stAppViewContainer"] { overflow-x: hidden; }
         max-height: 500px !important;
     }
     h1 { font-size: 1.9rem !important; line-height: 1.4 !important; padding-top: 0.15rem; }
-    [data-testid="stAppViewContainer"] .main h1.dhoa-brand-title {
-        padding-top: 0.4em;
-        line-height: 1.85 !important;
-    }
+    .dhoa-brand-title { font-size: 1.9rem; padding-top: 0.35em; line-height: 1.75; }
     h2 { font-size: 1.35rem !important; }
     h3 { font-size: 1.15rem !important; }
     [data-testid="stMetricValue"] { font-size: 1.35rem; }
@@ -140,6 +167,14 @@ html, body, [data-testid="stAppViewContainer"] { overflow-x: hidden; }
         padding-left: 0.5rem; padding-right: 0.5rem;
     }
     body, p, label, [data-testid="stCaptionContainer"] { font-size: 14px; }
+}
+@media (min-width: 769px) {
+    .dhoa-brand-title {
+        font-family: "Noto Sans Bengali", "Nirmala UI", "Vrinda", sans-serif;
+        line-height: 2 !important;
+        padding-top: 0.6em;
+        padding-bottom: 0.35em;
+    }
 }
 </style>
 """
@@ -474,7 +509,7 @@ def render_header(gdf: gpd.GeoDataFrame) -> None:
     """
     identity, help_column = st.columns([5, 2], gap="small", vertical_alignment="center")
     with identity:
-        st.markdown("<h1 class='dhoa-brand-title' style='margin-bottom:0'>ধোঁয়া</h1>", unsafe_allow_html=True)
+        st.markdown("<div class='dhoa-brand-title' role='heading' aria-level='1'>ধোঁয়া</div>", unsafe_allow_html=True)
         loaded = dashboard_kilns_file()
         subtitle = "\u09ac\u09be\u0982\u09b2\u09be\u09a6\u09c7\u09b6\u09c7\u09b0 \u0987\u099f\u09ad\u09be\u099f\u09be \u09aa\u09b0\u09cd\u09af\u09ac\u09c7\u0995\u09cd\u09b7\u09a3 \u09a1\u09cd\u09af\u09be\u09b6\u09ac\u09cb\u09b0\u09cd\u09a1"
         if loaded is not None:
