@@ -56,6 +56,17 @@ On Linux/macOS, use:
 .venv/bin/streamlit run app/streamlit_app.py
 ```
 
+### Mobile view
+
+The dashboard uses CSS breakpoints at 768px for tablet/phone layouts and
+480px for small phones. The sidebar remains available and collapses
+automatically on narrow screens; open it to reach the district selector and
+CSV export. A visible **Mobile view** toggle can also force the compact layout
+when testing from a wide desktop browser. To test the mobile view, run the dashboard and use browser
+developer tools at 360px, 412px, 768px, and 1280px widths. Confirm that the
+advisory banner, map, candidate table, district switch, and CSV export remain
+usable without page-level horizontal scrolling.
+
 ## Pilot districts
 
 Chapainawabganj, Gazipur, Rajshahi, Dhaka, and Chittagong.
