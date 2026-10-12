@@ -11,7 +11,7 @@ from typing import Any
 
 import streamlit as st
 
-st.set_page_config(page_title="Dhoa", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Dhoa", layout="wide", initial_sidebar_state="auto")
 
 _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
@@ -24,9 +24,13 @@ import pandas as pd
 import yaml
 
 # isort: off
-from dashboard_filters import add_priority_bands, apply_candidate_filters
-from data_loader import load_kilns
-from src.rules.engine import _ensure_class_column
+from dashboard_filters import ( 
+    SIGNAL_PRESENT,
+    add_priority_bands,
+    apply_candidate_filters,
+)
+from data_loader import load_kilns 
+from src.rules.engine import _ensure_class_column 
 # isort: on
 
 BASE_DIR = Path(__file__).parent.parent
@@ -43,6 +47,51 @@ DISTRICT_CENTERS = {
     "Dhaka": (23.80, 90.30),
     "Chittagong": (22.50, 91.90),
 }
+
+
+def responsive_css() -> str:
+    """Return responsive CSS for desktop, tablet, and phone layouts.
+
+    Input schema: none. Output schema: CSS string for the dashboard page.
+    """
+    return """
+<style>
+html, body, [data-testid="stAppViewContainer"] { overflow-x: hidden; }
+[data-testid="stAppViewContainer"] .main .block-container {
+    max-width: 100%; padding-left: 2rem; padding-right: 2rem;
+}
+[data-testid="stMetric"] { min-width: 0; }
+[data-testid="stDownloadButton"] button,
+[data-testid="stButton"] button,
+[data-baseweb="select"] > div,
+[data-testid="stSlider"] [role="slider"] { min-height: 44px; }
+.dhoa-popup { max-width: 260px; overflow-wrap: anywhere; word-break: break-word; }
+.dhoa-popup table { width: 100%; table-layout: fixed; }
+.dhoa-popup td, .dhoa-popup th { overflow-wrap: anywhere; vertical-align: top; }
+@media (max-width: 768px) {
+    [data-testid="stAppViewContainer"] .main .block-container {
+        padding-left: 0.75rem; padding-right: 0.75rem;
+    }
+    [data-testid="stHorizontalBlock"] { flex-direction: column; gap: 0.75rem; }
+    [data-testid="stMetricContainer"] { min-width: 0; }
+    [data-testid="stIFrame"] iframe {
+        width: 100% !important; height: 60vh !important;
+        min-height: 320px !important; max-height: 600px !important;
+    }
+    h1 { font-size: 1.8rem !important; }
+    h2 { font-size: 1.35rem !important; }
+    h3 { font-size: 1.15rem !important; }
+    [data-testid="stMetricValue"] { font-size: 1.35rem; }
+    .dhoa-metrics { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem !important; }
+}
+@media (max-width: 480px) {
+    [data-testid="stAppViewContainer"] .main .block-container {
+        padding-left: 0.5rem; padding-right: 0.5rem;
+    }
+    body, p, label, [data-testid="stCaptionContainer"] { font-size: 14px; }
+}
+</style>
+"""
 
 
 @st.cache_data
@@ -215,6 +264,7 @@ def _filtered(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> gpd.GeoDataF
         classes=None if filters["kiln_type"] == "All types" else {"FCBK" if "FCBK" in filters["kiln_type"] else "Zigzag"},
         confidence_range=filters.get("confidence_range", (0.0, 1.0)),
         priority_bands=filters["priorities"] or {"__none__"},
+        signal_filters=filters.get("signal_filters", {}),
     )
     if filters.get("new_only") and "detection_status" in result.columns:
         result = result[result["detection_status"].eq("New candidate (2025-26)")].copy()
@@ -253,9 +303,15 @@ def _flagged_count(frame: pd.DataFrame, rules: Mapping[str, Any]) -> int:
 
 
 def render_header(gdf: gpd.GeoDataFrame) -> None:
-    """Render the app identity, advisory, and four metric chips."""
+    """Render the app identity, advisory, file provenance, and metric chips."""
     st.markdown("<h1 style='margin-bottom:0'>Dhoa</h1>", unsafe_allow_html=True)
     st.caption("Satellite Kiln Inspection Tool — Bangladesh")
+    loaded = dashboard_kilns_file()
+    if loaded is not None:
+        modified = datetime.fromtimestamp(loaded.stat().st_mtime, tz=UTC).isoformat(
+            timespec="seconds"
+        )
+        st.caption(f"Loaded parquet: {loaded.name} | modified {modified}")
     high = int(gdf["priority_band"].eq("High").sum())
     new_count = int(gdf.get("detection_status", pd.Series("Known", index=gdf.index)).eq("New candidate (2025-26)").sum())
     flagged = _flagged_count(gdf, load_config()["rules"])
@@ -332,14 +388,26 @@ def render_sidebar(gdf: gpd.GeoDataFrame) -> dict[str, Any]:
             "Severity", ["All severities", "High", "Medium", "Low"],
             key="dhoa_severity_filter",
         )
-        priorities = {severity} if severity != "All severities" else {"High", "Medium", "Low"}
         confidence_range = st.slider(
-            "Confidence",
+            "Confidence range",
             min_value=0.0,
             max_value=1.0,
             value=(0.0, 1.0),
-            step=0.05,
+            step=0.01,
+            format="%.0f%%",
+            key="dhoa_confidence_filter",
         )
+        signal_ids = [
+            str(rule.get("id"))
+            for rule in [load_config()["rules"].get("technology", {}), *load_config()["rules"].get("siting_rules", [])]
+            if rule.get("id")
+        ]
+        selected_signals = st.multiselect(
+            "Candidate rule signals",
+            signal_ids,
+            key="dhoa_signal_filter",
+        )
+        priorities = {severity} if severity != "All severities" else {"High", "Medium", "Low"}
         new_only = st.checkbox("🆕 New candidates only", value=False, key="dhoa_new_only")
     filters = {
         "district": district,
@@ -348,6 +416,7 @@ def render_sidebar(gdf: gpd.GeoDataFrame) -> dict[str, Any]:
         "priorities": priorities,
         "confidence_range": confidence_range,
         "new_only": new_only,
+        "signal_filters": {signal_id: SIGNAL_PRESENT for signal_id in selected_signals},
     }
     visible = _filtered(gdf, filters)
     with st.sidebar:
@@ -452,8 +521,31 @@ def render_footer(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> None:
     st.caption(f"{len(visible):,} candidates visible | {high:,} high priority | {flagged:,} flagged for rule review")
 
 
+def render_tables(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> None:
+    """Render a compact candidate table and the complete table in an expander."""
+    visible = _filtered(gdf, filters)
+    compact = pd.DataFrame(
+        {
+            "District": visible.get("district", pd.Series(dtype="string")),
+            "Class": visible.get("class", pd.Series(dtype="string")),
+            "Confidence": pd.to_numeric(
+                visible.get("confidence", pd.Series(dtype=float)), errors="coerce"
+            ).map(lambda value: f"{value:.1%}" if pd.notna(value) else "Not recorded"),
+            "Candidate rule signals": visible.apply(
+                lambda row: ", ".join(_signals(row)) or "None recorded", axis=1
+            ),
+        },
+        index=visible.index,
+    )
+    st.subheader("Kiln candidate details")
+    st.dataframe(compact, use_container_width=True, hide_index=True)
+    with st.expander("Full candidate table"):
+        st.dataframe(visible.drop(columns="geometry", errors="ignore"), use_container_width=True, hide_index=True)
+
+
 def main() -> None:
     """Run the fixed Dhoa page flow."""
+    st.markdown(responsive_css(), unsafe_allow_html=True)
     try:
         load_config()
         gdf = load_data()
@@ -471,6 +563,7 @@ def main() -> None:
     render_district_summary(str(filters["district"]), gdf)
     render_map(gdf, filters)
     render_footer(gdf, filters)
+    render_tables(gdf, filters)
 
 
 if __name__ == "__main__":

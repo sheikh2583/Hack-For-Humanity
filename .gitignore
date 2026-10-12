@@ -52,3 +52,7 @@ wandb
 # Local archives, scratch scripts, and captured command output
 *.zip
 *_out.txt
+
+# Expo local configuration and dependencies
+mobile/node_modules/
+mobile/.env

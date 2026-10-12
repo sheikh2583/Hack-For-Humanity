@@ -13,7 +13,7 @@ from app.presentation import (
     marker_tooltip,
     screening_csv,
 )
-from app.streamlit_app import color_for_kiln
+from app.streamlit_app import _export_csv, color_for_kiln, responsive_css
 
 
 def test_colour_for_kiln_uses_three_priority_rank_bands() -> None:
@@ -173,6 +173,33 @@ def test_confidence_range_filters_candidates_before_map(monkeypatch) -> None:
     }
     filtered = dashboard._filtered(frame, filters)
     assert filtered["confidence"].tolist() == [0.5]
+
+
+def test_responsive_css_contains_mobile_breakpoints_and_map_rules() -> None:
+    """The dashboard CSS covers both requested phone breakpoints."""
+    css = responsive_css()
+    assert "@media (max-width: 768px)" in css
+    assert "@media (max-width: 480px)" in css
+    assert "min-height: 320px" in css
+    assert "height: 60vh" in css
+
+
+def test_export_keeps_district_and_full_candidate_fields() -> None:
+    """The dashboard export retains district and existing candidate fields."""
+    result = _export_csv(
+        pd.DataFrame(
+            {
+                "kiln_id": ["candidate-1"],
+                "district": ["Gazipur"],
+                "class": ["Zigzag"],
+                "confidence": [0.8],
+                "priority_band": ["Medium"],
+                "breached_rules": [["near_school"]],
+            }
+        )
+    )
+    assert "District" in result.splitlines()[0]
+    assert "Gazipur" in result
 
 
 def test_colour_for_kiln_handles_tied_ranks_across_three_bands() -> None:
