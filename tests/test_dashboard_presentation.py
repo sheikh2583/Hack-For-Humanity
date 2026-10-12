@@ -183,14 +183,6 @@ def test_responsive_css_contains_mobile_breakpoints_and_map_rules() -> None:
     assert "@media (max-width: 480px)" in css
     assert "min-height: 320px" in css
     assert "height: 60vh" in css
-    assert '[data-testid="stMainBlockContainer"] h1.dhoa-brand-title' in css
-    assert "padding: 0.38em 0 0.12em !important" in css
-    assert "padding-top: 0.38em !important" in css
-    assert '[data-testid="stMainBlockContainer"] h1.dhoa-brand-title span' in css
-    assert "line-height: inherit !important" in css
-    assert "width: 100% !important" in css
-    assert css.index("@import url(") < css.index("html, body")
-    assert 'font-family: "Noto Sans Bengali", sans-serif !important' in css
 
 
 def test_header_marks_metrics_for_mobile_grid(monkeypatch) -> None:
@@ -204,7 +196,17 @@ def test_header_marks_metrics_for_mobile_grid(monkeypatch) -> None:
     dashboard.render_header(
         pd.DataFrame({"priority_band": ["High"], "district": ["Dhaka"]})
     )
-    assert any(f"h1 class='dhoa-brand-title'>{DASHBOARD_TITLE}</h1>" in value for value in markup)
+    title_css = next(value for value in markup if "@import url(" in value)
+    assert title_css.index("@import url(") < title_css.index("[data-testid=")
+    assert '[data-testid="stMainBlockContainer"] h1.dhoa-brand-title span' in title_css
+    assert 'font-family: "Noto Sans Bengali", sans-serif !important' in title_css
+    assert "font-feature-settings: \"kern\", \"liga\", \"mark\", \"mkmk\" !important" in title_css
+    assert "line-height: 1.8 !important" in title_css
+    assert "padding: 0.38em 0 0.12em !important" in title_css
+    assert any(
+        f'<h1 class="dhoa-brand-title" id="434a7034" lang="bn">{DASHBOARD_TITLE}</h1>' in value
+        for value in markup
+    )
     assert any("class='dhoa-metrics'" in value for value in markup)
 
 

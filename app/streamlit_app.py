@@ -70,7 +70,6 @@ def responsive_css() -> str:
     """
     return """
 <style>
-@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap");
 html, body, [data-testid="stAppViewContainer"] { overflow-x: hidden; }
 [data-testid="stAppViewContainer"] .main .block-container {
     max-width: 100%; padding: 0.75rem 1.25rem 1.5rem;
@@ -172,30 +171,6 @@ h4 [data-testid="stHeaderActionElements"],
         padding-left: 0.5rem; padding-right: 0.5rem;
     }
     body, p, label, [data-testid="stCaptionContainer"] { font-size: 14px; }
-}
-[data-testid="stMainBlockContainer"] h1.dhoa-brand-title,
-[data-testid="stMainBlockContainer"] h1.dhoa-brand-title span {
-    font-family: "Noto Sans Bengali", sans-serif !important;
-    font-feature-settings: "kern", "liga", "mark", "mkmk" !important;
-    font-kerning: normal !important;
-    line-height: inherit !important;
-    overflow: visible !important;
-}
-[data-testid="stMainBlockContainer"] h1.dhoa-brand-title {
-    display: block !important;
-    box-sizing: border-box !important;
-    width: 100% !important;
-    padding: 0.38em 0 0.12em !important;
-    margin-top: 0.35rem !important;
-    line-height: 1.8 !important;
-}
-@media (max-width: 768px) {
-    [data-testid="stMainBlockContainer"] h1.dhoa-brand-title {
-        font-size: 1.9rem !important;
-        line-height: 1.8 !important;
-        padding-top: 0.38em !important;
-        padding-bottom: 0.12em !important;
-    }
 }
 </style>
 """
@@ -531,7 +506,29 @@ def render_header(gdf: gpd.GeoDataFrame) -> None:
     identity, help_column = st.columns([5, 2], gap="small", vertical_alignment="center")
     with identity:
         st.markdown(
-            f"<h1 class='dhoa-brand-title'>{html.escape(DASHBOARD_TITLE)}</h1>",
+            """
+            <style>
+            @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap");
+
+            [data-testid="stMainBlockContainer"] h1.dhoa-brand-title,
+            [data-testid="stMainBlockContainer"] h1.dhoa-brand-title span {
+                font-family: "Noto Sans Bengali", sans-serif !important;
+                font-feature-settings: "kern", "liga", "mark", "mkmk" !important;
+                font-kerning: normal !important;
+                line-height: 1.8 !important;
+                overflow: visible !important;
+            }
+
+            [data-testid="stMainBlockContainer"] h1.dhoa-brand-title {
+                padding: 0.38em 0 0.12em !important;
+                margin-top: 0.35rem !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            f'<h1 class="dhoa-brand-title" id="434a7034" lang="bn">{html.escape(DASHBOARD_TITLE)}</h1>',
             unsafe_allow_html=True,
         )
         loaded = dashboard_kilns_file()
