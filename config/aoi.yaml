@@ -1,4 +1,5 @@
 # District names resolve to geoBoundaries_BGD_ADM2.geojson shapeName values.
+osm_cache_version: 3
 districts:
   - name: Chapainawabganj
     boundary_name: Nawabganj

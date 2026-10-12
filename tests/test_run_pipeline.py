@@ -67,14 +67,22 @@ def test_osm_cache_requires_every_configured_layer(tmp_path: Path) -> None:
     from src.geo.osm_layers import LAYER_TAGS
 
     config = tmp_path / "aoi.yaml"
-    config.write_text(yaml.safe_dump({"districts": [{"name": "Test"}]}), encoding="utf-8")
+    from src.geo.osm_layers import LAYER_CACHE_VERSION
+
+    config.write_text(yaml.safe_dump({"osm_cache_version": LAYER_CACHE_VERSION, "districts": [{"name": "Test"}]}), encoding="utf-8")
     interim = tmp_path / "interim"
     district_dir = interim / "osm" / "Test"
     district_dir.mkdir(parents=True)
     assert not osm_cache_complete(interim, config)
     for layer in LAYER_TAGS:
-        (district_dir / f"{layer}.parquet").touch()
+        extension = ".gpkg" if layer == "railways" else ".parquet"
+        (district_dir / f"{layer}{extension}").touch()
+    (district_dir / ".water_cache_version").write_text("1\n", encoding="utf-8")
+    (district_dir / ".cache_version").write_text(f"{LAYER_CACHE_VERSION}\n", encoding="utf-8")
     assert osm_cache_complete(interim, config)
+    (district_dir / ".water_cache_version").unlink()
+    assert not osm_cache_complete(interim, config)
+    (district_dir / ".water_cache_version").write_text("1\n", encoding="utf-8")
     (district_dir / "water.parquet").unlink()
     assert not osm_cache_complete(interim, config)
 

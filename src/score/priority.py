@@ -15,6 +15,7 @@ Output
   exposure               float      Weighted normalized school, hospital, settlement components
   priority               float      screening score × detector confidence × (1 + exposure)
   priority_rank          int        1 = highest priority
+  priority_band          string     Top 20% High, middle 40% Medium, bottom 40% Low
   =====================  =========  =============================================
 
 Formula
@@ -33,7 +34,9 @@ Contract
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
+from typing import Any
 
 import geopandas as gpd
 import numpy as np
@@ -51,6 +54,76 @@ def _load_scoring_config() -> dict:
     with open(rules_path) as f:
         cfg = yaml.safe_load(f)
     return cfg.get("scoring", {})
+
+
+def _load_rules_config() -> dict[str, Any]:
+    """Load the configured rule IDs, severities, and mapped feature names."""
+    rules_path = _PROJECT_ROOT / "config" / "rules.yaml"
+    with rules_path.open(encoding="utf-8") as stream:
+        return yaml.safe_load(stream) or {}
+
+
+def _rule_signal_summary(
+    kilns: pd.DataFrame, rules: dict[str, Any]
+) -> tuple[pd.Series, pd.Series]:
+    """Calculate severity-weighted signal scores and strongest signal labels.
+
+    Input: candidate rows containing ``breached_rules`` and configured rule
+    metadata. Output: aligned ``breach_severity_score`` and ``top_rule_signal``
+    series. Unknown signal identifiers are ignored rather than assigned a
+    severity that is not configured.
+    """
+    siting = rules.get("siting_rules", [])
+    entries = [
+        {
+            "id": str(rule["id"]),
+            "feature": str(rule["feature"]),
+            "severity": float(rule["severity"]),
+            "label": str(rule.get("label", rule["feature"].rstrip("s"))),
+        }
+        for rule in siting
+    ]
+    technology = rules.get("technology", {})
+    technology_entry = {
+        "id": "technology_flagged",
+        "feature": "",
+        "severity": float(technology.get("severity", 0)),
+        "label": "FCBK technology",
+    }
+    lookup = {entry["id"]: entry for entry in [*entries, technology_entry]}
+    scores: list[float] = []
+    top_signals: list[str] = []
+    for _, row in kilns.iterrows():
+        signals = row.get("breached_rules", [])
+        if isinstance(signals, str):
+            try:
+                signals = json.loads(signals)
+            except json.JSONDecodeError:
+                signals = [signals]
+        if not isinstance(signals, (list, tuple, set, np.ndarray)):
+            signals = []
+        triggered = [lookup[str(signal)] for signal in signals if str(signal) in lookup]
+        scores.append(sum(entry["severity"] for entry in triggered))
+        if not triggered:
+            top_signals.append("None")
+            continue
+        strongest = max(triggered, key=lambda entry: entry["severity"])
+        if strongest["feature"]:
+            distance_value = pd.to_numeric(
+                pd.Series([row.get(f"dist_{strongest['feature']}_m")]), errors="coerce"
+            ).iloc[0]
+            distance = (
+                f" ({distance_value:,.0f} m)"
+                if pd.notna(distance_value) and np.isfinite(float(distance_value))
+                else ""
+            )
+            top_signals.append(f"Near {strongest['label']}{distance}")
+        else:
+            top_signals.append(strongest["label"])
+    return (
+        pd.Series(scores, index=kilns.index, name="breach_severity_score", dtype=float),
+        pd.Series(top_signals, index=kilns.index, name="top_rule_signal", dtype="string"),
+    )
 
 
 def _normalise_component(values: np.ndarray, method: str = "percentile_rank") -> np.ndarray:
@@ -90,9 +163,29 @@ def _score_priority_components(
         result[f"{name}_normalized"] = normalized
         exposure += float(weights.get(name, 0.0)) * normalized
     result["exposure"] = exposure
-    result["priority"] = result["breach_score"] * result["confidence"] * (1 + exposure)
+    if "breach_severity_score" not in result:
+        result["breach_severity_score"] = pd.to_numeric(
+            result["breach_score"], errors="coerce"
+        ).fillna(0.0)
+    result["priority"] = result["confidence"] * result["breach_severity_score"] * (1 + exposure)
     result["priority_rank"] = result["priority"].rank(ascending=False, method="min").astype(int)
     return result
+
+
+def _assign_priority_bands(priority: pd.Series) -> pd.Series:
+    """Assign deterministic top-20/middle-40/bottom-40 percentile bands.
+
+    Input schema: numeric priority scores indexed by candidate. Output schema:
+    aligned string Series named ``priority_band``; ties are assigned by stable
+    input order to keep band sizes near the requested percentile shares.
+    """
+    # Rank first so tied scores still have deterministic, balanced qcut bins.
+    ranked_score = priority.rank(method="first", ascending=True)
+    return pd.qcut(
+        ranked_score,
+        q=[0, 0.4, 0.8, 1.0],
+        labels=["Low", "Medium", "High"],
+    ).rename("priority_band").astype("string")
 
 
 def _count_features_within(
@@ -202,6 +295,11 @@ def compute_priority(
         radius_m = float(scoring_cfg.get("exposure_radius_m", 1000))
 
     kilns = gpd.read_parquet(kilns_scored_path)
+    rules_cfg = _load_rules_config()
+    severity_scores, top_rule_signals = _rule_signal_summary(kilns, rules_cfg)
+    kilns["breach_severity_score"] = severity_scores
+    kilns["breach_score"] = severity_scores
+    kilns["top_rule_signal"] = top_rule_signals
     proj_crs = get_projected_crs(centroid_longitude(kilns))
     kilns_proj = kilns.to_crs(proj_crs)
 
@@ -242,6 +340,15 @@ def compute_priority(
         weights={k: float(v) for k, v in scoring_cfg.get("weights", {}).items()},
         normalization=str(scoring_cfg.get("normalization", "percentile_rank")),
     )
+    kilns["priority_band"] = _assign_priority_bands(kilns["priority"])
+
+    # Keep the training-survey comparison annotation when rescoring the same
+    # candidate set from kilns_scored.parquet.
+    if "detection_status" not in kilns.columns and output.is_file():
+        previous = gpd.read_parquet(output)
+        if {"kiln_id", "detection_status"}.issubset(previous.columns):
+            status_by_id = previous.drop_duplicates("kiln_id").set_index("kiln_id")["detection_status"]
+            kilns["detection_status"] = kilns["kiln_id"].map(status_by_id)
 
     kilns = kilns.sort_values("priority_rank")
 

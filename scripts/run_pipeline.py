@@ -25,16 +25,25 @@ def osm_cache_complete(
     interim_dir: Path = ROOT / "data/interim",
     aoi_config: Path = ROOT / "config/aoi.yaml",
 ) -> bool:
-    """Check for every configured district/layer GeoParquet cache file."""
-    from src.geo.osm_layers import LAYER_TAGS
+    """Check for every configured district/layer cache file."""
+    from src.geo.osm_layers import LAYER_CACHE_VERSION, LAYER_TAGS
 
     config = yaml.safe_load(aoi_config.read_text(encoding="utf-8"))
+    configured_version = int(config.get("osm_cache_version", 1))
+    if configured_version != LAYER_CACHE_VERSION:
+        return False
     districts = config.get("districts", [])
-    expected = [
-        interim_dir / "osm" / district["name"] / f"{layer}.parquet"
-        for district in districts
-        for layer in LAYER_TAGS
-    ]
+    expected = []
+    for district in districts:
+        for layer in LAYER_TAGS:
+            extension = ".gpkg" if layer == "railways" else ".parquet"
+            expected.append(interim_dir / "osm" / district["name"] / f"{layer}{extension}")
+        water_marker = interim_dir / "osm" / district["name"] / ".water_cache_version"
+        if not water_marker.is_file() or water_marker.read_text(encoding="utf-8").strip() != "1":
+            return False
+        cache_marker = interim_dir / "osm" / district["name"] / ".cache_version"
+        if not cache_marker.is_file() or cache_marker.read_text(encoding="utf-8").strip() != str(configured_version):
+            return False
     return bool(expected) and all(path.is_file() for path in expected)
 
 

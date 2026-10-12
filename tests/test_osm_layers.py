@@ -17,6 +17,7 @@ import yaml
 from shapely.geometry import Point, box
 
 from src.geo.osm_layers import (
+    LAYER_CACHE_VERSION,
     LAYER_TAGS,
     PBF_DOWNLOAD_ERROR,
     _annotate_source_provenance,
@@ -73,7 +74,7 @@ def test_fetched_osm_layer_retains_source_and_feature_provenance() -> None:
 def test_fetch_all_layers_reuses_cache_unless_refreshed(tmp_path: Path) -> None:
     """A complete local cache avoids Overpass calls unless refresh is requested."""
     aoi_path = tmp_path / "aoi.yaml"
-    aoi_path.write_text(yaml.safe_dump({"districts": [{"name": "Test District"}]}))
+    aoi_path.write_text(yaml.safe_dump({"osm_cache_version": LAYER_CACHE_VERSION, "districts": [{"name": "Test District"}]}))
     features = gpd.GeoDataFrame(
         {"name": ["test"], "geometry": [Point(88.5, 24.5)]},
         crs="EPSG:4326",
@@ -84,11 +85,25 @@ def test_fetch_all_layers_reuses_cache_unless_refreshed(tmp_path: Path) -> None:
         patch("src.geo.osm_layers.render_layer_maps"),
     ):
         fetch_all_layers(aoi_path, tmp_path / "cache")
+        assert (tmp_path / "cache" / "osm" / "Test District" / "railways.gpkg").is_file()
+        assert not (tmp_path / "cache" / "osm" / "Test District" / "railways.parquet").exists()
+        water_marker = tmp_path / "cache" / "osm" / "Test District" / ".water_cache_version"
+        assert water_marker.read_text(encoding="utf-8").strip() == "1"
         assert fetch.call_count == len(LAYER_TAGS)
         fetch_all_layers(aoi_path, tmp_path / "cache")
         assert fetch.call_count == len(LAYER_TAGS)
-        fetch_all_layers(aoi_path, tmp_path / "cache", refresh=True)
+        # A configured cache version mismatch invalidates every layer.
+        aoi_path.write_text(yaml.safe_dump({"osm_cache_version": LAYER_CACHE_VERSION - 1, "districts": [{"name": "Test District"}]}))
+        fetch_all_layers(aoi_path, tmp_path / "cache")
         assert fetch.call_count == len(LAYER_TAGS) * 2
+        aoi_path.write_text(yaml.safe_dump({"osm_cache_version": LAYER_CACHE_VERSION, "districts": [{"name": "Test District"}]}))
+        fetch_all_layers(aoi_path, tmp_path / "cache")
+        assert fetch.call_count == len(LAYER_TAGS) * 2
+        water_marker.unlink()
+        fetch_all_layers(aoi_path, tmp_path / "cache")
+        assert fetch.call_count == len(LAYER_TAGS) * 2 + 1
+        fetch_all_layers(aoi_path, tmp_path / "cache", refresh=True)
+        assert fetch.call_count == len(LAYER_TAGS) * 3 + 1
 
 
 def test_pbf_fallback_extracts_and_annotates_features(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -119,8 +134,40 @@ def test_pbf_fallback_extracts_and_annotates_features(tmp_path: Path, monkeypatc
 
 
 def test_railways_layer_is_configured() -> None:
-    """The OSM cache schema includes the requested railway layer."""
-    assert LAYER_TAGS["railways"] == {"railway": True}
+    """The railway query includes only operational track categories."""
+    assert LAYER_TAGS["railways"] == {
+        "railway": ["rail", "narrow_gauge", "light_rail"]
+    }
+
+
+def test_water_layer_includes_wetland_and_reservoir_tags() -> None:
+    """The water query includes requested wetland and reservoir tag values."""
+    assert LAYER_TAGS["water"] == {
+        "natural": ["water", "wetland", "marsh", "swamp", "bog"],
+        "waterway": "river",
+        "landuse": "reservoir",
+    }
+
+
+def test_railway_geometries_are_line_strings() -> None:
+    """MultiLineStrings are exploded and non-line geometries are discarded."""
+    from shapely.geometry import LineString, MultiLineString, Point
+
+    from src.geo.osm_layers import _line_geometries
+
+    lines = gpd.GeoDataFrame(
+        {
+            "geometry": [
+                LineString([(88, 24), (88.1, 24)]),
+                MultiLineString([[(88, 24), (88.1, 24)], [(88.2, 24), (88.3, 24)]]),
+                Point(88, 24),
+            ]
+        },
+        crs="EPSG:4326",
+    )
+    result = _line_geometries(lines)
+    assert len(result) == 3
+    assert result.geometry.geom_type.eq("LineString").all()
 
 
 class TestFetchLayerErrors:

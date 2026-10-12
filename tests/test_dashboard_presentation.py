@@ -24,6 +24,157 @@ def test_colour_for_kiln_uses_three_priority_rank_bands() -> None:
     assert colours == {"red", "orange", "green"}
 
 
+def test_flagged_count_uses_breach_count_or_configured_distance_fallback() -> None:
+    """Rule-review counts use explicit breaches, then configured buffers."""
+    from app.streamlit_app import _flagged_count
+
+    rules = {"siting_rules": [{"feature": "schools", "buffer_m": 500}]}
+    assert _flagged_count(pd.DataFrame({"breach_count": [0, 1, 2]}), rules) == 2
+    frame = pd.DataFrame({"dist_schools_m": [499.0, 500.0, 900.0]})
+    assert _flagged_count(frame, rules) == 1
+    both_sources = pd.DataFrame({"rule_signals_count": [0, 0], "dist_schools_m": [600, 400]})
+    assert _flagged_count(both_sources, rules) == 1
+
+
+def test_candidate_csv_has_fixed_rule_columns_and_missing_layer_values() -> None:
+    """Export distinguishes configured missing data from layers not mapped."""
+    import app.streamlit_app as dashboard
+
+    frame = pd.DataFrame({
+        "kiln_id": ["k1"], "district": ["Dhaka"], "class": ["Zigzag"],
+        "confidence": [0.8], "priority": [2.0], "priority_band": ["Medium"],
+        "lat": [23.7], "lon": [90.4], "dist_schools_m": [float("nan")],
+        "dist_hospitals_m": [1200.0], "dist_settlements_m": [300.0],
+        "breach_count": [1], "detection_status": ["Known"],
+    })
+    exported = pd.read_csv(StringIO(dashboard._export_csv(frame)))
+    assert exported.columns.tolist() == [
+        "ID", "District", "Type", "Confidence_Pct", "Priority_Score", "Priority_Band",
+        "Detection_Status", "Latitude", "Longitude", "Dist_School_m",
+        "Dist_Hospital_m", "Dist_Railway_m", "Dist_Settlement_m", "Dist_Forest_m",
+        "Dist_Water_m", "Rule_Signals_Count", "Flagged_For_Review", "Rule_Data_Notes",
+        "Breach_Severity_Score", "Top_Rule_Signal",
+    ]
+    assert pd.isna(exported.loc[0, "Dist_School_m"])
+    assert exported.loc[0, "Dist_Hospital_m"] == 1200.0
+    assert pd.isna(exported.loc[0, "Dist_Railway_m"])
+    assert bool(exported.loc[0, "Flagged_For_Review"])
+
+
+def test_popup_shows_mapped_distances_and_missing_mapping(monkeypatch) -> None:
+    """Popup shows configured distances and names unavailable map layers."""
+    import app.streamlit_app as dashboard
+
+    monkeypatch.setattr(dashboard, "load_config", lambda: {"rules": {"siting_rules": [
+        {"id": "near_school", "feature": "schools", "buffer_m": 1000, "severity": 3},
+        {"id": "near_hospital", "feature": "hospitals", "buffer_m": 1000, "severity": 3},
+        {"id": "near_settlement", "feature": "settlements", "buffer_m": 1000, "severity": 2},
+    ]}})
+    monkeypatch.setattr(dashboard, "_report_from_json", lambda _row: None)
+    row = pd.Series({
+        "kiln_id": "k1", "lat": 23.7, "lon": 90.4, "class": "Zigzag",
+        "priority_band": "Low", "district": "Dhaka", "dist_schools_m": 340.0,
+        "dist_hospitals_m": 1200.0, "dist_forests_m": float("nan"),
+    })
+    popup = dashboard.build_popup(row)
+    assert "Near school: 340 m" in popup
+    assert "Near hospital: 1.2 km" in popup
+    assert "Nearest forest: No mapping data" in popup
+
+
+def test_popup_orders_rules_by_severity_and_marks_thresholds(monkeypatch) -> None:
+    """Popup orders configured signals by severity and flags in-buffer distances."""
+    import app.streamlit_app as dashboard
+
+    monkeypatch.setattr(dashboard, "load_config", lambda: {"rules": {"siting_rules": [
+        {"id": "near_settlement", "feature": "settlements", "buffer_m": 1000, "severity": 2},
+        {"id": "near_school", "feature": "schools", "buffer_m": 1000, "severity": 3},
+    ]}})
+    monkeypatch.setattr(dashboard, "_report_from_json", lambda _row: None)
+    row = pd.Series({
+        "kiln_id": "k2", "lat": 23.7, "lon": 90.4, "class": "Zigzag",
+        "priority_band": "High", "district": "Dhaka", "dist_schools_m": 340.0,
+        "dist_settlements_m": 450.0,
+    })
+    popup = dashboard.build_popup(row)
+    assert popup.index("Near school") < popup.index("Near settlement")
+    assert "severity: critical" in popup
+    assert "severity: moderate" in popup
+    assert "340 m" in popup and "450 m" in popup and "⚠️" in popup
+
+
+def test_popup_discloses_osm_wetland_proxy(monkeypatch) -> None:
+    """An active wetland signal carries the requested proxy qualification."""
+    import app.streamlit_app as dashboard
+
+    monkeypatch.setattr(dashboard, "load_config", lambda: {"rules": {"siting_rules": [
+        {"id": "near_wetland", "feature": "water", "buffer_m": 1000, "severity": 2},
+    ]}})
+    row = pd.Series({
+        "kiln_id": "wet-1", "lat": 23.7, "lon": 90.4, "class": "Zigzag",
+        "priority_band": "Medium", "district": "Dhaka", "dist_water_m": 800.0,
+    })
+    popup = dashboard.build_popup(row)
+    assert "Near wetland: 800 m" in popup
+    assert "Note: water layer is an OSM proxy. Legal definition requires land submerged" in popup
+
+
+def test_district_summary_shows_most_common_rule_signal(monkeypatch) -> None:
+    """District summary names the most common triggered configured rule."""
+    import geopandas as gpd
+    from shapely.geometry import Point
+
+    import app.streamlit_app as dashboard
+
+    monkeypatch.setattr(dashboard, "load_config", lambda: {"rules": {"siting_rules": [
+        {"id": "near_school", "feature": "schools", "severity": 3},
+        {"id": "near_settlement", "feature": "settlements", "severity": 2},
+    ]}})
+    rendered_metrics: list[tuple[str, object]] = []
+
+    class Column:
+        def metric(self, label: str, value: object) -> None:
+            rendered_metrics.append((label, value))
+
+    monkeypatch.setattr(dashboard.st, "columns", lambda _count: [Column() for _ in range(4)])
+    monkeypatch.setattr(dashboard.st, "info", lambda _message: None)
+    frame = gpd.GeoDataFrame(
+        {
+            "district": ["Dhaka", "Dhaka", "Dhaka"],
+            "priority_band": ["High", "Medium", "Low"],
+            "breached_rules": [["near_school"], ["near_school"], ["near_settlement"]],
+        },
+        geometry=[Point(90.4, 23.7), Point(90.41, 23.7), Point(90.42, 23.7)],
+        crs="EPSG:4326",
+    )
+    dashboard.render_district_summary("Dhaka", frame)
+    assert ("Top rule signal", "Near school") in rendered_metrics
+
+
+def test_confidence_range_filters_candidates_before_map(monkeypatch) -> None:
+    """The active confidence slider range removes out-of-range candidates."""
+    import app.streamlit_app as dashboard
+
+    monkeypatch.setattr(dashboard, "load_config", lambda: {"rules": {}})
+    frame = pd.DataFrame(
+        {
+            "district": ["Dhaka"] * 3,
+            "class": ["Zigzag"] * 3,
+            "confidence": [0.2, 0.5, 0.9],
+            "priority_band": ["Low", "Medium", "High"],
+        }
+    )
+    filters = {
+        "district": "All Districts",
+        "kiln_type": "All types",
+        "priorities": {"High", "Medium", "Low"},
+        "confidence_range": (0.4, 0.7),
+        "new_only": False,
+    }
+    filtered = dashboard._filtered(frame, filters)
+    assert filtered["confidence"].tolist() == [0.5]
+
+
 def test_colour_for_kiln_handles_tied_ranks_across_three_bands() -> None:
     """When many rows share the same priority_rank (method='min' ties),
     banding must still produce High/Medium/Low rather than all-High."""

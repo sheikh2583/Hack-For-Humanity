@@ -15,8 +15,8 @@ Output
   hospitals.parquet    amenity=hospital|clinic|doctors
   settlements.parquet  landuse=residential + place=village|hamlet
   forests.parquet      landuse=forest|natural=wood
-  water.parquet        natural=water|waterway=river|wetland
-  railways.parquet     railway=*
+  water.parquet        natural=water|wetland|marsh|swamp|bog, waterway=river, landuse=reservoir
+  railways.gpkg        railway=rail|narrow_gauge|light_rail LineStrings
   ==============  =============================================
 
 - A completeness report (``completeness.json``) with feature counts
@@ -40,6 +40,7 @@ import geopandas as gpd
 import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+LAYER_CACHE_VERSION = 3
 DEFAULT_BOUNDARIES = PROJECT_ROOT / "data/raw/boundaries/geoBoundaries_BGD_ADM2.geojson"
 DEFAULT_PBF = PROJECT_ROOT / "data/raw/osm/bangladesh-latest.osm.pbf"
 PBF_DOWNLOAD_ERROR = (
@@ -64,10 +65,11 @@ LAYER_TAGS: dict[str, dict[str, Any]] = {
         "natural": "wood",
     },
     "water": {
-        "natural": ["water", "wetland"],
+        "natural": ["water", "wetland", "marsh", "swamp", "bog"],
         "waterway": "river",
+        "landuse": "reservoir",
     },
-    "railways": {"railway": True},
+    "railways": {"railway": ["rail", "narrow_gauge", "light_rail"]},
 }
 
 
@@ -182,6 +184,9 @@ def _fetch_layer_from_pbf(
         return gpd.GeoDataFrame(columns=["geometry"], geometry="geometry", crs="EPSG:4326")
     gdf = gpd.GeoDataFrame(pd.concat(extracts), geometry="geometry", crs="EPSG:4326")
     dedupe_keys = [
+        geometry.wkb if geometry is not None else None
+        for geometry in gdf.geometry
+    ] if layer_name == "water" else [
         (repr(index), geometry.wkb if geometry is not None else None)
         for index, geometry in zip(gdf.index, gdf.geometry)
     ]
@@ -277,6 +282,20 @@ def _clip_features_to_district(
     return gpd.clip(features.to_crs("EPSG:4326"), district_geometry)
 
 
+def _line_geometries(features: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """Keep railway geometry as individual WGS84 LineString features.
+
+    Input: railway GeoDataFrame which may contain LineStrings or
+    MultiLineStrings. Output: a copy with MultiLineStrings exploded and all
+    non-LineString or empty geometries removed.
+    """
+    if features.empty:
+        return features.copy()
+    result = features.explode(index_parts=False).reset_index(drop=True)
+    valid = result.geometry.notna() & ~result.geometry.is_empty
+    return result.loc[valid & result.geometry.geom_type.eq("LineString")].copy()
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -321,22 +340,43 @@ def fetch_all_layers(
         dist_dir = output_dir / "osm" / name
         dist_dir.mkdir(parents=True, exist_ok=True)
         cache_marker = dist_dir / ".cache_version"
-        cache_ready = cache_marker.is_file() and cache_marker.read_text().strip() == "2"
+        configured_cache_version = int(cfg.get("osm_cache_version", 1))
+        cache_ready = (
+            cache_marker.is_file()
+            and cache_marker.read_text(encoding="utf-8").strip()
+            == str(configured_cache_version)
+            and configured_cache_version == LAYER_CACHE_VERSION
+        )
+        water_cache_marker = dist_dir / ".water_cache_version"
+        water_cache_ready = (
+            water_cache_marker.is_file()
+            and water_cache_marker.read_text(encoding="utf-8").strip() == "1"
+        )
         if refresh:
             cache_marker.unlink(missing_ok=True)
         report[name] = {}
 
         for layer_name, tags in LAYER_TAGS.items():
-            out_path = dist_dir / f"{layer_name}.parquet"
-            if cache_ready and not refresh and out_path.exists():
-                gdf = gpd.read_parquet(out_path)
+            extension = ".gpkg" if layer_name == "railways" else ".parquet"
+            out_path = dist_dir / f"{layer_name}{extension}"
+            layer_cache_ready = cache_ready and (
+                layer_name != "water" or water_cache_ready
+            )
+            if layer_cache_ready and not refresh and out_path.exists():
+                gdf = gpd.read_file(out_path) if extension == ".gpkg" else gpd.read_parquet(out_path)
                 rprint(f"  -> {layer_name}: loaded local cache ({len(gdf)} features)")
             else:
                 source = "local PBF" if DEFAULT_PBF.is_file() else "Overpass"
                 rprint(f"  -> {layer_name}: loading from {source}...")
                 gdf = _fetch_layer(layer_name, tags, bbox)
                 gdf = _clip_features_to_district(gdf, district_geometry)
-                gdf.to_parquet(out_path)
+                if layer_name == "railways":
+                    gdf = _line_geometries(gdf)
+                    gdf.to_file(out_path, driver="GPKG", index=False)
+                else:
+                    gdf.to_parquet(out_path)
+                    if layer_name == "water":
+                        water_cache_marker.write_text("1\n", encoding="utf-8")
             count = len(gdf)
             report[name][layer_name] = {
                 "count": count,
@@ -347,7 +387,7 @@ def fetch_all_layers(
         # Write completeness report
         report_path = dist_dir / "completeness.json"
         report_path.write_text(json.dumps(report[name], indent=2))
-        cache_marker.write_text("2\n", encoding="utf-8")
+        cache_marker.write_text(f"{LAYER_CACHE_VERSION}\n", encoding="utf-8")
 
         # Render a map per layer
         render_layer_maps(name, bbox, dist_dir)
@@ -399,11 +439,11 @@ def render_layer_maps(
     center = [(south + north) / 2, (west + east) / 2]
 
     for layer_name in LAYER_TAGS:
-        parquet_path = dist_dir / f"{layer_name}.parquet"
-        if not parquet_path.exists():
+        layer_path = dist_dir / f"{layer_name}.gpkg" if layer_name == "railways" else dist_dir / f"{layer_name}.parquet"
+        if not layer_path.exists():
             continue
 
-        gdf = gpd.read_parquet(parquet_path)
+        gdf = gpd.read_file(layer_path) if layer_name == "railways" else gpd.read_parquet(layer_path)
         if gdf.empty:
             continue
 

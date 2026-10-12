@@ -9,9 +9,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import geopandas as gpd
+import pandas as pd
 import pytest
 import yaml
-from shapely.geometry import Point
+from shapely.geometry import LineString, Point, Polygon
 
 from src.rules.engine import _ensure_class_column
 
@@ -128,6 +129,9 @@ class TestRuleEngine:
         # Far kiln: Zigzag (not flagged) + far from school
         assert not far_kiln["technology_flagged"]
         assert "near_school" not in far_kiln["breached_rules"]
+        assert pd.isna(near_kiln["dist_hospitals_m"])
+        assert "near_hospital" not in near_kiln["breached_rules"]
+        assert "hospitals: no OSM data" in near_kiln["rule_data_notes"]
 
     def test_rules_verified_flag(self, setup_data: dict) -> None:
         """All kilns should have rules_verified=false when rules are unverified."""
@@ -155,6 +159,14 @@ class TestRuleEngine:
 
         assert "dist_schools_m" in result.columns
         assert "dist_hospitals_m" in result.columns
+        assert "dist_forests_m" in result.columns
+        assert "dist_water_m" in result.columns
+        assert "dist_railways_m" in result.columns
+        assert result["dist_forests_m"].isna().all()
+        assert result["dist_water_m"].isna().all()
+        assert result["dist_railways_m"].isna().all()
+        assert result["rule_data_notes"].str.contains("forests: no OSM data").all()
+        assert result["rule_data_notes"].str.contains("water: no OSM data").all()
 
     def test_candidate_signals_have_unverified_provenance(self, setup_data: dict) -> None:
         """Matched mapped features retain source, method, confidence, and review state."""
@@ -185,3 +197,143 @@ class TestRuleEngine:
         assert school_signal["imagery_date"] is None
         assert school_signal["instrument_id"] is None
         assert school_signal["effective_dates"] is None
+
+    def test_railway_rule_flags_800m_but_not_1200m(self, setup_data: dict) -> None:
+        """The active railway buffer flags 800 m and excludes 1200 m cases."""
+        from src.geo.crs import centroid_longitude, get_projected_crs
+        from src.rules.engine import evaluate_rules
+
+        rules = yaml.safe_load(setup_data["rules_path"].read_text(encoding="utf-8"))
+        rules["siting_rules"].append({
+            "id": "near_railway",
+            "feature": "railways",
+            "buffer_m": 1000,
+            "severity": 3,
+            "verified": True,
+            "source": "s.8(3)(ঙ)",
+        })
+        setup_data["rules_path"].write_text(yaml.safe_dump(rules), encoding="utf-8")
+
+        kilns = gpd.read_parquet(setup_data["kilns_path"])
+        projected = kilns.to_crs(get_projected_crs(centroid_longitude(kilns)))
+        rail_lines = []
+        for (_, kiln), offset in zip(projected.iterrows(), (800.0, 1200.0)):
+            x, y = kiln.geometry.x, kiln.geometry.y
+            rail_lines.append(LineString([(x + offset, y - 50), (x + offset, y + 50)]))
+        railways = gpd.GeoDataFrame({"geometry": rail_lines}, crs=projected.crs).to_crs("EPSG:4326")
+        railways.to_file(
+            setup_data["osm_dir"] / "osm" / "TestDistrict" / "railways.gpkg",
+            driver="GPKG",
+            index=False,
+        )
+
+        result = evaluate_rules(
+            kilns_path=setup_data["kilns_path"],
+            rules_config=setup_data["rules_path"],
+            osm_dir=setup_data["osm_dir"],
+            output=setup_data["output"],
+        )
+        near = result.set_index("kiln_id").loc["kiln_near"]
+        far = result.set_index("kiln_id").loc["kiln_far"]
+        assert near["dist_railways_m"] == pytest.approx(800, abs=2)
+        assert far["dist_railways_m"] == pytest.approx(1200, abs=2)
+        assert "near_railway" in near["breached_rules"]
+        assert "near_railway" not in far["breached_rules"]
+
+    def test_wetland_proxy_rule_reads_water_cache(self, setup_data: dict) -> None:
+        """The active wetland proxy evaluates the existing water cache layer."""
+        from src.geo.crs import centroid_longitude, get_projected_crs
+        from src.rules.engine import evaluate_rules
+
+        rules = yaml.safe_load(setup_data["rules_path"].read_text(encoding="utf-8"))
+        rules["siting_rules"].append({
+            "id": "near_wetland",
+            "feature": "water",
+            "label": "wetland",
+            "buffer_m": 1000,
+            "severity": 2,
+            "verified": False,
+        })
+        setup_data["rules_path"].write_text(yaml.safe_dump(rules), encoding="utf-8")
+
+        kilns = gpd.read_parquet(setup_data["kilns_path"])
+        projected = kilns.to_crs(get_projected_crs(centroid_longitude(kilns)))
+        x, y = projected.geometry.iloc[0].x, projected.geometry.iloc[0].y
+        water = gpd.GeoDataFrame(
+            {"geometry": [Point(x + 800, y)]}, crs=projected.crs
+        ).to_crs("EPSG:4326")
+        water.to_parquet(setup_data["osm_dir"] / "osm" / "TestDistrict" / "water.parquet")
+
+        result = evaluate_rules(
+            kilns_path=setup_data["kilns_path"],
+            rules_config=setup_data["rules_path"],
+            osm_dir=setup_data["osm_dir"],
+            output=setup_data["output"],
+        ).set_index("kiln_id")
+        assert result.loc["kiln_near", "dist_water_m"] == pytest.approx(800, abs=2)
+        assert "near_wetland" in result.loc["kiln_near", "breached_rules"]
+        assert "near_wetland" not in result.loc["kiln_far", "breached_rules"]
+
+    def test_wetland_polygons_500m_flag_and_1500m_do_not(self, setup_data: dict) -> None:
+        """Wetland polygons within 1 km flag and farther polygons do not."""
+        from src.geo.crs import centroid_longitude, get_projected_crs
+        from src.rules.engine import evaluate_rules
+
+        rules = yaml.safe_load(setup_data["rules_path"].read_text(encoding="utf-8"))
+        rules["siting_rules"].append({
+            "id": "near_wetland", "feature": "water", "buffer_m": 1000,
+            "severity": 2, "verified": False,
+        })
+        setup_data["rules_path"].write_text(yaml.safe_dump(rules), encoding="utf-8")
+        kilns = gpd.read_parquet(setup_data["kilns_path"])
+        projected = kilns.to_crs(get_projected_crs(centroid_longitude(kilns)))
+        polygons = []
+        for (_, kiln), offset in zip(projected.iterrows(), (500.0, 1500.0)):
+            x, y = kiln.geometry.x, kiln.geometry.y
+            polygons.append(Polygon([(x + offset, y - 20), (x + offset + 20, y - 20),
+                                     (x + offset + 20, y + 20), (x + offset, y + 20)]))
+        water = gpd.GeoDataFrame({"geometry": polygons}, crs=projected.crs).to_crs("EPSG:4326")
+        water.to_parquet(setup_data["osm_dir"] / "osm" / "TestDistrict" / "water.parquet")
+        result = evaluate_rules(
+            setup_data["kilns_path"], setup_data["rules_path"],
+            setup_data["osm_dir"], setup_data["output"],
+        ).set_index("kiln_id")
+        assert result.loc["kiln_near", "dist_water_m"] == pytest.approx(500, abs=2)
+        assert result.loc["kiln_far", "dist_water_m"] == pytest.approx(1500, abs=2)
+        assert "near_wetland" in result.loc["kiln_near", "breached_rules"]
+        assert "near_wetland" not in result.loc["kiln_far", "breached_rules"]
+
+    def test_government_forest_polygons_1500m_flag_and_2500m_do_not(
+        self, setup_data: dict, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Available forest polygons use the configured 2 km centroid buffer."""
+        from src.geo.crs import centroid_longitude, get_projected_crs
+        from src.rules.engine import evaluate_rules
+
+        rules = yaml.safe_load(setup_data["rules_path"].read_text(encoding="utf-8"))
+        rules["siting_rules"].append({
+            "id": "near_government_forest", "feature": "government_forest",
+            "buffer_m": 2000, "severity": 3, "verified": False,
+        })
+        setup_data["rules_path"].write_text(yaml.safe_dump(rules), encoding="utf-8")
+        kilns = gpd.read_parquet(setup_data["kilns_path"])
+        projected = kilns.to_crs(get_projected_crs(centroid_longitude(kilns)))
+        polygons = []
+        for (_, kiln), offset in zip(projected.iterrows(), (1500.0, 2500.0)):
+            x, y = kiln.geometry.x, kiln.geometry.y
+            polygons.append(Polygon([(x + offset, y - 20), (x + offset + 20, y - 20),
+                                     (x + offset + 20, y + 20), (x + offset, y + 20)]))
+        source_dir = setup_data["osm_dir"] / "boundaries" / "govt_forest_bdg"
+        source_dir.mkdir(parents=True)
+        gpd.GeoDataFrame({"geometry": polygons}, crs=projected.crs).to_file(
+            source_dir / "forest.gpkg", driver="GPKG", index=False
+        )
+        monkeypatch.setattr("src.rules.engine.FOREST_BOUNDARIES_DIR", source_dir.parent)
+        result = evaluate_rules(
+            setup_data["kilns_path"], setup_data["rules_path"],
+            setup_data["osm_dir"], setup_data["output"],
+        ).set_index("kiln_id")
+        assert result.loc["kiln_near", "dist_government_forest_m"] == pytest.approx(1500, abs=2)
+        assert result.loc["kiln_far", "dist_government_forest_m"] == pytest.approx(2500, abs=2)
+        assert "near_government_forest" in result.loc["kiln_near", "breached_rules"]
+        assert "near_government_forest" not in result.loc["kiln_far", "breached_rules"]

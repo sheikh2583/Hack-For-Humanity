@@ -6,7 +6,44 @@ import numpy as np
 import pandas as pd
 
 from src.score import priority
-from src.score.priority import _score_priority_components
+from src.score.priority import (
+    _assign_priority_bands,
+    _rule_signal_summary,
+    _score_priority_components,
+)
+
+
+def test_priority_bands_use_top_twenty_middle_forty_bottom_forty() -> None:
+    """Ten distinct score values yield the requested 2/4/4 split."""
+    bands = _assign_priority_bands(pd.Series(np.arange(10, 0, -1), name="priority"))
+    assert bands.value_counts().to_dict() == {"Low": 4, "Medium": 4, "High": 2}
+    assert bands.iloc[:2].eq("High").all()
+    assert bands.iloc[2:6].eq("Medium").all()
+    assert bands.iloc[6:].eq("Low").all()
+
+
+def test_priority_bands_break_ties_to_keep_quantile_sizes() -> None:
+    """Tied scores are ranked stably before qcut creates the percentile bands."""
+    bands = _assign_priority_bands(pd.Series([0.0] * 10, name="priority"))
+    assert bands.value_counts().to_dict() == {"Low": 4, "Medium": 4, "High": 2}
+
+
+def test_rule_signal_summary_sums_severity_and_chooses_strongest() -> None:
+    """Configured signal severities determine sum and top display label."""
+    frame = pd.DataFrame({
+        "breached_rules": [["near_school", "near_settlement"], [], ["technology_flagged"]],
+        "dist_schools_m": [340.0, np.nan, np.nan],
+    })
+    rules = {
+        "technology": {"severity": 2},
+        "siting_rules": [
+            {"id": "near_school", "feature": "schools", "severity": 3},
+            {"id": "near_settlement", "feature": "settlements", "severity": 2},
+        ],
+    }
+    scores, top_signals = _rule_signal_summary(frame, rules)
+    assert scores.tolist() == [5.0, 0.0, 2.0]
+    assert top_signals.tolist() == ["Near school (340 m)", "None", "FCBK technology"]
 
 
 def test_zero_exposure_preserves_signal_score_order() -> None:

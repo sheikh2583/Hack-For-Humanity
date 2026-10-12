@@ -267,6 +267,19 @@ def score(
     compute_priority(kilns_scored_path=kilns_scored, output=output)
 
 
+@app.command("compare-training")
+def compare_training(
+    kilns: Annotated[Path, typer.Option(help="Prioritized GeoParquet to update")]
+    = PROJECT_ROOT / "data" / "processed" / "kilns_prioritised.parquet",
+    images: Annotated[Path, typer.Option(help="Training chip image directory")]
+    = PROJECT_ROOT / "data" / "interim" / "yolo_obb" / "train" / "images",
+) -> None:
+    """Label candidates by proximity to YOLO training chip centres."""
+    from src.eval.compare_with_training import compare_with_training
+
+    compare_with_training(parquet_path=kilns, images_dir=images)
+
+
 @app.command("audit-sample")
 def audit_sample(
     kilns: Annotated[
