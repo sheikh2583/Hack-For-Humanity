@@ -173,6 +173,14 @@ h4 [data-testid="stHeaderActionElements"],
     }
     body, p, label, [data-testid="stCaptionContainer"] { font-size: 14px; }
 }
+[data-testid="stMainBlockContainer"] h1.dhoa-brand-title,
+[data-testid="stMainBlockContainer"] h1.dhoa-brand-title span {
+    font-family: "Noto Sans Bengali", sans-serif !important;
+    font-feature-settings: "kern", "liga", "mark", "mkmk" !important;
+    font-kerning: normal !important;
+    line-height: inherit !important;
+    overflow: visible !important;
+}
 [data-testid="stMainBlockContainer"] h1.dhoa-brand-title {
     display: block !important;
     box-sizing: border-box !important;
@@ -180,19 +188,6 @@ h4 [data-testid="stHeaderActionElements"],
     padding: 0.38em 0 0.12em !important;
     margin-top: 0.35rem !important;
     line-height: 1.8 !important;
-    overflow: visible !important;
-    font-family: "Noto Sans Bengali", sans-serif !important;
-    font-feature-settings: "kern", "liga", "mark", "mkmk" !important;
-    font-kerning: normal !important;
-    font-variant-ligatures: contextual common-ligatures !important;
-}
-[data-testid="stMainBlockContainer"] h1.dhoa-brand-title span {
-    font-family: "Noto Sans Bengali", sans-serif !important;
-    font-feature-settings: "kern", "liga", "mark", "mkmk" !important;
-    font-kerning: normal !important;
-    font-variant-ligatures: contextual common-ligatures !important;
-    line-height: inherit !important;
-    overflow: visible !important;
 }
 @media (max-width: 768px) {
     [data-testid="stMainBlockContainer"] h1.dhoa-brand-title {
