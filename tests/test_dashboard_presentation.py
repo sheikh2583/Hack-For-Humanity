@@ -184,6 +184,20 @@ def test_responsive_css_contains_mobile_breakpoints_and_map_rules() -> None:
     assert "height: 60vh" in css
 
 
+def test_header_marks_metrics_for_mobile_grid(monkeypatch) -> None:
+    """Header metrics use the CSS hook for the narrow-screen two-column grid."""
+    import app.streamlit_app as dashboard
+
+    markup: list[str] = []
+    monkeypatch.setattr(dashboard.st, "markdown", lambda value, **_kwargs: markup.append(value))
+    monkeypatch.setattr(dashboard.st, "caption", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(dashboard, "load_config", lambda: {"rules": {}})
+    dashboard.render_header(
+        pd.DataFrame({"priority_band": ["High"], "district": ["Dhaka"]})
+    )
+    assert any("class='dhoa-metrics'" in value for value in markup)
+
+
 def test_export_keeps_district_and_full_candidate_fields() -> None:
     """The dashboard export retains district and existing candidate fields."""
     result = _export_csv(

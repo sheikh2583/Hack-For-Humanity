@@ -315,7 +315,7 @@ def render_header(gdf: gpd.GeoDataFrame) -> None:
     high = int(gdf["priority_band"].eq("High").sum())
     new_count = int(gdf.get("detection_status", pd.Series("Known", index=gdf.index)).eq("New candidate (2025-26)").sum())
     flagged = _flagged_count(gdf, load_config()["rules"])
-    st.markdown(f"<div style='display:flex;gap:28px;margin:18px 0'><div><b>{len(gdf):,}</b><br><small>Total Candidates</small></div><div><b>{high:,}</b><br><small>High Priority</small></div><div><b>{new_count:,}</b><br><small>New Candidates</small></div><div><b>{flagged:,}</b><br><small>Flagged for rule review</small></div><div><b>{datetime.now(UTC).date().isoformat()}</b><br><small>Last Updated</small></div></div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='dhoa-metrics' style='display:flex;gap:28px;margin:18px 0'><div><b>{len(gdf):,}</b><br><small>Total Candidates</small></div><div><b>{high:,}</b><br><small>High Priority</small></div><div><b>{new_count:,}</b><br><small>New Candidates</small></div><div><b>{flagged:,}</b><br><small>Flagged for rule review</small></div><div><b>{datetime.now(UTC).date().isoformat()}</b><br><small>Last Updated</small></div></div>", unsafe_allow_html=True)
 
 
 def render_district_summary(district: str, gdf: gpd.GeoDataFrame) -> None:
