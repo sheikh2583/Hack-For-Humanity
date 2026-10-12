@@ -56,15 +56,26 @@ On Linux/macOS, use:
 .venv/bin/streamlit run app/streamlit_app.py
 ```
 
+### Dashboard deliverables
+
+The dashboard provides district summaries, filters, a selectable high-priority
+list, an interactive map of filtered candidates, candidate details and
+navigation links, a one-candidate PDF report, and a filtered CSV review queue
+with coordinates and rule distances. The list and map are arranged side by
+side on desktop and adapt for narrow screens. See the
+[dashboard guide](docs/DASHBOARD_GUIDE.md) for the operator flow and export
+contents. Before a public demo, check selection, map controls, PDF, and CSV in
+the target desktop and mobile browsers.
+
 ### Mobile view
 
-The dashboard uses CSS breakpoints at 768px for tablet/phone layouts and
-480px for small phones. The sidebar remains available and collapses
-automatically on narrow screens; open it to reach the district selector and
-CSV export. To test the mobile view, run the dashboard and use browser
-developer tools at 360px, 412px, 768px, and 1280px widths. Confirm that the
-advisory banner, map, candidate table, district switch, and CSV export remain
-usable without page-level horizontal scrolling.
+The sidebar collapses on narrow screens; open it to reach the district and
+candidate filters and CSV export. The list becomes a compact selectable view
+and the map moves below it. To check the mobile view, use browser developer
+tools at 360px, 412px, 768px, and 1280px widths. Confirm that candidate
+selection, map controls, PDF download, and CSV export remain usable without
+page-level horizontal scrolling. The candidate list has its own horizontal
+scroll area on desktop to expose all distance columns.
 
 ### Mobile demo
 

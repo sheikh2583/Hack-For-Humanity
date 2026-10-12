@@ -102,6 +102,12 @@ html, body, [data-testid="stAppViewContainer"] { overflow-x: hidden; }
         width: 100% !important; height: 52vh !important;
         min-height: 280px !important; max-height: 500px !important;
     }
+    .st-key-dhoa_map_frame iframe {
+        width: 100% !important;
+        height: 52vh !important;
+        min-height: 300px !important;
+        max-height: 500px !important;
+    }
     h1 { font-size: 1.8rem !important; }
     h2 { font-size: 1.35rem !important; }
     h3 { font-size: 1.15rem !important; }
@@ -680,6 +686,18 @@ def build_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> folium.Map:
                 overflow-y: auto; overflow-x: hidden; overflow-wrap: anywhere;
             }
             .dhoa-popup { max-width: 280px; overflow-wrap: anywhere; word-break: break-word; }
+            @media (max-width: 768px) {
+                .leaflet-control-zoom a {
+                    width: 40px; height: 40px; line-height: 40px; font-size: 20px;
+                }
+                .leaflet-control-layers-toggle { width: 40px; height: 40px; }
+                .leaflet-control-layers-expanded {
+                    max-height: 42vh; overflow-y: auto; font-size: 16px;
+                }
+                .leaflet-popup-content {
+                    width: min(260px, 70vw) !important; max-height: 40vh;
+                }
+            }
             </style>"""
         )
     )
@@ -708,7 +726,7 @@ def build_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> folium.Map:
             is_selected = str(row.get("kiln_id")) == str(selected_id)
             folium.CircleMarker(
                 location=[latitude, longitude],
-                radius=11 if is_selected else 7,
+                radius=12 if is_selected else 8,
                 color="#111827" if is_selected else color,
                 fill=True,
                 fill_color=color,
@@ -730,7 +748,7 @@ def build_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> folium.Map:
             is_selected = str(row.get("kiln_id")) == str(selected_id)
             folium.CircleMarker(
                 location=[float(row["lat"]), float(row["lon"])],
-                radius=11 if is_selected else 7,
+                radius=12 if is_selected else 8,
                 color="#111827" if is_selected else "gray",
                 fill=True,
                 fill_color="gray",
@@ -748,7 +766,7 @@ def build_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> folium.Map:
             radius=15,
             blur=18,
         ).add_to(map_view)
-    folium.LayerControl(collapsed=False).add_to(map_view)
+    folium.LayerControl(collapsed=True).add_to(map_view)
     return map_view
 
 
@@ -804,14 +822,15 @@ def render_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> None:
         if st.session_state.get("dhoa_map_component_key") != map_key:
             st.session_state["dhoa_last_map_click_count"] = None
             st.session_state["dhoa_map_component_key"] = map_key
-        map_result = st_folium(
-            build_map(gdf, filters),
-            key=map_key,
-            height=760,
-            width=None,
-            use_container_width=True,
-            returned_objects=["last_object_clicked", "last_object_clicked_count"],
-        )
+        with st.container(key="dhoa_map_frame"):
+            map_result = st_folium(
+                build_map(gdf, filters),
+                key=map_key,
+                height=760,
+                width=None,
+                use_container_width=True,
+                returned_objects=["last_object_clicked", "last_object_clicked_count"],
+            )
     clicked = map_result.get("last_object_clicked") if isinstance(map_result, dict) else None
     click_count = map_result.get("last_object_clicked_count") if isinstance(map_result, dict) else None
     previous_count = st.session_state.get("dhoa_last_map_click_count")

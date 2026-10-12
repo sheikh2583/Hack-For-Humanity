@@ -35,6 +35,31 @@ The processed priority dataset contains 2,150 candidate rows across five pilot d
 
 The requested estimate of 4,000+ candidates is not supported by the current processed parquet files, so it is not used here.
 
+## Dashboard deliverables
+
+The reviewer-facing dashboard pairs a high-priority candidate list with an
+interactive map of every candidate that matches the active filters. Reviewers
+can filter by district, kiln type, priority, confidence, rule signal, and new
+candidate status. Selecting a list row or map marker focuses the map and opens
+the candidate details with available rule distances and location links. A
+district summary adds candidate and high-priority totals, an estimated spatial
+footprint, the most common rule signal, and a short risk summary.
+
+Two exports support follow-up review:
+
+- **Candidate PDF:** a one-page report for the selected candidate, including
+  its district, class, confidence, priority, coordinates, triggered rule
+  signals with available distances, and map-navigation URLs.
+- **Filtered CSV:** the current review queue, including candidate identity,
+  priority, detection status, latitude/longitude, mapped rule distances, rule
+  signal count, review flag, and data notes. Missing mapped distances are
+  represented as missing data.
+
+The PDF is generated on demand in memory. The dashboard requires the processed
+GeoParquet and does not run inference, training, or Earth Engine exports at
+runtime. See the [dashboard guide](DASHBOARD_GUIDE.md) for the full operator
+flow and export schema.
+
 ## Model evaluation
 
 On the held-out SentinelKilnDB chip test split, the reported metrics are:

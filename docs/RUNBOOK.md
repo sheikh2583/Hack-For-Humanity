@@ -72,6 +72,18 @@ scoring. If a local Bangladesh PBF is present, it is used for OSM layers. The
 second command opens the dashboard against the most recently modified
 `kilns*.parquet` output.
 
+### Dashboard review and exports
+
+In the dashboard, use the sidebar to choose a district and apply type,
+priority, confidence, rule-signal, or new-candidate filters. The left panel is a
+selectable high-priority list; the adjacent map shows every priority band that
+matches the filters. Select a list row or marker to focus the map and show
+candidate details. With a candidate selected, download its PDF from the control
+above the map. The sidebar CSV button exports the full currently filtered set,
+including latitude and longitude. A district summary appears when a specific
+district is selected. See [`DASHBOARD_GUIDE.md`](DASHBOARD_GUIDE.md) for the
+field definitions and responsive layout.
+
 When `temporary doc share/audit_labeled.csv` is present, the pipeline also runs
 `kilnwatch audit-results --labels` on it after scoring and refreshes
 `docs/AUDIT_SUMMARY.md`. To use another labelled audit file, pass
@@ -192,11 +204,11 @@ python -m src.cli infer path\to\best.pt `
 
 Then fetch or load reviewed OSM caches, run rules and scoring, and generate an
 audit CSV. Inspect detections, coordinate placement, OSM coverage, and the
-advisory screening labels before sharing results. Every marker/detail popup and
-CSV should retain its caveat and explain that distances are measured to mapped
-features, which may not be legally controlling boundaries. See
+screening outputs before sharing results. Distances are measured to mapped
+features, which may not be legally controlling boundaries; see
 [`screening_provenance.md`](screening_provenance.md) for traceability fields
-and review-state definitions.
+and review-state definitions. The dashboard operator flow and export fields
+are described in [`DASHBOARD_GUIDE.md`](DASHBOARD_GUIDE.md).
 
 ## Explicitly Not Automatable Here
 

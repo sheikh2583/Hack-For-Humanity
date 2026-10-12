@@ -2,50 +2,84 @@
 
 ## Before the demo
 
-Open the Streamlit dashboard with the current processed GeoParquet selected. Confirm all five districts appear, the map renders, filters respond, and the CSV button works. Choose a high-priority marker with non-empty class, confidence, rule-signal, and nearest-mapped-school fields. The school distance is to mapped data and is not a legal boundary measurement.
+Start the dashboard with the intended `data/processed/kilns_prioritised.parquet`
+available. Check that the data loads, all five pilot districts are selectable,
+the candidate list and map render, and both CSV and PDF downloads work. Select a
+candidate that has recorded rule distances so its detail view can be shown.
+For full operator instructions, see [DASHBOARD_GUIDE.md](DASHBOARD_GUIDE.md).
 
 ## Run of show (5:00)
 
-### 1. Map and priority colors (0:00–0:30)
+### 1. Dashboard overview (0:00–0:35)
 
-**Show:** The map with candidates from Chapainawabganj, Gazipur, Rajshahi, Dhaka, and Chittagong.
+**Show:** Header metrics, the Bengali **কীভাবে ব্যবহার করবেন? এখানে ক্লিক করুন**
+guide control, and the candidate list/map workspace.
 
-**Say:** “Each point is a kiln candidate for human review. Red marks high priority, orange medium, and green low priority. These colors order a review queue; they do not represent legal status.”
+**Say:** “This dashboard helps a reviewer explore a ranked set of kiln
+candidates. The priority colors organize the review list; they do not show
+legal status.”
 
-### 2. Inspect a high-priority candidate (0:30–1:30)
+### 2. Select a district and review the summary (0:35–1:10)
 
-**Show:** Click the highest-priority red marker and point to its class, confidence, rule signals, and distance to the nearest mapped school.
+**Show:** Open **ফিল্টার**, select a pilot district, and point out the district
+summary: total candidates, high-priority candidates, estimated candidate area,
+and the most common rule signal.
 
-**Say:** “This popup shows the model class and confidence, the project rule signals associated with the point, and its distance to the nearest mapped school. Those signals depend on available mapped data and need human checking. The marker is a screening candidate, not a screening output that establishes legal status.”
+**Say:** “The summary updates for the selected district. The area is an
+approximate footprint of the candidate locations, and the rule signal is based
+on the currently recorded mapped data.”
 
-### 3. Filter to FCBK (1:30–2:00)
+### 3. Filter and select a candidate (1:10–2:30)
 
-**Show:** Use the kiln-class filter to select FCBK only.
+**Show:** Use the priority, confidence, or rule-signal filter. Select **ভাটাটি
+দেখুন** beside a high-priority row, then show the matching map location and
+candidate details. Briefly point to available distances and the navigation
+links. If useful, switch the heatmap on through the map layer control.
 
-**Say:** “The map now shows FCBK candidates. Our project flags this class for technology review as a screening heuristic. The class alone does not establish kiln age, actual technology, or legal status.”
+**Say:** “The list focuses on high-priority candidates, while the map shows all
+priority bands that pass the filters. Selecting a row or marker focuses the map
+and opens the candidate details. Distances refer to mapped features.”
 
-### 4. Export CSV (2:00–2:30)
+### 4. Download the report and filtered CSV (2:30–3:15)
 
-**Show:** Download the CSV and point out candidate ID, district, class, confidence, signals, and priority fields that are present.
+**Show:** With a candidate selected, download its PDF from the control above
+the map. Then download the filtered CSV from the sidebar and point out its
+latitude, longitude, priority, and rule-distance columns.
 
-**Say:** “This export is a ranked review queue an inspector can check and annotate. It is a starting point for human review, not an official work order or evidence for enforcement.”
+**Say:** “The PDF is a single-candidate report with navigation links. The CSV
+exports the current filtered review queue, including candidate coordinates and
+mapped-distance fields.”
 
-### 5. Explain the pipeline (2:30–3:30)
+### 5. Explain the pipeline (3:15–4:00)
 
-**Show:** The pipeline diagram in [ROUND2_SUBMISSION.md](ROUND2_SUBMISSION.md).
+**Show:** The workflow diagram in [ROUND2_SUBMISSION.md](ROUND2_SUBMISSION.md).
 
-**Say:** “We start with Sentinel-2 imagery, run the YOLOv8s-OBB detector to propose kiln candidates, compare those locations with configured project signals and mapped features, then calculate an exposure-weighted priority score. The dashboard lets a reviewer explore and export the results. Sentinel-2 data products are free; Earth Engine account, quota, and export conditions may still apply.”
+**Say:** “We start with Sentinel-2 imagery, run the YOLOv8s-OBB detector to
+propose kiln candidates, compare their locations with configured project
+signals and mapped features, then calculate a priority score. The dashboard
+lets a reviewer explore and export the results.”
 
-### 6. State limitations (3:30–4:00)
+### 6. Limitations and next steps (4:00–5:00)
 
-**Say:** “This is an advisory five-district pilot. Outputs are preliminary screening candidates. The model’s held-out chip metrics are not field accuracy, and rule signals, mapped-feature coverage, preprocessing, and candidate locations need review. A human must review results before any inspection decision.”
+**Say:** “This is a five-district screening pilot. Held-out chip metrics are not
+field accuracy. Mapped features may be incomplete or differ from authoritative
+boundaries, and the results need human review. Next steps include field
+validation, resolving the imagery-date and preprocessing questions, and
+checking coverage before adding districts.”
 
-### 7. Likely judge Q&A (4:00–5:00)
+### Likely judge questions
 
-Keep answers short; offer to follow up on evidence that is not in the demo.
-
-1. **“Why not use existing kiln maps?”** — “Our goal is to help prioritize review by mapped exposure. Existing maps can be useful inputs; we have not completed a comparative evaluation to claim our ranking is novel.”
-2. **“How accurate is it?”** — “Held-out SentinelKilnDB chip mAP50 is 0.752. An earlier exploratory Google Earth review found visible kiln structures in 15 of 15 candidates above confidence 0.44, but that cutoff was examined on the same small sample and the review came from a prior run. It is not a field-accuracy estimate.”
-3. **“What if you flag a legal kiln?”** — “The dashboard cannot establish legal status. A reviewer must check the candidate against authoritative records and field evidence before taking action.”
-4. **“Does it scale?”** — “We have processed five districts. A new district needs an imagery export and configuration, plus boundary-name and mapped-feature checks. We still need to validate that workflow in additional districts.”
-5. **“What’s next?”** — “A Department of Environment pilot, field validation, checking the source for the reported 2022 clearance count, and then adding districts with validated data.”
+1. **Why not use existing kiln maps?** — “Existing maps can help with review;
+   we have not completed a comparative evaluation to claim this ranking is
+   novel.”
+2. **How accurate is it?** — “Held-out SentinelKilnDB chip mAP50 is 0.752.
+   That metric does not estimate accuracy on the Bangladesh raster pilot or in
+   the field.”
+3. **What if a candidate is already authorized?** — “The dashboard does not
+   establish legal status. A reviewer must check authoritative records before
+   any decision.”
+4. **Does it scale?** — “The current processed output covers five districts.
+   Other districts need imagery, boundary mapping, and mapped-feature coverage
+   checks.”
+5. **What’s next?** — “Field validation, source and preprocessing review, and a
+   pilot with the relevant agencies.”
