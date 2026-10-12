@@ -5,6 +5,7 @@ from __future__ import annotations
 import html
 import json
 import sys
+import unicodedata
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
@@ -12,7 +13,10 @@ from typing import Any
 
 import streamlit as st
 
-st.set_page_config(page_title="ধোঁয়া", layout="wide", initial_sidebar_state="auto")
+DASHBOARD_TITLE = unicodedata.normalize("NFC", "ধোঁয়া")
+assert "\u0981" in DASHBOARD_TITLE, repr(DASHBOARD_TITLE)
+
+st.set_page_config(page_title=DASHBOARD_TITLE, layout="wide", initial_sidebar_state="auto")
 
 _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
@@ -66,6 +70,7 @@ def responsive_css() -> str:
     """
     return """
 <style>
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap");
 html, body, [data-testid="stAppViewContainer"] { overflow-x: hidden; }
 [data-testid="stAppViewContainer"] .main .block-container {
     max-width: 100%; padding: 0.75rem 1.25rem 1.5rem;
@@ -176,10 +181,16 @@ h4 [data-testid="stHeaderActionElements"],
     margin-top: 0.35rem !important;
     line-height: 1.8 !important;
     overflow: visible !important;
-    font-family: "Noto Sans Bengali UI", "Noto Sans Bengali", "Nirmala UI",
-        "Arial Unicode MS", sans-serif !important;
+    font-family: "Noto Sans Bengali", sans-serif !important;
+    font-feature-settings: "kern", "liga", "mark", "mkmk" !important;
+    font-kerning: normal !important;
+    font-variant-ligatures: contextual common-ligatures !important;
 }
 [data-testid="stMainBlockContainer"] h1.dhoa-brand-title span {
+    font-family: "Noto Sans Bengali", sans-serif !important;
+    font-feature-settings: "kern", "liga", "mark", "mkmk" !important;
+    font-kerning: normal !important;
+    font-variant-ligatures: contextual common-ligatures !important;
     line-height: inherit !important;
     overflow: visible !important;
 }
@@ -525,7 +536,7 @@ def render_header(gdf: gpd.GeoDataFrame) -> None:
     identity, help_column = st.columns([5, 2], gap="small", vertical_alignment="center")
     with identity:
         st.markdown(
-            "<h1 class='dhoa-brand-title'>\u09a7\u09cb\u0981\u09af\u09bc\u09be</h1>",
+            f"<h1 class='dhoa-brand-title'>{html.escape(DASHBOARD_TITLE)}</h1>",
             unsafe_allow_html=True,
         )
         loaded = dashboard_kilns_file()

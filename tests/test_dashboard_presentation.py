@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from io import StringIO
+import unicodedata
 
 import pandas as pd
 
@@ -13,7 +14,7 @@ from app.presentation import (
     marker_tooltip,
     screening_csv,
 )
-from app.streamlit_app import _export_csv, color_for_kiln, responsive_css
+from app.streamlit_app import DASHBOARD_TITLE, _export_csv, color_for_kiln, responsive_css
 
 
 def test_colour_for_kiln_uses_three_priority_rank_bands() -> None:
@@ -188,6 +189,8 @@ def test_responsive_css_contains_mobile_breakpoints_and_map_rules() -> None:
     assert '[data-testid="stMainBlockContainer"] h1.dhoa-brand-title span' in css
     assert "line-height: inherit !important" in css
     assert "width: 100% !important" in css
+    assert css.index("@import url(") < css.index("html, body")
+    assert 'font-family: "Noto Sans Bengali", sans-serif !important' in css
 
 
 def test_header_marks_metrics_for_mobile_grid(monkeypatch) -> None:
@@ -201,8 +204,15 @@ def test_header_marks_metrics_for_mobile_grid(monkeypatch) -> None:
     dashboard.render_header(
         pd.DataFrame({"priority_band": ["High"], "district": ["Dhaka"]})
     )
-    assert any("h1 class='dhoa-brand-title'" in value for value in markup)
+    assert any(f"h1 class='dhoa-brand-title'>{DASHBOARD_TITLE}</h1>" in value for value in markup)
     assert any("class='dhoa-metrics'" in value for value in markup)
+
+
+def test_dashboard_title_preserves_nfc_chandrabindu() -> None:
+    """The displayed title is NFC and retains the Bengali chandrabindu."""
+    assert DASHBOARD_TITLE == "ধোঁয়া"
+    assert DASHBOARD_TITLE == unicodedata.normalize("NFC", DASHBOARD_TITLE)
+    assert "\u0981" in DASHBOARD_TITLE, repr(DASHBOARD_TITLE)
 
 
 def test_folium_map_shows_every_priority_band_and_optional_heatmap(monkeypatch) -> None:
