@@ -12,7 +12,7 @@ from typing import Any
 
 import streamlit as st
 
-st.set_page_config(page_title="Dhoa", layout="wide", initial_sidebar_state="auto")
+st.set_page_config(page_title="ধোঁয়া", layout="wide", initial_sidebar_state="auto")
 
 _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
