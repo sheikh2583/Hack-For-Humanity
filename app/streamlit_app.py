@@ -76,8 +76,15 @@ html, body, [data-testid="stAppViewContainer"] { overflow-x: hidden; }
 }
 [data-testid="stAppViewContainer"] .main h1 { margin-top: 0.25rem !important; line-height: 1.25 !important; overflow: visible; }
 [data-testid="stMainBlockContainer"] h1 { line-height: 1.25 !important; overflow: visible; }
-/* Hide Streamlit's heading permalink affordances; preserve normal content links. */
-[data-testid="stHeaderActionElements"] { display: none !important; }
+/* Hide heading permalinks only; keep map, navigation, and export links usable. */
+[data-testid="stHeaderActionElements"],
+h1 a, h2 a, h3 a, h4 a,
+[role="heading"] a, [role="heading"] button,
+h1 [data-testid="stHeaderActionElements"],
+h2 [data-testid="stHeaderActionElements"],
+h3 [data-testid="stHeaderActionElements"],
+h4 [data-testid="stHeaderActionElements"],
+[role="heading"] [data-testid="stHeaderActionElements"] { display: none !important; }
 .dhoa-brand-title {
     display: block;
     margin: 0.35rem 0 0.2rem;
@@ -89,7 +96,9 @@ html, body, [data-testid="stAppViewContainer"] { overflow-x: hidden; }
 }
 [data-testid="stAppViewContainer"] .main [data-testid="stCaptionContainer"] { margin-top: 0.2rem; }
 [data-testid="stMetric"] { min-width: 0; }
-/* Replace Streamlit's developer-oriented running icon with a Bengali loading cue. */
+/* Replace Streamlit's developer-oriented status icon with a Bengali loading cue. */
+[data-testid="stStatusWidget"],
+[data-testid^="stStatusWidget"],
 [data-testid="stStatusWidgetRunningIcon"] {
     width: auto !important;
     height: auto !important;
@@ -97,8 +106,12 @@ html, body, [data-testid="stAppViewContainer"] { overflow-x: hidden; }
     margin-right: 0.4rem !important;
     overflow: visible !important;
 }
+[data-testid="stStatusWidget"] > *,
+[data-testid^="stStatusWidget"] > *,
 [data-testid="stStatusWidgetRunningIcon"] svg,
 [data-testid="stStatusWidgetRunningIcon"] img { display: none !important; }
+[data-testid="stStatusWidget"]::after,
+[data-testid^="stStatusWidget"]::after,
 [data-testid="stStatusWidgetRunningIcon"]::after {
     content: "পৃষ্ঠা লোড হচ্ছে, অপেক্ষা করুন…";
     display: block;
