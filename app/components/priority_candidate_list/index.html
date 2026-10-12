@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="bn">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        color: #f8fafc;
+        background: #111720;
+        font: 14px/1.45 "Noto Sans Bengali", "Nirmala UI", system-ui, sans-serif;
+      }
+      #top-scroll {
+        height: 16px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        margin: 0 0 6px;
+        border-radius: 8px;
+        scrollbar-color: #64748b #273244;
+        scrollbar-width: thin;
+      }
+      #top-scroll-inner { height: 1px; }
+      #table-scroll {
+        height: 710px;
+        overflow: auto;
+        color: #f8fafc;
+        background: #111720;
+        border: 1px solid #475569;
+        border-radius: 9px;
+        scrollbar-color: #64748b #1e293b;
+        scrollbar-width: thin;
+      }
+      #table-scroll::-webkit-scrollbar, #top-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+      #table-scroll::-webkit-scrollbar-track, #top-scroll::-webkit-scrollbar-track { background: #1e293b; }
+      #table-scroll::-webkit-scrollbar-thumb, #top-scroll::-webkit-scrollbar-thumb {
+        background: #64748b;
+        border: 2px solid #1e293b;
+        border-radius: 10px;
+      }
+      table {
+        border-collapse: separate;
+        border-spacing: 0;
+        min-width: 1380px;
+        width: max-content;
+        color: #f8fafc;
+        background: #111720;
+      }
+      th, td {
+        padding: 11px 12px;
+        border-bottom: 1px solid #344154;
+        white-space: nowrap;
+        vertical-align: middle;
+      }
+      th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        color: #ffffff;
+        background: #263244;
+        text-align: left;
+        font-weight: 700;
+      }
+      th:first-child, td:first-child {
+        position: sticky;
+        left: 0;
+        min-width: 150px;
+        z-index: 3;
+        background: #18212d;
+      }
+      th:first-child { z-index: 4; background: #263244; }
+      td:nth-child(2) {
+        min-width: 250px;
+        color: #bfdbfe;
+        font-weight: 700;
+      }
+      td:nth-child(3) { min-width: 125px; font-weight: 700; }
+      td:nth-child(n+4) { min-width: 150px; text-align: center; }
+      tr.candidate:nth-child(even) { background: #18212d; }
+      tr.candidate:nth-child(even) td:first-child { background: #202b39; }
+      tr.candidate { cursor: pointer; transition: background-color 120ms ease; touch-action: manipulation; }
+      tr.candidate:hover, tr.candidate:nth-child(even):hover { background: #26364a; }
+      tr.candidate:hover td:first-child, tr.candidate:nth-child(even):hover td:first-child { background: #26364a; }
+      tr.candidate.selected, tr.candidate:nth-child(even).selected {
+        background: #24456b;
+        box-shadow: inset 4px 0 #60a5fa;
+        font-weight: 700;
+      }
+      tr.candidate.selected td { color: #ffffff; }
+      tr.candidate.selected td:first-child, tr.candidate:nth-child(even).selected td:first-child { background: #24456b; }
+      .select-kiln {
+        min-height: 40px;
+        padding: 7px 10px;
+        border: 1px solid #60a5fa;
+        border-radius: 7px;
+        color: #dbeafe;
+        background: #172b42;
+        font: inherit;
+        font-weight: 700;
+        white-space: nowrap;
+        cursor: pointer;
+      }
+      .select-kiln:hover { background: #1e3a5f; }
+      .select-kiln[aria-pressed="true"] { color: #ffffff; background: #1d4ed8; }
+      .select-kiln:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
+      tr.candidate:focus-visible { outline: 3px solid #60a5fa; outline-offset: -3px; }
+      body.mobile-layout #top-scroll { display: none; }
+      body.mobile-layout #table-scroll {
+        height: min(48vh, 420px);
+        min-height: 280px;
+        overflow-x: hidden;
+      }
+      body.mobile-layout table { width: 100%; min-width: 0; table-layout: fixed; }
+      body.mobile-layout thead { display: none; }
+      body.mobile-layout tbody { display: block; width: 100%; }
+      body.mobile-layout tr.candidate {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 5px 8px;
+        width: 100%;
+        padding: 10px;
+        border-bottom: 1px solid #475569;
+      }
+      body.mobile-layout td, body.mobile-layout th {
+        min-width: 0 !important;
+        max-width: none;
+        padding: 5px;
+        white-space: normal;
+      }
+      body.mobile-layout td:first-child {
+        position: static;
+        grid-row: 1;
+        grid-column: 1;
+        background: transparent !important;
+      }
+      body.mobile-layout td:nth-child(2) {
+        grid-row: 2;
+        grid-column: 1 / -1;
+        color: #ffffff;
+        font-size: 15px;
+      }
+      body.mobile-layout td:nth-child(3) {
+        grid-row: 1;
+        grid-column: 2;
+        text-align: right;
+      }
+      body.mobile-layout td:nth-child(n+4) {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+        min-height: 52px;
+        padding: 7px !important;
+        border: 1px solid #344154;
+        border-radius: 6px;
+        text-align: left;
+        font-size: 13px;
+      }
+      body.mobile-layout td:nth-child(n+4)::before {
+        content: attr(data-label);
+        color: #cbd5e1;
+        font-size: 11px;
+        line-height: 1.25;
+      }
+      body.mobile-layout .select-kiln { min-height: 40px; }
+      @media (prefers-reduced-motion: reduce) {
+        tr.candidate { transition: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="top-scroll" aria-label="তালিকা আড়াআড়ি সরান">
+      <div id="top-scroll-inner"></div>
+    </div>
+    <div id="table-scroll">
+      <table>
+        <thead><tr id="headers"></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <script>
+      const topBar = document.getElementById("top-scroll");
+      const topInner = document.getElementById("top-scroll-inner");
+      const tableBox = document.getElementById("table-scroll");
+      const table = document.querySelector("table");
+
+      function send(type, data = {}) {
+        window.parent.postMessage(
+          { isStreamlitMessage: true, type, ...data },
+          "*"
+        );
+      }
+
+      let latestArgs = {};
+
+      function getPageViewport() {
+        try {
+          return { width: window.parent.innerWidth, height: window.parent.innerHeight };
+        } catch (error) {
+          return { width: window.innerWidth, height: window.innerHeight };
+        }
+      }
+
+      function setFrameHeight(args = latestArgs) {
+        const viewport = getPageViewport();
+        const isMobile = viewport.width <= 768;
+        document.body.classList.toggle("mobile-layout", isMobile);
+        const frameHeight = isMobile
+          ? Math.min(420, Math.max(280, viewport.height * 0.48))
+          : (args.height || 760);
+        tableBox.style.height = `${Math.max(240, frameHeight - 42)}px`;
+        send("streamlit:setFrameHeight", { height: frameHeight });
+      }
+
+      function selectKiln(kilnId) {
+        send("streamlit:setComponentValue", {
+          value: { kiln_id: kilnId, selection_token: `${Date.now()}-${Math.random()}` },
+          dataType: "json",
+        });
+      }
+
+      function render(args) {
+        latestArgs = args;
+        const previousScrollTop = tableBox.scrollTop;
+        const headers = document.getElementById("headers");
+        const rows = document.getElementById("rows");
+        headers.replaceChildren();
+        rows.replaceChildren();
+
+        for (const heading of args.columns || []) {
+          const th = document.createElement("th");
+          th.textContent = heading;
+          headers.appendChild(th);
+        }
+
+        for (const [rowIndex, values] of (args.rows || []).entries()) {
+          const tr = document.createElement("tr");
+          tr.className = "candidate";
+          const kilnId = String((args.kiln_ids || [])[rowIndex] || "");
+          const isSelected = kilnId === String(args.selected_id || "");
+          if (isSelected) tr.classList.add("selected");
+          for (let index = 0; index < values.length; index += 1) {
+            const td = document.createElement("td");
+            td.setAttribute("data-label", (args.columns || [])[index] || "");
+            if (index === 0) {
+              const button = document.createElement("button");
+              button.type = "button";
+              button.className = "select-kiln";
+              button.textContent = isSelected ? "\u2713 \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09bf\u09a4" : "\u09ad\u09be\u099f\u09be\u099f\u09bf \u09a6\u09c7\u0996\u09c1\u09a8";
+              button.setAttribute("aria-pressed", String(isSelected));
+              button.addEventListener("click", (event) => {
+                event.stopPropagation();
+                selectKiln(kilnId);
+              });
+              td.appendChild(button);
+            } else {
+              td.textContent = values[index];
+            }
+            tr.appendChild(td);
+          }
+          tr.setAttribute("aria-label", `${values[1] || ""}. ${values.slice(3).join(", ")}`);
+          tr.addEventListener("click", () => selectKiln(kilnId));
+          rows.appendChild(tr);
+        }
+
+        topInner.style.width = `${table.scrollWidth}px`;
+        topBar.scrollLeft = tableBox.scrollLeft;
+        tableBox.scrollTop = previousScrollTop;
+        setFrameHeight(args);
+      }
+
+      window.addEventListener("message", (event) => {
+        if (event.data && event.data.type === "streamlit:render") {
+          render(event.data.args || {});
+        }
+      });
+      topBar.addEventListener("scroll", () => {
+        tableBox.scrollLeft = topBar.scrollLeft;
+      });
+      window.addEventListener("resize", () => setFrameHeight());
+
+      send("streamlit:componentReady", { apiVersion: 1 });
+    </script>
+  </body>
+</html>

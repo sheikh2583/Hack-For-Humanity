@@ -198,6 +198,93 @@ def test_header_marks_metrics_for_mobile_grid(monkeypatch) -> None:
     assert any("class='dhoa-metrics'" in value for value in markup)
 
 
+def test_folium_map_shows_every_priority_band_and_optional_heatmap(monkeypatch) -> None:
+    """Default map keeps all synthetic candidates in visible severity layers."""
+    import folium
+    import geopandas as gpd
+    from folium.plugins import HeatMap, MarkerCluster
+    from shapely.geometry import Point
+
+    import app.streamlit_app as dashboard
+
+    monkeypatch.setattr(dashboard, "load_config", lambda: {"rules": {"siting_rules": []}})
+    frame = gpd.GeoDataFrame(
+        {
+            "kiln_id": ["high-1", "medium-1", "low-1"],
+            "lat": [23.70, 23.71, 23.72],
+            "lon": [90.40, 90.41, 90.42],
+            "class": ["Zigzag"] * 3,
+            "district": ["Dhaka"] * 3,
+            "confidence": [0.9, 0.8, 0.7],
+            "priority_band": ["High", "Medium", "Low"],
+            "priority": [3.0, 2.0, 1.0],
+        },
+        geometry=[Point(90.40, 23.70), Point(90.41, 23.71), Point(90.42, 23.72)],
+        crs="EPSG:4326",
+    )
+    filters = {
+        "district": "All Districts", "kiln_type": "All types",
+        "map_style": "Street map", "priorities": {"High", "Medium", "Low"},
+        "confidence_range": (0.0, 1.0), "signal_filters": {}, "new_only": False,
+    }
+
+    result = dashboard.build_map(frame, filters)
+    assert isinstance(result, folium.Map)
+    clusters = [item for item in result._children.values() if isinstance(item, MarkerCluster)]
+    assert {cluster.layer_name for cluster in clusters} == {
+        "High Priority", "Medium Priority", "Low Priority"
+    }
+    assert sum(len(cluster._children) for cluster in clusters) == 3
+    heatmaps = [item for item in result._children.values() if isinstance(item, HeatMap)]
+    assert len(heatmaps) == 1
+
+
+def test_folium_marker_click_selects_candidate_for_report(monkeypatch) -> None:
+    """A clicked Folium marker selects its kiln for the report panel."""
+    import geopandas as gpd
+    from shapely.geometry import Point
+
+    import app.streamlit_app as dashboard
+
+    session_state: dict[str, object] = {"dhoa_last_map_click_count": None}
+    monkeypatch.setattr(dashboard.st, "session_state", session_state)
+    monkeypatch.setattr(dashboard.st, "markdown", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(dashboard.st, "info", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(dashboard, "load_config", lambda: {"rules": {"siting_rules": []}})
+    monkeypatch.setattr(
+        dashboard,
+        "st_folium",
+        lambda *_args, **_kwargs: {
+            "last_object_clicked": {"lat": 23.7, "lng": 90.4},
+            "last_object_clicked_count": 1,
+        },
+    )
+    selected_ids: list[str] = []
+    monkeypatch.setattr(
+        dashboard,
+        "_render_selected_candidate",
+        lambda row: selected_ids.append(str(row["kiln_id"])),
+    )
+    frame = gpd.GeoDataFrame(
+        {
+            "kiln_id": ["clicked-kiln"], "lat": [23.7], "lon": [90.4],
+            "class": ["Zigzag"], "district": ["Dhaka"],
+            "confidence": [0.9], "priority_band": ["High"], "priority": [2.0],
+        },
+        geometry=[Point(90.4, 23.7)],
+        crs="EPSG:4326",
+    )
+    filters = {
+        "district": "All Districts", "kiln_type": "All types",
+        "map_style": "Street map", "priorities": {"High", "Medium", "Low"},
+        "confidence_range": (0.0, 1.0), "signal_filters": {}, "new_only": False,
+    }
+
+    dashboard.render_map(frame, filters)
+    assert session_state["selected_kiln_id"] == "clicked-kiln"
+    assert selected_ids == ["clicked-kiln"]
+
+
 def test_export_keeps_district_and_full_candidate_fields() -> None:
     """The dashboard export retains district and existing candidate fields."""
     result = _export_csv(
