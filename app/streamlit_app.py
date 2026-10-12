@@ -74,16 +74,6 @@ html, body, [data-testid="stAppViewContainer"] { overflow-x: hidden; }
     max-width: 100% !important;
     padding-top: 0.75rem !important;
 }
-[data-testid="stMainBlockContainer"] h1.dhoa-brand-title {
-    display: block;
-    padding: 0.38em 0 0.12em !important;
-    margin-top: 0.35rem !important;
-    font-family: "Noto Sans Bengali UI", "Noto Sans Bengali", "Nirmala UI", sans-serif !important;
-    font-weight: 700 !important;
-    line-height: 1.8 !important;
-    overflow: visible !important;
-    box-sizing: border-box;
-}
 /* Hide heading permalinks only; keep map, navigation, and export links usable. */
 [data-testid="stHeaderActionElements"],
 h1 a, h2 a, h3 a, h4 a,
@@ -166,12 +156,6 @@ h4 [data-testid="stHeaderActionElements"],
         min-height: 300px !important;
         max-height: 500px !important;
     }
-    [data-testid="stMainBlockContainer"] h1.dhoa-brand-title {
-        padding-top: 0.38em !important;
-        padding-bottom: 0.12em !important;
-        line-height: 1.8 !important;
-        font-size: 1.9rem !important;
-    }
     h2 { font-size: 1.35rem !important; }
     h3 { font-size: 1.15rem !important; }
     [data-testid="stMetricValue"] { font-size: 1.35rem; }
@@ -183,6 +167,29 @@ h4 [data-testid="stHeaderActionElements"],
         padding-left: 0.5rem; padding-right: 0.5rem;
     }
     body, p, label, [data-testid="stCaptionContainer"] { font-size: 14px; }
+}
+[data-testid="stMainBlockContainer"] h1.dhoa-brand-title {
+    display: block !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    padding: 0.38em 0 0.12em !important;
+    margin-top: 0.35rem !important;
+    line-height: 1.8 !important;
+    overflow: visible !important;
+    font-family: "Noto Sans Bengali UI", "Noto Sans Bengali", "Nirmala UI",
+        "Arial Unicode MS", sans-serif !important;
+}
+[data-testid="stMainBlockContainer"] h1.dhoa-brand-title span {
+    line-height: inherit !important;
+    overflow: visible !important;
+}
+@media (max-width: 768px) {
+    [data-testid="stMainBlockContainer"] h1.dhoa-brand-title {
+        font-size: 1.9rem !important;
+        line-height: 1.8 !important;
+        padding-top: 0.38em !important;
+        padding-bottom: 0.12em !important;
+    }
 }
 </style>
 """

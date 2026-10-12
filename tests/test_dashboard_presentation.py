@@ -185,6 +185,9 @@ def test_responsive_css_contains_mobile_breakpoints_and_map_rules() -> None:
     assert '[data-testid="stMainBlockContainer"] h1.dhoa-brand-title' in css
     assert "padding: 0.38em 0 0.12em !important" in css
     assert "padding-top: 0.38em !important" in css
+    assert '[data-testid="stMainBlockContainer"] h1.dhoa-brand-title span' in css
+    assert "line-height: inherit !important" in css
+    assert "width: 100% !important" in css
 
 
 def test_header_marks_metrics_for_mobile_grid(monkeypatch) -> None:
