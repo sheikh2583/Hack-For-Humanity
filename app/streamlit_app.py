@@ -92,10 +92,17 @@ html, body, [data-testid="stAppViewContainer"] { overflow-x: hidden; }
 [data-testid="stButton"] button,
 [data-baseweb="select"] > div,
 [data-testid="stSlider"] [role="slider"] { min-height: 44px; }
+.dhoa-mobile-map-hint {
+    display: none;
+    margin: 0.25rem 0 0.65rem;
+    color: #cbd5e1;
+    font-size: 0.9rem;
+}
 @media (max-width: 768px) {
     [data-testid="stAppViewContainer"] .main .block-container {
         padding: 0.65rem 0.75rem 1.5rem;
     }
+    [data-testid="stMainBlockContainer"] { padding-top: 1.35rem !important; }
     [data-testid="stHorizontalBlock"] { flex-direction: column; gap: 0.75rem; }
     [data-testid="stMetricContainer"] { min-width: 0; }
     [data-testid="stIFrame"] iframe {
@@ -108,11 +115,12 @@ html, body, [data-testid="stAppViewContainer"] { overflow-x: hidden; }
         min-height: 300px !important;
         max-height: 500px !important;
     }
-    h1 { font-size: 1.8rem !important; }
+    h1 { font-size: 1.9rem !important; line-height: 1.4 !important; padding-top: 0.15rem; }
     h2 { font-size: 1.35rem !important; }
     h3 { font-size: 1.15rem !important; }
     [data-testid="stMetricValue"] { font-size: 1.35rem; }
     .dhoa-metrics { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem !important; }
+    .dhoa-mobile-map-hint { display: block !important; }
 }
 @media (max-width: 480px) {
     [data-testid="stAppViewContainer"] .main .block-container {
@@ -891,6 +899,10 @@ def main() -> None:
         gdf["detection_status"] = "Known"
     render_header(gdf)
     filters = render_sidebar(gdf)
+    st.markdown(
+        "<p class='dhoa-mobile-map-hint'>\u0987\u099f\u09ad\u09be\u099f\u09be\u09b0 \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0 \u09a6\u09c7\u0996\u09a4\u09c7 \u09a8\u09bf\u099a\u09c7 \u09b8\u09cd\u0995\u09cd\u09b0\u09b2 \u0995\u09b0\u09c1\u09a8।</p>",
+        unsafe_allow_html=True,
+    )
     render_district_summary(str(filters["district"]), gdf)
     render_map(gdf, filters)
     render_footer(gdf, filters)
