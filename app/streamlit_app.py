@@ -461,7 +461,7 @@ def render_header(gdf: gpd.GeoDataFrame) -> None:
     """
     identity, help_column = st.columns([5, 2], gap="small", vertical_alignment="center")
     with identity:
-        st.markdown("<h1 style='margin-bottom:0'>Dhoa</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='margin-bottom:0'>ধোঁয়া</h1>", unsafe_allow_html=True)
         loaded = dashboard_kilns_file()
         subtitle = "\u09ac\u09be\u0982\u09b2\u09be\u09a6\u09c7\u09b6\u09c7\u09b0 \u0987\u099f\u09ad\u09be\u099f\u09be \u09aa\u09b0\u09cd\u09af\u09ac\u09c7\u0995\u09cd\u09b7\u09a3 \u09a1\u09cd\u09af\u09be\u09b6\u09ac\u09cb\u09b0\u09cd\u09a1"
         if loaded is not None:
