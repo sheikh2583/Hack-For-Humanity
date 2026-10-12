@@ -5,7 +5,14 @@ backgroundColor = "#0e1117"
 secondaryBackgroundColor = "#1e2329"
 textColor = "#fafafa"
 
+[[theme.fontFaces]]
+family = "Noto Sans Bengali UI"
+url = "app/static/NotoSansBengaliUI-Bold.woff2"
+weight = 700
+style = "normal"
+
 [server]
+enableStaticServing = true
 maxUploadSize = 200
 
 [client]

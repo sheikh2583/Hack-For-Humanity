@@ -41,7 +41,7 @@ geo = [
 score = [
 ]
 app = [
-    "streamlit>=1.30",
+    "streamlit>=1.46",
     "streamlit-folium>=0.15",
     "folium>=0.15",
 ]

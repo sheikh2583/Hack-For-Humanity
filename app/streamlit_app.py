@@ -76,10 +76,6 @@ html, body, [data-testid="stAppViewContainer"] { overflow-x: hidden; }
 }
 [data-testid="stAppViewContainer"] .main h1 { margin-top: 0.25rem !important; line-height: 1.25 !important; overflow: visible; }
 [data-testid="stMainBlockContainer"] h1 { line-height: 1.25 !important; overflow: visible; }
-div[data-testid="stMarkdown"]:has(.dhoa-brand-title),
-div[data-testid="stMarkdownContainer"]:has(.dhoa-brand-title) {
-    overflow: visible !important;
-}
 /* Hide heading permalinks only; keep map, navigation, and export links usable. */
 [data-testid="stHeaderActionElements"],
 h1 a, h2 a, h3 a, h4 a,
@@ -92,11 +88,10 @@ h4 [data-testid="stHeaderActionElements"],
 .dhoa-brand-title {
     display: block;
     margin: 0.35rem 0 0.2rem;
-    min-height: 2.6em;
-    padding: 1em 0 0.2em;
+    padding: 0.2em 0 0.15em;
     font-size: 2.75rem;
-    font-weight: 750;
-    line-height: 2.3;
+    font-weight: 700;
+    line-height: 1.55;
     overflow: visible !important;
 }
 [data-testid="stAppViewContainer"] .main [data-testid="stCaptionContainer"] { margin-top: 0.2rem; }
@@ -173,7 +168,7 @@ h4 [data-testid="stHeaderActionElements"],
         max-height: 500px !important;
     }
     h1 { font-size: 1.9rem !important; line-height: 1.4 !important; padding-top: 0.15rem; }
-    .dhoa-brand-title { font-size: 1.9rem; min-height: 2.6em; padding-top: 1em; line-height: 2.3; }
+    .dhoa-brand-title { font-size: 1.9rem; line-height: 1.55; }
     h2 { font-size: 1.35rem !important; }
     h3 { font-size: 1.15rem !important; }
     [data-testid="stMetricValue"] { font-size: 1.35rem; }
@@ -188,11 +183,8 @@ h4 [data-testid="stHeaderActionElements"],
 }
 @media (min-width: 769px) {
     .dhoa-brand-title {
-        font-family: "Noto Sans Bengali", "Nirmala UI", "Vrinda", sans-serif;
-        min-height: 2.8em;
-        line-height: 2.4 !important;
-        padding-top: 1em;
-        padding-bottom: 0.25em;
+        font-family: "Noto Sans Bengali UI", sans-serif;
+        line-height: 1.55 !important;
     }
 }
 </style>
