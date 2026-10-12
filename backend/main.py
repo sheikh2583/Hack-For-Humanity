@@ -101,16 +101,18 @@ def _signals(value: object) -> list[str]:
     return [str(item) for item in value] if isinstance(value, (list, tuple)) else []
 
 
-def _band(rank: object) -> str:
+def _band(rank: object, total: int) -> str:
     """Return a display-only priority band from the stored rank."""
     try:
         rank_number = int(float(rank))
     except (TypeError, ValueError):
         return "Unknown"
-    return "High" if rank_number <= 717 else "Medium" if rank_number <= 1434 else "Low"
+    high_cutoff = max(1, math.ceil(total / 3))
+    medium_cutoff = max(high_cutoff, math.ceil(total * 2 / 3))
+    return "High" if rank_number <= high_cutoff else "Medium" if rank_number <= medium_cutoff else "Low"
 
 
-def _candidate(row: pd.Series, fallback: bool) -> dict[str, Any]:
+def _candidate(row: pd.Series, fallback: bool, total: int = 1) -> dict[str, Any]:
     """Serialize one candidate without geometry or internal verification flags."""
     return {
         "id": str(row.get("kiln_id", "")),
@@ -121,7 +123,7 @@ def _candidate(row: pd.Series, fallback: bool) -> dict[str, Any]:
         "confidence": float(row.get("confidence")),
         "screening_priority": float(row.get("priority", 0)),
         "priority_rank": int(float(row.get("priority_rank"))) if pd.notna(row.get("priority_rank")) else None,
-        "priority_band": _band(row.get("priority_rank")),
+        "priority_band": _band(row.get("priority_rank"), total),
         "candidate_rule_signals": _signals(row.get("breached_rules")),
         "signal_count": int(row.get("breach_count", 0) or 0),
         "rules_version": str(row.get("rules_version", "Not recorded")),
@@ -169,7 +171,7 @@ def candidates(
     frame = frame[pd.to_numeric(frame["confidence"], errors="coerce").ge(min_confidence)]
     frame = frame.sort_values("priority_rank", na_position="last").head(limit)
     return {
-        "items": [_candidate(row, fallback) for _, row in frame.iterrows()],
+        "items": [_candidate(row, fallback, len(frame)) for _, row in frame.iterrows()],
         "count": int(len(frame)),
         "source": DATA_PATH.name if not fallback else "demo fallback",
         "modified": datetime.fromtimestamp(DATA_PATH.stat().st_mtime, tz=UTC).isoformat() if not fallback else None,
@@ -184,7 +186,7 @@ def candidate_detail(candidate_id: str) -> dict[str, Any]:
     matches = frame[frame["kiln_id"].astype(str).eq(candidate_id)]
     if matches.empty:
         raise HTTPException(status_code=404, detail="Candidate not found")
-    return _candidate(matches.iloc[0], fallback)
+    return _candidate(matches.iloc[0], fallback, len(frame))
 
 
 @app.get("/api/nearby")
@@ -200,7 +202,7 @@ def nearby(
     for _, row in frame.iterrows():
         distance = _distance_m(latitude, longitude, float(row.lat), float(row.lon))
         if distance <= radius_m:
-            item = _candidate(row, fallback)
+            item = _candidate(row, fallback, len(frame))
             item["distance_m"] = round(distance, 1)
             result.append(item)
     result.sort(key=lambda item: (item["distance_m"], item["priority_rank"] or 10**9))

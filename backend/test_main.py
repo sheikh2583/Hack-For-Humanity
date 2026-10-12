@@ -23,7 +23,7 @@ def test_candidate_serialization_keeps_mobile_fields() -> None:
             "breach_count": 1,
         }
     )
-    item = main._candidate(row, fallback=True)
+    item = main._candidate(row, fallback=True, total=1)
     assert item["district"] == "Dhaka"
     assert item["candidate_rule_signals"] == ["near_school"]
     assert item["advisory"] == main.ADVISORY
