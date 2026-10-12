@@ -74,8 +74,15 @@ html, body, [data-testid="stAppViewContainer"] { overflow-x: hidden; }
     max-width: 100% !important;
     padding-top: 0.75rem !important;
 }
-[data-testid="stAppViewContainer"] .main h1 { margin-top: 0.25rem !important; line-height: 1.25 !important; overflow: visible; }
-[data-testid="stMainBlockContainer"] h1 { line-height: 1.25 !important; overflow: visible; }
+[data-testid="stAppViewContainer"] .main h1 {
+    margin-top: 0.25rem !important;
+    padding: 0.25em 0 0.15em;
+    font-family: "Noto Sans Bengali UI", sans-serif !important;
+    font-weight: 700 !important;
+    line-height: 1.65 !important;
+    overflow: visible !important;
+}
+[data-testid="stMainBlockContainer"] h1 { line-height: 1.65 !important; overflow: visible !important; }
 /* Hide heading permalinks only; keep map, navigation, and export links usable. */
 [data-testid="stHeaderActionElements"],
 h1 a, h2 a, h3 a, h4 a,
@@ -85,15 +92,6 @@ h2 [data-testid="stHeaderActionElements"],
 h3 [data-testid="stHeaderActionElements"],
 h4 [data-testid="stHeaderActionElements"],
 [role="heading"] [data-testid="stHeaderActionElements"] { display: none !important; }
-.dhoa-brand-title {
-    display: block;
-    margin: 0.35rem 0 0.2rem;
-    padding: 0.2em 0 0.15em;
-    font-size: 2.75rem;
-    font-weight: 700;
-    line-height: 1.55;
-    overflow: visible !important;
-}
 [data-testid="stAppViewContainer"] .main [data-testid="stCaptionContainer"] { margin-top: 0.2rem; }
 [data-testid="stMetric"] { min-width: 0; }
 /* Replace Streamlit's developer-oriented status icon with a Bengali loading cue. */
@@ -167,8 +165,7 @@ h4 [data-testid="stHeaderActionElements"],
         min-height: 300px !important;
         max-height: 500px !important;
     }
-    h1 { font-size: 1.9rem !important; line-height: 1.4 !important; padding-top: 0.15rem; }
-    .dhoa-brand-title { font-size: 1.9rem; line-height: 1.55; }
+    h1 { font-size: 1.9rem !important; line-height: 1.65 !important; padding-top: 0.25em; }
     h2 { font-size: 1.35rem !important; }
     h3 { font-size: 1.15rem !important; }
     [data-testid="stMetricValue"] { font-size: 1.35rem; }
@@ -180,12 +177,6 @@ h4 [data-testid="stHeaderActionElements"],
         padding-left: 0.5rem; padding-right: 0.5rem;
     }
     body, p, label, [data-testid="stCaptionContainer"] { font-size: 14px; }
-}
-@media (min-width: 769px) {
-    .dhoa-brand-title {
-        font-family: "Noto Sans Bengali UI", sans-serif;
-        line-height: 1.55 !important;
-    }
 }
 </style>
 """
@@ -520,7 +511,7 @@ def render_header(gdf: gpd.GeoDataFrame) -> None:
     """
     identity, help_column = st.columns([5, 2], gap="small", vertical_alignment="center")
     with identity:
-        st.markdown("<div class='dhoa-brand-title' role='heading' aria-level='1'>ধোঁয়া</div>", unsafe_allow_html=True)
+        st.title("\u09a7\u09cb\u0981\u09af\u09bc\u09be")
         loaded = dashboard_kilns_file()
         subtitle = "\u09ac\u09be\u0982\u09b2\u09be\u09a6\u09c7\u09b6\u09c7\u09b0 \u0987\u099f\u09ad\u09be\u099f\u09be \u09aa\u09b0\u09cd\u09af\u09ac\u09c7\u0995\u09cd\u09b7\u09a3 \u09a1\u09cd\u09af\u09be\u09b6\u09ac\u09cb\u09b0\u09cd\u09a1"
         if loaded is not None:
