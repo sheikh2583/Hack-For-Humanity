@@ -44,40 +44,12 @@ DISTRICTS = ["All Districts", "Chapainawabganj", "Gazipur", "Rajshahi", "Dhaka",
 ADVISORY_BANNER = "Advisory only: unverified screening candidates"
 
 
-def responsive_css(mobile_mode: bool = False) -> str:
+def responsive_css() -> str:
     """Return the dashboard CSS for desktop, tablet, and phone layouts.
 
-    Input schema: optional compact-layout flag. Output schema: one CSS string
-    containing the responsive dashboard rules; it is injected once by
-    :func:`main`.
+    Input schema: none. Output schema: one CSS string containing the
+    responsive dashboard rules; it is injected once by :func:`main`.
     """
-    mobile_override = """
-body:has(.dhoa-mobile-mode) [data-testid="stAppViewContainer"] .main .block-container {
-    padding-left: 0.75rem;
-    padding-right: 0.75rem;
-}
-body:has(.dhoa-mobile-mode) [data-testid="stHorizontalBlock"] {
-    flex-direction: column;
-    gap: 0.75rem;
-}
-body:has(.dhoa-mobile-mode) [data-testid="stMetricContainer"] { min-width: 0; }
-body:has(.dhoa-mobile-mode) [data-testid="stIFrame"] iframe,
-body:has(.dhoa-mobile-mode) iframe[title="streamlit_folium.st_folium"] {
-    width: 100% !important;
-    height: 60vh !important;
-    min-height: 320px !important;
-    max-height: 600px !important;
-}
-body:has(.dhoa-mobile-mode) h1 { font-size: 1.8rem !important; }
-body:has(.dhoa-mobile-mode) h2 { font-size: 1.35rem !important; }
-body:has(.dhoa-mobile-mode) h3 { font-size: 1.15rem !important; }
-body:has(.dhoa-mobile-mode) [data-testid="stMetricValue"] { font-size: 1.35rem; }
-body:has(.dhoa-mobile-mode) .dhoa-metrics {
-    display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.75rem !important;
-}
-"""
     return """
 <style>
 html, body, [data-testid="stAppViewContainer"] { overflow-x: hidden; }
@@ -130,9 +102,8 @@ html, body, [data-testid="stAppViewContainer"] { overflow-x: hidden; }
     body, p, label, [data-testid="stCaptionContainer"] { font-size: 14px; }
     .dhoa-advisory { padding: 0.65rem 0.75rem; }
 }
-/* MOBILE_OVERRIDE */
 </style>
-""".replace("/* MOBILE_OVERRIDE */", mobile_override if mobile_mode else "")
+"""
 
 
 @st.cache_data
@@ -401,15 +372,7 @@ def render_tables(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> None:
 
 def main() -> None:
     """Run the fixed Dhoa page flow."""
-    mobile_mode = st.toggle(
-        "Mobile view",
-        value=False,
-        help="Force the compact dashboard layout on a desktop browser.",
-        key="dhoa_mobile_view",
-    )
-    st.markdown(responsive_css(mobile_mode), unsafe_allow_html=True)
-    if mobile_mode:
-        st.markdown("<div class='dhoa-mobile-mode' aria-hidden='true'></div>", unsafe_allow_html=True)
+    st.markdown(responsive_css(), unsafe_allow_html=True)
     st.markdown(f"<div class='dhoa-advisory'>{ADVISORY_BANNER}</div>", unsafe_allow_html=True)
     try:
         load_config()

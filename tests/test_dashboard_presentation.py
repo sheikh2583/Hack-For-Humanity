@@ -51,13 +51,6 @@ def test_export_keeps_district_and_full_candidate_fields() -> None:
     assert "Gazipur" in result
 
 
-def test_responsive_css_supports_explicit_mobile_mode() -> None:
-    """The visible toggle can force the compact layout on wide screens."""
-    css = responsive_css(True)
-    assert "body:has(.dhoa-mobile-mode)" in css
-    assert "grid-template-columns: repeat(2" in css
-
-
 def test_colour_for_kiln_handles_tied_ranks_across_three_bands() -> None:
     """When many rows share the same priority_rank (method='min' ties),
     banding must still produce High/Medium/Low rather than all-High."""
