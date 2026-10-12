@@ -88,11 +88,11 @@ h4 [data-testid="stHeaderActionElements"],
 .dhoa-brand-title {
     display: block;
     margin: 0.35rem 0 0.2rem;
-    min-height: 2.1em;
-    padding: 0.35em 0 0.2em;
+    min-height: 2.3em;
+    padding: 0.65em 0 0.2em;
     font-size: 2.75rem;
     font-weight: 750;
-    line-height: 1.8;
+    line-height: 2.1;
     overflow: visible !important;
 }
 [data-testid="stAppViewContainer"] .main [data-testid="stCaptionContainer"] { margin-top: 0.2rem; }
@@ -169,7 +169,7 @@ h4 [data-testid="stHeaderActionElements"],
         max-height: 500px !important;
     }
     h1 { font-size: 1.9rem !important; line-height: 1.4 !important; padding-top: 0.15rem; }
-    .dhoa-brand-title { font-size: 1.9rem; min-height: 2.2em; padding-top: 0.4em; line-height: 1.8; }
+    .dhoa-brand-title { font-size: 1.9rem; min-height: 2.3em; padding-top: 0.65em; line-height: 2.1; }
     h2 { font-size: 1.35rem !important; }
     h3 { font-size: 1.15rem !important; }
     [data-testid="stMetricValue"] { font-size: 1.35rem; }
@@ -185,9 +185,9 @@ h4 [data-testid="stHeaderActionElements"],
 @media (min-width: 769px) {
     .dhoa-brand-title {
         font-family: "Noto Sans Bengali", "Nirmala UI", "Vrinda", sans-serif;
-        min-height: 2.3em;
-        line-height: 1.9 !important;
-        padding-top: 0.4em;
+        min-height: 2.5em;
+        line-height: 2.2 !important;
+        padding-top: 0.65em;
         padding-bottom: 0.25em;
     }
 }
