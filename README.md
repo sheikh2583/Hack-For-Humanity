@@ -66,6 +66,36 @@ developer tools at 360px, 412px, 768px, and 1280px widths. Confirm that the
 advisory banner, map, candidate table, district switch, and CSV export remain
 usable without page-level horizontal scrolling.
 
+### Mobile demo
+
+The Expo app lives in [mobile/](mobile/) and demonstrates nearby candidates,
+the candidate map, and field capture. Run the backend, install the mobile
+dependencies, then start Expo:
+
+```powershell
+python -m uvicorn backend.main:app --reload
+cd mobile
+npm install
+npm start
+```
+
+Copy `mobile/.env.example` to `mobile/.env` and set
+`EXPO_PUBLIC_API_URL` to the backend URL. The app uses fallback demo data when
+the backend is unavailable.
+
+#### Backend deployment
+
+For Render, create a Web Service from this repository with:
+
+- Root directory: repository root
+- Build command: `pip install -r backend/requirements.txt`
+- Start command: `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
+
+For Railway, create a service from the repository and use the same start
+command. Set `KILNWATCH_DATA` only when the processed GeoParquet is mounted at
+a different path. Put the deployed API URL in `mobile/.env` as
+`EXPO_PUBLIC_API_URL`, then run `npm start` from `mobile/`.
+
 ## Pilot districts
 
 Chapainawabganj, Gazipur, Rajshahi, Dhaka, and Chittagong.
