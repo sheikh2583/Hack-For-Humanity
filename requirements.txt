@@ -10,3 +10,4 @@ pyproj
 numpy
 rich
 fpdf2
+geopy

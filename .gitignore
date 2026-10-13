@@ -56,3 +56,4 @@ wandb
 # Expo local configuration and dependencies
 mobile/node_modules/
 mobile/.env
+data/raw/boundaries/geoBoundaries_BGD_ADM3.geojson

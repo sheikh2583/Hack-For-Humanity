@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from io import StringIO
 import unicodedata
+from io import StringIO
 
+import geopandas as gpd
 import pandas as pd
 
 from app.dashboard_filters import add_priority_bands
@@ -14,7 +15,34 @@ from app.presentation import (
     marker_tooltip,
     screening_csv,
 )
-from app.streamlit_app import DASHBOARD_TITLE, _export_csv, color_for_kiln, responsive_css
+from app.streamlit_app import (
+    DASHBOARD_TITLE,
+    _area_label,
+    _export_csv,
+    color_for_kiln,
+    community_distances,
+    responsive_css,
+)
+
+
+def test_area_label_uses_nearest_place_then_district_or_coordinates() -> None:
+    """Area display prefers OSM enrichment and has both requested fallbacks."""
+    assert _area_label({"nearest_place": "Koilardiyar", "nearest_place_type": "village", "nearest_place_dist_m": 320}) == "Near Koilardiyar village (320 m)"
+    row = {"district": "Dhaka", "lat": 23.7, "lon": 90.4}
+    assert _area_label(row) == "District: Dhaka"
+    assert _area_label(row, fallback="coordinates") == "23.7000° N, 90.4000° E"
+
+
+def test_community_distances_use_projected_metres_for_tiny_synthetic_data() -> None:
+    """Nearby synthetic WGS84 points produce metre distances from the search point."""
+    candidates = gpd.GeoDataFrame(
+        {"lat": [24.0, 24.1], "lon": [90.0, 90.0]},
+        geometry=gpd.points_from_xy([90.0, 90.0], [24.0, 24.1]),
+        crs="EPSG:4326",
+    )
+    distances = community_distances(candidates, 24.0, 90.0)
+    assert distances.iloc[0] == 0
+    assert distances.iloc[1] > 10_000
 
 
 def test_colour_for_kiln_uses_three_priority_rank_bands() -> None:
