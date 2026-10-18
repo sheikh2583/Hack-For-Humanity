@@ -123,7 +123,7 @@ h4 [data-testid="stHeaderActionElements"],
 [data-testid="stStatusWidget"]::after,
 [data-testid^="stStatusWidget"]::after,
 [data-testid="stStatusWidgetRunningIcon"]::after {
-    content: "পৃষ্ঠা লোড হচ্ছে, অপেক্ষা করুন…";
+    content: "";
     display: block;
     max-width: 220px;
     color: #dbe3ec;
@@ -483,8 +483,8 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
     with st.container(border=True), st.form("community_search_form", border=False):
             name = st.text_input('\u09a8\u09be\u09ae \u09b2\u09bf\u0996\u09c1\u09a8', placeholder='\u09af\u09c7\u09ae\u09a8: Chapainawabganj Government Primary School')
             coordinate_columns = st.columns(2, gap="small")
-            latitude = coordinate_columns[0].number_input("\u0985\u0995\u09cd\u09b7\u09be\u0982\u09b6 (Latitude)", value=24.0, min_value=-90.0, max_value=90.0, format="%.6f")
-            longitude = coordinate_columns[1].number_input("\u09a6\u09cd\u09b0\u09be\u0998\u09bf\u09ae\u09be\u0982\u09b6 (Longitude)", value=90.0, min_value=-180.0, max_value=180.0, format="%.6f")
+            latitude = coordinate_columns[0].number_input("\u0985\u0995\u09cd\u09b7\u09be\u0982\u09b6 (Latitude)", value=0.0, min_value=-90.0, max_value=90.0, format="%.6f", help="\u09af\u09c7\u09ae\u09a8: 23.8103")
+            longitude = coordinate_columns[1].number_input("\u09a6\u09cd\u09b0\u09be\u0998\u09bf\u09ae\u09be\u0982\u09b6 (Longitude)", value=0.0, min_value=-180.0, max_value=180.0, format="%.6f", help="\u09af\u09c7\u09ae\u09a8: 90.4125")
             submitted = st.form_submit_button('\U0001f50d \u0996\u09c1\u0981\u099c\u09c1\u09a8', width="stretch")
             st.caption("\u09a8\u09be\u09ae \u09a6\u09bf\u09df\u09c7 \u0996\u09cb\u0981\u099c\u09c1\u09a8, \u09a8\u09be \u09b8\u09cd\u09a5\u09be\u09a8\u09be\u0999\u09cd\u0995 \u09a6\u09bf\u09df\u09c7 \u0996\u09c1\u0981\u099c\u09c1\u09a8; \u09a8\u09be\u09ae \u09a6\u09bf\u09b2\u09c7 \u09b8\u09cd\u09a5\u09be\u09a8\u09be\u0999\u09cd\u0995 \u0997\u09a3\u09cd\u09af \u0995\u09b0\u09be \u09b9\u09ac\u09c7 \u09a8\u09be\u0964")
     if submitted:
@@ -1178,7 +1178,7 @@ def render_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> None:
                     if st.session_state.get("selected_kiln_id") is not None
                     else None
                 ),
-                height=580,
+                height=640,
                 key="dhoa_high_priority_list",
                 default=None,
             )
@@ -1275,15 +1275,19 @@ def main() -> None:
     Output schema: one Inspector or Community dashboard view.
     """
     st.markdown(responsive_css(), unsafe_allow_html=True)
+    with st.empty() as loading_msg:
+        loading_msg.info("\u09aa\u09c3\u09b7\u09cd\u09a0\u09be \u09b2\u09cb\u09a1 \u09b9\u099a\u09cd\u099b\u09c7...")
     try:
         load_config()
         gdf = load_data()
     except Exception:
         logging.getLogger(__name__).exception("Dashboard data/configuration load failed")
+        loading_msg.empty()
         st.error("\u274c \u09a4\u09a5\u09cd\u09af \u09ac\u09be \u09a1\u09cd\u09af\u09be\u09b6\u09ac\u09cb\u09b0\u09cd\u09a1 \u09b2\u09cb\u09a1 \u0995\u09b0\u09be \u09af\u09be\u09df\u09a8\u09bf\u0964 \u09a6\u09df\u09be \u0995\u09b0\u09c7 \u09aa\u09b0\u09c7 \u099a\u09c7\u09b7\u09cd\u099f\u09be \u0995\u09b0\u09c1\u09a8\u0964")
         return
     if gdf is None:
         st.error("\u274c \u09a1\u09cd\u09af\u09be\u09b6\u09ac\u09cb\u09b0\u09cd\u09a1\u09c7\u09b0 \u09a4\u09a5\u09cd\u09af \u09aa\u09be\u0993\u09df\u09be \u09af\u09be\u099a\u09cd\u099b\u09c7 \u09a8\u09be\u0964 \u09aa\u09cd\u09b0\u09a5\u09ae\u09c7 \u09a1\u09c7\u099f\u09be \u09aa\u09cd\u09b0\u09b8\u09c7\u09b8 \u0995\u09b0\u09c7 \u09a8\u09bf\u09a8\u0964")
+        loading_msg.empty()
 
         return
     from src.geo.crs import get_projected_crs
@@ -1317,6 +1321,7 @@ def main() -> None:
         if mode == "community":
             render_community_view(gdf)
             render_footer()
+            loading_msg.empty()
             return
         visible = _filtered(gdf, filters)
         render_map(gdf, filters)
@@ -1326,9 +1331,11 @@ def main() -> None:
         new_count = int(new_status.eq("New candidate (2025-26)").sum())
         st.markdown(f"**{high_count:,} \u0989\u099a\u09cd\u099a \u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0 | {flagged_count:,} \u09a8\u09bf\u09df\u09ae \u09b8\u0982\u0995\u09c7\u09a4 | {new_count:,} \u09a8\u09a4\u09c1\u09a8 \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0**")
         render_footer()
+        loading_msg.empty()
     except Exception:
         logging.getLogger(__name__).exception("Dashboard view rendering failed")
         st.error("\u274c \u098f\u0987 \u09aa\u09be\u09a4\u09be\u099f\u09bf \u09a6\u09c7\u0996\u09be\u09a8\u09cb \u09af\u09be\u099a\u09cd\u099b\u09c7 \u09a8\u09be\u0964 \u09aa\u09c3\u09b7\u09cd\u09a0\u09be\u099f\u09bf \u09b0\u09bf\u09ab\u09cd\u09b0\u09c7\u09b6 \u0995\u09b0\u09c1\u09a8\u0964")
+        loading_msg.empty()
 
 
 if __name__ == "__main__":
