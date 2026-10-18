@@ -1,10 +1,11 @@
-streamlit==1.39.0
+streamlit>=1.66.0
 geopandas
-folium==0.17.0
-streamlit-folium==0.22.0
+folium>=0.20.0
+streamlit-folium>=0.27.4
+pillow>=12.0.0
 pandas
 openpyxl
-pyarrow
+pyarrow<25
 pyyaml
 shapely
 pyproj

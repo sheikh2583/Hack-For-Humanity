@@ -823,8 +823,9 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
         st.caption(f"\u09a8\u09c0\u09b2 \u09ac\u09c3\u09a4\u09cd\u09a4\u09c7\u09b0 \u09b8\u09c0\u09ae\u09be\u09a8\u09be \u0996\u09cb\u0981\u099c\u09be\u09b0 \u09b8\u09cd\u09a5\u09be\u09a8 \u09a5\u09c7\u0995\u09c7 {radius_m / 1000:g} \u0995\u09bf\u09ae\u09bf \u09a6\u09c2\u09b0\u09a4\u09cd\u09ac \u09a6\u09c7\u0996\u09be\u09df\u0964 \u09b2\u09be\u09b2, \u0995\u09ae\u09b2\u09be \u0993 \u09b8\u09ac\u09c1\u099c \u09ac\u09bf\u09a8\u09cd\u09a6\u09c1 \u09ad\u09be\u099f\u09be\u09b0 \u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0 \u09a6\u09c7\u0996\u09be\u09df; \u09ac\u09bf\u09a8\u09cd\u09a6\u09c1\u09a4\u09c7 \u099a\u09be\u09aa\u09b2\u09c7 \u09ac\u09bf\u09b8\u09cd\u09a4\u09be\u09b0\u09bf\u09a4 \u09a6\u09c7\u0996\u09c1\u09a8\u0964")
         with st.container(border=True):
             map_view = folium.Map(location=[search_lat, search_lon], zoom_start=13, control_scale=True, tiles=None)
-            _add_map_base_layers(map_view)
+            # Inject CSS before any children are added to avoid branca render crash.
             map_view.get_root().html.add_child(Element(_popup_styles()))
+            _add_map_base_layers(map_view)
             folium.CircleMarker(
                 [search_lat, search_lon], radius=8, color=DESIGN_COLORS["new"],
                 fill=True, fill_color=DESIGN_COLORS["new"], fill_opacity=1,
@@ -1477,6 +1478,10 @@ def build_map(
     markers drawn exclusively from get_filtered_gdf().
     """
     filtered = get_filtered_gdf(gdf) if filtered is None else filtered
+    # Ensure priority_band column is present — add_priority_bands may not have run yet
+    # on the passed-in slice (e.g. empty filtered GDF before main() calls it on gdf).
+    if "priority_band" not in filtered.columns:
+        filtered = add_priority_bands(filtered)
     if "map_center" not in st.session_state:
         center = (
             (float(filtered["lat"].mean()), float(filtered["lon"].mean()))
@@ -1490,9 +1495,8 @@ def build_map(
     zoom = int(st.session_state["map_zoom"])
     selected_tile = st.session_state.get("map_tile", "street")
     map_view = folium.Map(location=center, zoom_start=zoom, control_scale=True, tiles=None)
-    _add_map_base_layers(map_view, with_layer_control=False)
-    kilns_layer = folium.FeatureGroup(name="kilns", show=True).add_to(map_view)
-    heat_layer = folium.FeatureGroup(name="\u09b9\u09bf\u099f\u09ae\u09cd\u09af\u09be\u09aa", show=False).add_to(map_view)
+    # Inject CSS before any FeatureGroup children are added to avoid
+    # branca's "OrderedDict mutated during iteration" render crash.
     map_view.get_root().html.add_child(
         Element(
             """<style>
@@ -1517,6 +1521,9 @@ def build_map(
             </style>"""
         )
     )
+    _add_map_base_layers(map_view, with_layer_control=False)
+    kilns_layer = folium.FeatureGroup(name="kilns", show=True).add_to(map_view)
+    heat_layer = folium.FeatureGroup(name="\u09b9\u09bf\u099f\u09ae\u09cd\u09af\u09be\u09aa", show=False).add_to(map_view)
 
     # Populate fresh feature layers from the canonical filtered dataframe.
     selected_id = st.session_state.get("selected_kiln_id")
