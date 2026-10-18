@@ -1305,7 +1305,7 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
             )
             district_options = ["\u09b8\u09ac \u099c\u09c7\u09b2\u09be", *district_values]
             filters["district"] = st.selectbox(
-                _ui_text("\u099c\u09c7\u09b2\u09be", "District"),
+                _ui_text("\u099c\u09c7\u09b2\u09be \u098f\u09b2\u09be\u0995\u09be", "District Area"),
                 district_options,
                 format_func=lambda value: _ui_text("\u09b8\u09ac \u099c\u09c7\u09b2\u09be", "All districts") if value == "\u09b8\u09ac \u099c\u09c7\u09b2\u09be" else value,
                 key="filter_district",
