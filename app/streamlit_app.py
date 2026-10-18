@@ -435,8 +435,20 @@ def community_distances(gdf: gpd.GeoDataFrame, latitude: float, longitude: float
     return kiln_points.distance(search_point)
 
 
-def _add_map_base_layers(map_view: folium.Map) -> None:
-    """Add the selectable street and satellite basemaps to a Folium map."""
+def _add_map_base_layers(map_view: folium.Map, *, with_layer_control: bool = True) -> None:
+    """Add the selectable street and satellite basemaps to a Folium map.
+
+    Args:
+        map_view: The Folium map to add layers to.
+        with_layer_control: If True, also add a LayerControl widget inside the
+            map.  Set to False for the inspector map, where streamlit-folium
+            remounts the component whenever marker content changes — remounting
+            re-executes the map's JavaScript in the same iframe scope, and the
+            deterministic variable name ``layer_control_div_2`` (assigned by
+            streamlit-folium's ID-normalisation pass) causes a
+            "already declared" crash.  The inspector map controls tile
+            selection through the sidebar selectbox instead.
+    """
     selected_tile = st.session_state.get("map_tile", "street")
     folium.TileLayer(
         "OpenStreetMap",
@@ -453,11 +465,8 @@ def _add_map_base_layers(map_view: folium.Map) -> None:
         control=True,
         show=selected_tile == "satellite",
     ).add_to(map_view)
-    # Use a unique name so Folium generates a unique JS variable name on each
-    # render cycle; without this, repeated renders redeclare the same
-    # `layer_control_div_2` const and raise a JS SyntaxError in the iframe.
-    import uuid as _uuid
-    folium.LayerControl(collapsed=False, name=f"lc_{_uuid.uuid4().hex[:8]}").add_to(map_view)
+    if with_layer_control:
+        folium.LayerControl(collapsed=False).add_to(map_view)
 
 
 def get_filtered_gdf(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
@@ -520,7 +529,19 @@ def get_filtered_gdf(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     }
     selected_priorities = {priority_values[value] for value in priorities if value in priority_values}
     if "priority_band" not in result.columns:
+        # Source data has no priority columns at all — show everything rather
+        # than filtering to zero rows.
         result["priority_band"] = "Unknown / not available"
+        if "priority" in result.columns:
+            result = result.sort_values("priority", ascending=False, na_position="last")
+        return result
+    # When priority data exists, apply the user's band filter normally.
+    known_bands = result["priority_band"].astype(str).isin(PRIORITY_COLORS)
+    if not known_bands.any():
+        # All rows are unknown priority — skip the filter to avoid empty map.
+        if "priority" in result.columns:
+            result = result.sort_values("priority", ascending=False, na_position="last")
+        return result
     result = result[result["priority_band"].astype(str).isin(selected_priorities)].copy()
     if "priority" in result.columns:
         result = result.sort_values("priority", ascending=False, na_position="last")
@@ -1396,11 +1417,15 @@ def build_map(
     filters: Mapping[str, Any],
     filtered: gpd.GeoDataFrame | None = None,
 ) -> folium.Map:
-    """Create or update the persistent map and its filtered kiln layer.
+    """Create a Folium map with kiln markers for the filtered candidate set.
 
     Input schema: prioritized candidate GeoDataFrame and active sidebar state.
-    Output schema: Folium map with session-persistent center, base tiles, and
-    markers drawn exclusively from get_filtered_gdf().
+    Output schema: Folium map with session-persistent center, base tile, and
+    MarkerCluster markers drawn exclusively from get_filtered_gdf().
+
+    Intentionally minimal: LayerControl, FeatureGroups, HeatMap, and
+    Element CSS injection are omitted because each can trigger the branca
+    OrderedDict-mutated-during-iteration crash or hang st_folium.
     """
     filtered = get_filtered_gdf(gdf) if filtered is None else filtered
     if "map_center" not in st.session_state:
@@ -1414,88 +1439,36 @@ def build_map(
 
     center = tuple(st.session_state["map_center"])
     zoom = int(st.session_state["map_zoom"])
-    selected_tile = st.session_state.get("map_tile", "street")
     map_view = folium.Map(location=center, zoom_start=zoom, control_scale=True, tiles=None)
-    _add_map_base_layers(map_view)
-    kilns_layer = folium.FeatureGroup(name="kilns", show=True).add_to(map_view)
-    heat_layer = folium.FeatureGroup(name="\u09b9\u09bf\u099f\u09ae\u09cd\u09af\u09be\u09aa", show=False).add_to(map_view)
-    map_view.get_root().html.add_child(
-        Element(
-            """<style>
-            .leaflet-popup-content-wrapper { max-width: min(320px, 76vw); }
-            .leaflet-popup-content {
-                width: min(280px, 68vw) !important; max-height: 240px;
-                overflow-y: auto; overflow-x: hidden; overflow-wrap: anywhere;
-            }
-            .dhoa-popup { max-width: 280px; overflow-wrap: anywhere; word-break: break-word; }
-            @media (max-width: 768px) {
-                .leaflet-control-zoom a {
-                    width: 40px; height: 40px; line-height: 40px; font-size: 20px;
-                }
-                .leaflet-control-layers-toggle { width: 40px; height: 40px; }
-                .leaflet-control-layers-expanded {
-                    max-height: 42vh; overflow-y: auto; font-size: 16px;
-                }
-                .leaflet-popup-content {
-                    width: min(260px, 70vw) !important; max-height: 40vh;
-                }
-            }
-            </style>"""
-        )
-    )
+    _add_map_base_layers(map_view, with_layer_control=False)
 
-    # Populate fresh feature layers from the canonical filtered dataframe.
-    # Ensure priority_band column always exists to avoid KeyError when source
-    # parquet has no priority data columns.
+    # Guard: ensure priority_band column always exists.
     if "priority_band" not in filtered.columns:
         filtered = filtered.copy()
         filtered["priority_band"] = "Unknown / not available"
-    selected_id = st.session_state.get("selected_kiln_id")
-    heat_points: list[list[float]] = []
-    for band, color in PRIORITY_COLORS.items():
-        marker_cluster = MarkerCluster(options={"disableClusteringAtZoom": 12}).add_to(kilns_layer)
-        candidates = filtered[filtered["priority_band"].astype(str).eq(band)]
-        for _, row in candidates.iterrows():
-            latitude, longitude = float(row["lat"]), float(row["lon"])
-            marker_label = (
-                f"{_priority_label(band)} \u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0 | "
-                f"{_type_label(row.get('class'))} | {format_area_name(row)}"
-            )
-            is_selected = str(row.get("kiln_id")) == str(selected_id)
-            folium.CircleMarker(
-                location=[latitude, longitude],
-                radius=12 if is_selected else 8,
-                color="#111827" if is_selected else color,
-                fill=True,
-                fill_color=color,
-                fill_opacity=0.85,
-                weight=4 if is_selected else 2,
-                tooltip=f"\u2713 \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09bf\u09a4 \u00b7 {marker_label}" if is_selected else marker_label,
-                popup=folium.Popup(_popup_html(row), min_width=320, max_width=320),
-            ).add_to(marker_cluster)
-            if band == "High":
-                raw_weight = pd.to_numeric(pd.Series([row.get("priority")]), errors="coerce").iloc[0]
-                weight = float(raw_weight) if pd.notna(raw_weight) else 1.0
-                heat_points.append([latitude, longitude, max(0.0, weight)])
 
-    other_candidates = filtered[~filtered["priority_band"].astype(str).isin(PRIORITY_COLORS)]
-    if not other_candidates.empty:
-        other_cluster = MarkerCluster(options={"disableClusteringAtZoom": 12}).add_to(kilns_layer)
-        for _, row in other_candidates.iterrows():
-            is_selected = str(row.get("kiln_id")) == str(selected_id)
-            folium.CircleMarker(
-                location=[float(row["lat"]), float(row["lon"])],
-                radius=12 if is_selected else 8,
-                color="#111827" if is_selected else "gray",
-                fill=True,
-                fill_color="gray",
-                fill_opacity=0.85,
-                weight=4 if is_selected else 2,
-                tooltip="\u2713 \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09bf\u09a4" if is_selected else None,
-                popup=folium.Popup(_popup_html(row), min_width=320, max_width=320),
-            ).add_to(other_cluster)
-    if heat_points:
-        HeatMap(heat_points, name="heatmap", radius=15, blur=18).add_to(heat_layer)
+    selected_id = st.session_state.get("selected_kiln_id")
+    marker_cluster = MarkerCluster(options={"disableClusteringAtZoom": 12}).add_to(map_view)
+    for _, row in filtered.iterrows():
+        band = str(row.get("priority_band", ""))
+        color = PRIORITY_COLORS.get(band, DESIGN_COLORS["advisory"])
+        latitude, longitude = float(row["lat"]), float(row["lon"])
+        marker_label = (
+            f"{_priority_label(band)} \u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0 | "
+            f"{_type_label(row.get('class'))} | {format_area_name(row)}"
+        )
+        is_selected = str(row.get("kiln_id")) == str(selected_id)
+        folium.CircleMarker(
+            location=[latitude, longitude],
+            radius=12 if is_selected else 8,
+            color="#111827" if is_selected else color,
+            fill=True,
+            fill_color=color,
+            fill_opacity=0.85,
+            weight=4 if is_selected else 2,
+            tooltip=f"\u2713 \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09bf\u09a4 \u00b7 {marker_label}" if is_selected else marker_label,
+            popup=folium.Popup(_popup_html(row), min_width=320, max_width=320),
+        ).add_to(marker_cluster)
     return map_view
 
 def render_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> None:
@@ -1568,14 +1541,24 @@ def render_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> None:
             st.caption("\u09aa\u09bf\u09a1\u09bf\u098f\u09ab পেতে তালিকা বা মানচিত্র থেকে একটি প্রার্থী নির্বাচন করুন।")
         else:
             _render_report_download(selected_for_report.iloc[0])
-        with st.container(key="dhoa_map_frame"):
-            map_result = st_folium(
-                build_map(gdf, filters, filtered=visible),
-                key=f"main_map_{st.session_state.get('filter_district', '')}_{st.session_state.get('filter_upazila', '')}",
-                height=580,
-                width="100%",
-                returned_objects=["last_object_clicked"],
-            )
+        try:
+            _m = build_map(gdf, filters, filtered=visible)
+        except Exception as _exc:
+            import traceback as _tb
+            st.error(f"build_map failed: {_exc}")
+            st.code(_tb.format_exc())
+            _m = None
+        if _m is not None:
+            with st.container(key="dhoa_map_frame"):
+                map_result = st_folium(
+                    _m,
+                    key=f"main_map_{st.session_state.get('filter_district', '')}_{st.session_state.get('filter_upazila', '')}",
+                    height=580,
+                    width="100%",
+                    returned_objects=["last_object_clicked"],
+                )
+        else:
+            map_result = {}
     clicked = map_result.get("last_object_clicked") if isinstance(map_result, dict) else None
     click_signature = (
         round(float(clicked.get("lat")), 6), round(float(clicked.get("lng")), 6)
@@ -1688,9 +1671,11 @@ def main() -> None:
         new_count = int(new_status.eq("New candidate (2025-26)").sum())
         st.markdown(f"**{high_count:,} {METRIC_LABELS['high_priority_kilns']} | {flagged_count:,} {METRIC_LABELS['rule_signals']} | {new_count:,} {METRIC_LABELS['new_candidates']}**")
         render_footer()
-    except Exception:
+    except Exception as _exc:
+        import traceback as _tb
         logging.getLogger(__name__).exception("Dashboard view rendering failed")
-        st.error("\u274c \u098f\u0987 \u09aa\u09be\u09a4\u09be\u099f\u09bf \u09a6\u09c7\u0996\u09be\u09a8\u09cb \u09af\u09be\u099a\u09cd\u099b\u09c7 \u09a8\u09be\u0964 \u09aa\u09c3\u09b7\u09cd\u09a0\u09be\u099f\u09bf \u09b0\u09bf\u09ab\u09cd\u09b0\u09c7\u09b6 \u0995\u09b0\u09c1\u09a8\u0964")
+        st.error(f"\u274c \u09b0\u09c7\u09a8\u09cd\u09a1\u09be\u09b0 \u098f\u09b0\u09b0: {_exc}")
+        st.code(_tb.format_exc())
 
 
 if __name__ == "__main__":
