@@ -1237,10 +1237,8 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
     st.session_state["dhoa_active_view"] = mode
     filters: dict[str, Any] = {}
     with st.sidebar:
-        st.markdown(f"## {DASHBOARD_TITLE}")
-        st.divider()
         if mode == "inspector":
-            st.markdown("### \u0985\u09a8\u09c1\u09b8\u09a8\u09cd\u09a7\u09be\u09a8")
+            st.markdown(f"### {_ui_text('\u0985\u09a8\u09c1\u09b8\u09a8\u09cd\u09a7\u09be\u09a8', 'Search')}")
             district_values = (
                 sorted(gdf["district"].dropna().astype(str).unique().tolist())
                 if "district" in gdf else []
@@ -1321,14 +1319,13 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
                 width="stretch",
                 key="sidebar_export_list",
             )
-        map_tile_options = {
-            "street": "\u09b0\u09be\u09b8\u09cd\u09a4\u09be\u09b0 \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0",
-            "satellite": "\u09b8\u09cd\u09af\u09be\u099f\u09c7\u09b2\u09be\u0987\u099f \u099b\u09ac\u09bf",
-        }
         filters["map_tile"] = st.selectbox(
             _ui_text("\u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0\u09c7\u09b0 \u09a7\u09b0\u09a8", "Map style"),
-            list(map_tile_options),
-            format_func=lambda value: _ui_text(map_tile_options[value], "Street map" if value == "street" else "Satellite imagery"),
+            ["street", "satellite"],
+            format_func=lambda value: _ui_text(
+                "\u09b0\u09be\u09b8\u09cd\u09a4\u09be\u09b0 \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0" if value == "street" else "\u09b8\u09cd\u09af\u09be\u099f\u09c7\u09b2\u09be\u0987\u099f \u099c\u09ac\u09bf",
+                "Street map" if value == "street" else "Satellite imagery",
+            ),
             key="map_tile",
         )
         st.divider()
@@ -1380,7 +1377,7 @@ def _render_report_download(row: pd.Series) -> None:
         safe_id = "".join(char if char.isalnum() or char in "-_" else "_" for char in candidate_id)
         filename = f"dhoa_report_{safe_id}_{datetime.now(UTC):%Y%m%d}.pdf"
         st.download_button(
-            "📄 নির্বাচিত প্রার্থীর \u09aa\u09bf\u09a1\u09bf\u098f\u09ab ডাউনলোড",
+            _ui_text("📄 নির্বাচিত প্রার্থীর \u09aa\u09bf\u09a1\u09bf\u098f\u09ab ডাউনলোড", "📄 Download selected kiln PDF"),
             report,
             filename,
             "application/pdf",
