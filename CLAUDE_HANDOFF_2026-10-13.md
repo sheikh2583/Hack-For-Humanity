@@ -4,32 +4,32 @@ Use this note with `kilnwatch_bd_share.zip` when continuing Dhoa dashboard and h
 
 ## Current status
 
-The user reported that the map UI was difficult to read, the markers and radius were unclear, and the community report was not easy to find. The local Community View has since been updated:
+The Streamlit Community Cloud logs identify the deployed app as:
 
-- A user-adjustable search radius is available from 250 m to 5,000 m in 250 m steps, defaulting to 1,000 m.
-- Candidate count, result table, map circle, and community PDF use the selected radius.
-- The map shows a blue search pin and a blue radius outline. Red, orange, and green candidate markers indicate high, medium, and low priority. The help popover now describes these markers and radius behavior.
-- The community report download is shown with the results above the table. The sidebar's duplicate disabled report button was removed.
-- Place-name search takes precedence over coordinate inputs; the form now explains this.
-- PDF generation errors are written to the application log.
-- `docs/DASHBOARD_GUIDE.md` documents the adjustable radius and community report contents.
+- URL: `https://hack-for-humanity-dhtqzvofebzbjrsyunlnmz.streamlit.app/`
+- Repository slug: `hack-for-humanity`
+- Branch: `main`
+- Entrypoint: `app/streamlit_app.py`
 
-The UI and documentation changes are local and uncommitted. Python syntax parsing and `git diff --check` passed. No pytest suite or browser verification was run. Do not claim the report download or rendered UI has been confirmed until manually checked in the app.
+The logs show Python 3.14.8 and Streamlit 1.66.0. A `KeyError: 'dashboard_filters'` appeared once during an earlier update/import; later log entries say the app updated. The repeated current crash is `AttributeError: 'NoneType' object has no attribute 'info'` at the loading placeholder line, caused by using `with st.empty() as loading_msg` (the context manager does not bind the placeholder). The local code now uses `loading_msg = st.empty()` and then `loading_msg.info(...)`; it clears the placeholder after each view renders and on error paths.
+
+The local code change is uncommitted. Python syntax parsing and `git diff --check` passed after the fix. No tests or browser verification have been run. The corrected code has not been pushed or confirmed on the hosted app.
+
+Other recent UI work already present in the repo includes an adjustable community radius, a marker legend, a more prominent community report download, updated help text, legal reference expander, revised KPI labels, and coordinate input examples. Keep those changes intact.
 
 ## Repository state
 
 - Workspace: `X:\AIUB Hackathon` (Windows PowerShell).
 - Branch: `main`, tracking `origin/main`.
-- HEAD and `origin/main` were aligned at inspection: `4da36dca5492cd4d5799d636ce14d0f6a6b67532` (`finally`, 2026-10-18).
-- Current modified files: `app/streamlit_app.py`, `docs/DASHBOARD_GUIDE.md`.
-- The project has a configured Git remote. Confirm the current remote before any push or deployment work.
+- HEAD and `origin/main` were aligned at inspection: `9dab633af70a48f423fcb3b4930a60454d7d8cc0` (`anything goes`, 2026-10-18).
+- Current local modifications: `app/streamlit_app.py` (loading placeholder fix) and this handoff note.
 - `data/processed/kilns_prioritised.parquet` is tracked. The 118.96 MB `data/raw/boundaries/geoBoundaries_BGD_ADM3.geojson` is ignored and untracked to avoid GitHub's 100 MB file limit.
 
 ## Hosting diagnosis
 
-The hosted URL and actual hosting provider have not been supplied. `docs/DEPLOYMENT.md` documents Streamlit Community Cloud as the recommended route and names `app/streamlit_app.py` as the entrypoint, but this does not prove which host, repository, branch, or commit the user's deployed app uses.
+The log confirms Streamlit Community Cloud is running the repository slug `hack-for-humanity`, branch `main`, with entrypoint `app/streamlit_app.py`. The log does not expose the deployed commit SHA, so compare the deployment revision in the Cloud app settings with GitHub `main` before claiming a deployment is current. The app reads `data/processed/kilns_prioritised.parquet`.
 
-Before diagnosing hosted staleness, obtain or inspect the deployed URL and identify its provider. Compare its repository, branch, entrypoint, deployed commit, build/runtime logs, and data source with the local project. Do not claim the host is fixed without checking the deployed URL and revision. Do not modify or redeploy an external app until the target is known. For Streamlit Community Cloud, check the app settings and latest deployment logs; expected entrypoint is `app/streamlit_app.py`, with the repository root as working directory. The app reads `data/processed/kilns_prioritised.parquet`.
+After the local loading placeholder fix is reviewed, push it only if the user asks. Then confirm that Streamlit Cloud rebuilds and the hosted URL loads without the `NoneType.info` error. The one-off `dashboard_filters` KeyError is not explained by the excerpt; if it recurs, inspect the full traceback and deployment file tree. The log also notes nonfatal warnings about a missing `app/static` folder and multiple dependency manifests (`requirements.txt` and `pyproject.toml`); Streamlit used `requirements.txt`.
 
 ## Project instructions
 
@@ -44,9 +44,9 @@ Read `AGENTS.md` before editing. Key requirements:
 
 ## Next actions
 
-1. Ask the user to check the Community View help popover, radius slider, map legend, and community report download in the browser.
-2. If the report still fails, inspect the application log entry added at the PDF generation boundary and fix the concrete failure.
-3. Continue the hosting diagnosis only after the hosted URL/provider is known. Verify deployment revision before reporting status.
-4. Preserve the current local changes unless the user asks to commit or discard them. No commit, push, or redeploy has been requested.
+1. Review the loading placeholder fix in `app/streamlit_app.py`; the hosted logs show it was the repeated crash.
+2. Run syntax parsing and `git diff --check`; do not run tests unless requested.
+3. The hosted URL and target are now known, but the deployed commit SHA remains unverified. Do not push or redeploy unless the user asks.
+4. After a later authorized push, confirm the Cloud rebuild and manually check the hosted UI, including both views and the community report download.
 
 The share ZIP omits credentials, model weights, datasets, rasters, and GeoParquet files. Deployment account settings and runtime logs may require the user's access.

@@ -1275,8 +1275,8 @@ def main() -> None:
     Output schema: one Inspector or Community dashboard view.
     """
     st.markdown(responsive_css(), unsafe_allow_html=True)
-    with st.empty() as loading_msg:
-        loading_msg.info("\u09aa\u09c3\u09b7\u09cd\u09a0\u09be \u09b2\u09cb\u09a1 \u09b9\u099a\u09cd\u099b\u09c7...")
+    loading_msg = st.empty()
+    loading_msg.info("\u09aa\u09c3\u09b7\u09cd\u09a0\u09be \u09b2\u09cb\u09a1 \u09b9\u099a\u09cd\u099b\u09c7...")
     try:
         load_config()
         gdf = load_data()
