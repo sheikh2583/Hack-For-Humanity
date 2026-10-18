@@ -453,7 +453,11 @@ def _add_map_base_layers(map_view: folium.Map) -> None:
         control=True,
         show=selected_tile == "satellite",
     ).add_to(map_view)
-    folium.LayerControl(collapsed=False).add_to(map_view)
+    # Use a unique name so Folium generates a unique JS variable name on each
+    # render cycle; without this, repeated renders redeclare the same
+    # `layer_control_div_2` const and raise a JS SyntaxError in the iframe.
+    import uuid as _uuid
+    folium.LayerControl(collapsed=False, name=f"lc_{_uuid.uuid4().hex[:8]}").add_to(map_view)
 
 
 def get_filtered_gdf(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
