@@ -108,6 +108,18 @@ METRIC_LABELS = {
     "new_candidates": "\u09a8\u09a4\u09c1\u09a8 \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0",
     "rule_signals": "\u09a8\u09bf\u09af\u09bc\u09ae \u09b8\u0982\u0995\u09c7\u09a4",
 }
+
+
+def _english_ui() -> bool:
+    """Return whether the visitor selected the English interface."""
+    return bool(st.session_state.get("dhoa_english_ui", False))
+
+
+def _ui_text(bangla: str, english: str) -> str:
+    """Choose a display label from the persistent language preference."""
+    return english if _english_ui() else bangla
+
+
 DISTRICT_CENTERS = {
     "All Districts": (23.80, 90.30),
     "Chapainawabganj": (24.60, 88.35),
@@ -311,13 +323,27 @@ def dashboard_kilns_file(data_dir: Path = DATA_DIR) -> Path | None:
 
 
 def _type_label(value: object) -> str:
-    """Return a concise Bengali label for the kiln type."""
-    return "\u09ab\u09bf\u0995\u09cd\u09b8\u09a1 \u099a\u09bf\u09ae\u09a8\u09bf \u0987\u099f\u09ad\u09be\u099f\u09be" if str(value) == "FCBK" else "\u099c\u09bf\u0997\u099c\u09cd\u09af\u09be\u0997 \u0987\u099f\u09ad\u09be\u099f\u09be"
+    """Return a concise label for the kiln type in the selected language."""
+    if str(value) == "FCBK":
+        return _ui_text("\u09ab\u09bf\u0995\u09cd\u09b8\u09a1 \u099a\u09bf\u09ae\u09a8\u09bf \u0987\u099f\u09ad\u09be\u099f\u09be", "Fixed chimney kiln")
+    return _ui_text("\u099c\u09bf\u0997\u099c\u09cd\u09af\u09be\u0997 \u0987\u099f\u09ad\u09be\u099f\u09be", "Zigzag kiln")
 
 
 def _priority_label(value: object) -> str:
-    """Translate an internal priority band for display."""
-    return {"High": "উচ্চ", "Medium": "মাঝারি", "Low": "নিম্ন"}.get(str(value), "নির্ধারিত নয়")
+    """Translate an internal or Bengali priority value for display."""
+    labels = {
+        "High": ("\u0989\u099a\u09cd\u099a", "High"),
+        "\u0989\u099a\u09cd\u099a": ("\u0989\u099a\u09cd\u099a", "High"),
+        "Medium": ("\u09ae\u09be\u099d\u09be\u09b0\u09bf", "Medium"),
+        "\u09ae\u09be\u099d\u09be\u09b0\u09bf": ("\u09ae\u09be\u099d\u09be\u09b0\u09bf", "Medium"),
+        "Low": ("\u09a8\u09bf\u09ae\u09cd\u09a8", "Low"),
+        "\u09a8\u09bf\u09ae\u09cd\u09a8": ("\u09a8\u09bf\u09ae\u09cd\u09a8", "Low"),
+    }
+    bangla, english = labels.get(
+        str(value),
+        ("\u09a8\u09bf\u09b0\u09cd\u09a7\u09be\u09b0\u09bf\u09a4 \u09a8\u09af\u09bc", "Unclassified"),
+    )
+    return _ui_text(bangla, english)
 
 
 def _district_label(value: object) -> str:
@@ -414,7 +440,7 @@ def _add_map_base_layers(map_view: folium.Map) -> None:
     selected_tile = st.session_state.get("map_tile", "street")
     folium.TileLayer(
         "OpenStreetMap",
-        name="\u09b0\u09be\u09b8\u09cd\u09a4\u09be\u09b0 \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0",
+        name=_ui_text("\u09b0\u09be\u09b8\u09cd\u09a4\u09be\u09b0 \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0", "Street map"),
         overlay=False,
         control=True,
         show=selected_tile == "street",
@@ -422,7 +448,7 @@ def _add_map_base_layers(map_view: folium.Map) -> None:
     folium.TileLayer(
         tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
         attr="Tiles \u00a9 Esri",
-        name="\u09b8\u09cd\u09af\u09be\u099f\u09c7\u09b2\u09be\u0987\u099f \u099b\u09ac\u09bf",
+        name=_ui_text("\u09b8\u09cd\u09af\u09be\u099f\u09c7\u09b2\u09be\u0987\u099f \u099b\u09ac\u09bf", "Satellite imagery"),
         overlay=False,
         control=True,
         show=selected_tile == "satellite",
@@ -568,16 +594,17 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
     priority, and optional OSM place fields. Output schema: a
     community search form, adjustable-radius result summary, map, and result table.
     """
-    st.markdown("<div class='dhoa-section-title'>\u0986\u09aa\u09a8\u09be\u09b0 \u098f\u09b2\u09be\u0995\u09be\u09b0 \u0995\u09be\u099b\u09be\u0995\u09be\u099b\u09bf \u0996\u09c1\u0981\u099c\u09c1\u09a8</div>", unsafe_allow_html=True)
-    with st.container(border=True), st.form("community_search_form", border=False):
-            st.markdown("🔊 ব্যবহার নির্দেশিকা শুনুন")
-            community_guide = _ROOT / "app" / "static" / "community_guide.mp3"
-            if community_guide.is_file():
-                st.audio(str(community_guide))
-            else:
-                st.info("🔊 অডিও নির্দেশিকা শীঘ্রই আসছে")
-            name = st.text_input('\u09a8\u09be\u09ae \u09b2\u09bf\u0996\u09c1\u09a8', placeholder='\u09af\u09c7\u09ae\u09a8: \u0986\u09b6\u09c1\u09b2\u09bf')
-            submitted = st.form_submit_button('\U0001f50d \u0985\u09a8\u09c1\u09b8\u09a8\u09cd\u09a7\u09be\u09a8 \u0995\u09b0\u09c1\u09a8', width="stretch")
+    st.markdown(f"<div class='dhoa-section-title'>{_ui_text('\u0986\u09aa\u09a8\u09be\u09b0 \u098f\u09b2\u09be\u0995\u09be\u09b0 \u0995\u09be\u099b\u09be\u099b\u09bf \u0996\u09c1\u0981\u099c\u09c1\u09a8', 'Find kilns near you')}</div>", unsafe_allow_html=True)
+    with st.container(border=True):
+        st.markdown(_ui_text("\U0001f50a \u09ac\u09cd\u09af\u09ac\u09b9\u09be\u09b0 \u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6\u09bf\u0995\u09be \u09b6\u09c1\u09a8\u09c1\u09a8", "\U0001f50a Listen to the guide"))
+        community_guide = _ROOT / "app" / "static" / "community_guide.mp3"
+        if community_guide.is_file():
+            st.audio(str(community_guide))
+        else:
+            st.info(_ui_text("\U0001f50a \u0985\u09a1\u09bf\u0993 \u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6\u09bf\u0995\u09be \u09b6\u09c0\u0998\u09cd\u09b0\u0987 \u0986\u09b8\u099b\u09c7", "\U0001f50a Audio guide coming soon"))
+        with st.form("community_search_form", border=False):
+            name = st.text_input(_ui_text("\u09a8\u09be\u09ae \u09b2\u09bf\u0996\u09c1\u09a8", "Search location"), placeholder=_ui_text("\u09af\u09c7\u09ae\u09a8: \u0986\u09b6\u09c1\u09b2\u09bf", "e.g. Ashulia"))
+            submitted = st.form_submit_button(_ui_text("\U0001f50d \u0985\u09a8\u09c1\u09b8\u09a8\u09cd\u09a7\u09be\u09a8 \u0995\u09b0\u09c1\u09a8", "\U0001f50d Search"), width="stretch")
     if submitted:
         st.session_state.pop("community_search", None)
         st.session_state.pop("community_report", None)
@@ -612,7 +639,7 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
 
     result_column, map_column = st.columns([2, 3], gap="medium")
     with result_column:
-        st.subheader("\u0995\u09be\u099b\u09be\u0995\u09be\u099b\u09bf\u09b0 \u0987\u099f\u09ad\u09be\u099f\u09be\u09b0 \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0")
+        st.subheader(_ui_text("\u0995\u09be\u099b\u09be\u0995\u09be\u099b\u09bf\u09b0 \u0987\u099f\u09ad\u09be\u099f\u09be\u09b0 \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0", "Nearby kiln candidates"))
         with st.container(border=True):
             st.metric(f"{radius_m / 1000:g} \u0995\u09bf\u09ae\u09bf \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7\u09c7\u09b0 \u09ae\u09a7\u09cd\u09af\u09c7 \u09ad\u09be\u099f\u09be", f"{len(nearby):,}")
             try:
@@ -627,21 +654,26 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
                 logging.exception("Community PDF generation failed")
                 st.error("\u09aa\u09cd\u09b0\u09a4\u09bf\u09ac\u09c7\u09a6\u09a8 \u09a4\u09c8\u09b0\u09bf \u0995\u09b0\u09be \u09af\u09be\u09af\u09bc\u09a8\u09bf\u0964 \u0986\u09ac\u09be\u09b0 \u099a\u09c7\u09b7\u09cd\u099f\u09be \u0995\u09b0\u09c1\u09a8\u0964")
             if nearby.empty:
-                st.success(f"{radius_m / 1000:g} \u0995\u09bf\u09ae\u09bf \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7\u09c7 \u0995\u09cb\u09a8\u09cb \u09ad\u09be\u099f\u09be \u09aa\u09be\u0993\u09af\u09bc\u09be \u09af\u09be\u09af\u09bc\u09a8\u09bf\u0964")
+                st.success(_ui_text(f"{radius_m / 1000:g} \u0995\u09bf\u09ae\u09bf \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7\u09c7 \u0995\u09cb\u09a8\u09cb \u09ad\u09be\u099f\u09be \u09aa\u09be\u0993\u09af\u09bc\u09be \u09af\u09be\u09af\u09bc\u09a8\u09bf\u0964", f"No kilns found within {radius_m / 1000:g} km."))
             else:
+                distance_header = _ui_text("\u09a6\u09c2\u09b0\u09a4\u09cd\u09ac (\u09ae\u09bf\u099f\u09be\u09b0)", "Distance (m)")
+                area_header = _ui_text("\u098f\u09b2\u09be\u0995\u09be", "Area")
+                type_header = _ui_text("\u09ad\u09be\u099f\u09be\u09b0 \u09a7\u09b0\u09a8", "Kiln type")
+                priority_header = _ui_text("\u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0", "Priority")
+                directions_header = _ui_text("\u09a6\u09bf\u0995\u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6\u09a8\u09be", "Directions")
                 table = pd.DataFrame({
-                    "\u09a6\u09c2\u09b0\u09a4\u09cd\u09ac (\u09ae\u09bf\u099f\u09be\u09b0)": nearby["distance_m"].round(0).astype("Int64").astype("string").fillna("\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987").to_numpy(),
-                    "\u098f\u09b2\u09be\u0995\u09be": [format_area_name(row) for _, row in nearby.iterrows()],
-                    "\u09ad\u09be\u099f\u09be\u09b0 \u09a7\u09b0\u09a8": [_type_label(row.get("class")) for _, row in nearby.iterrows()],
-                    "\u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0": [_priority_label(row.get("priority_band")) for _, row in nearby.iterrows()],
-                    "\u09a6\u09bf\u0995\u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6\u09a8\u09be": nearby["directions_url"].tolist(),
+                    distance_header: nearby["distance_m"].round(0).astype("Int64").astype("string").fillna("\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987").to_numpy(),
+                    area_header: [format_area_name(row) for _, row in nearby.iterrows()],
+                    type_header: [_type_label(row.get("class")) for _, row in nearby.iterrows()],
+                    priority_header: [_priority_label(row.get("priority_band")) for _, row in nearby.iterrows()],
+                    directions_header: nearby["directions_url"].tolist(),
                 })
                 st.dataframe(
                     table, hide_index=True, width="stretch",
-                    column_config={'দিকনির্দেশনা': st.column_config.LinkColumn(display_text='দিকনির্দেশনা পান')},
+                    column_config={directions_header: st.column_config.LinkColumn(display_text=_ui_text("\u09a6\u09bf\u0995\u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6\u09a8\u09be \u09aa\u09be\u09a8", "Get directions"))},
                 )
             st.download_button(
-                'কমিউনিটি তালিকা ডাউনলোড করুন',
+                _ui_text("\u0995\u09ae\u09bf\u0989\u09a8\u09bf\u099f\u09bf \u09a4\u09be\u09b2\u09bf\u0995\u09be \u09a1\u09be\u0989\u09a8\u09b2\u09cb\u09a1 \u0995\u09b0\u09c1\u09a8", "Download community CSV"),
                 make_download_csv(nearby, COMMUNITY_CSV_COLUMNS),
                 "dhoa_community_candidates.csv",
                 "text/csv",
@@ -973,29 +1005,26 @@ def _kiln_list_frame(gdf: gpd.GeoDataFrame) -> pd.DataFrame:
         "government_forest": "\u09b8\u09b0\u0995\u09be\u09b0\u09bf \u09ac\u09a8",
         "water": "\u099c\u09b2\u09be\u09ad\u09c2\u09ae\u09bf",
     }
-    select_label = "\u09ad\u09be\u099f\u09be\u099f\u09bf \u09a6\u09c7\u0996\u09c1\u09a8"
-    location_label = "\u098f\u09b2\u09be\u0995\u09be"
-    priority_label = "\u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0"
+    select_label = _ui_text("\u09ad\u09be\u099f\u09be\u099f\u09bf \u09a6\u09c7\u0996\u09c1\u09a8", "View kiln")
+    location_label = _ui_text("\u098f\u09b2\u09be\u0995\u09be", "Area")
+    priority_label = _ui_text("\u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0", "Priority")
     columns = [select_label, location_label, priority_label]
     columns.extend(
-        f"{feature_labels.get(str(rule.get('feature')), str(rule.get('feature')))} \u09a5\u09c7\u0995\u09c7 \u09a6\u09c2\u09b0\u09a4\u09cd\u09ac"
+        (
+            f"{feature_labels.get(str(rule.get('feature')), str(rule.get('feature')))} \u09a5\u09c7\u0995\u09c7 \u09a6\u09c2\u09b0\u09a4\u09cd\u09ac"
+            if not _english_ui()
+            else f"Distance from {str(rule.get('feature')).replace('_', ' ')}"
+        )
         for rule in rules
     )
-    icons = {
-        "High": "\U0001f534 \u0989\u099a\u09cd\u099a",
-        "Medium": "\U0001f7e0 \u09ae\u09be\u099d\u09be\u09b0\u09bf",
-        "Low": "\U0001f7e2 \u09a8\u09bf\u09ae\u09cd\u09a8",
-    }
+    icons = {"High": "\U0001f534", "Medium": "\U0001f7e0", "Low": "\U0001f7e2"}
     records: list[dict[str, object]] = []
     for _, row in gdf.iterrows():
         location = f"\U0001f4cd {format_area_name(row)}"
         record: dict[str, object] = {
             select_label: select_label,
             location_label: location,
-            priority_label: icons.get(
-                str(row.get("priority_band", "")),
-                _priority_label(row.get("priority_band")),
-            ),
+            priority_label: f"{icons.get(str(row.get('priority_band', '')), '')} {_priority_label(row.get('priority_band'))}".strip(),
         }
         for rule, column in zip(rules, columns[3:], strict=True):
             record[column] = _format_distance_cell(row, rule)
@@ -1054,24 +1083,48 @@ def _flagged_count(frame: pd.DataFrame, rules: Mapping[str, Any]) -> int:
 
 def render_header(gdf: gpd.GeoDataFrame) -> str:
     """Render the Dhoa header, mode navigation, and candidate summary metrics."""
-    identity, _ = st.columns([5, 2], gap="small", vertical_alignment="center")
+    identity, language_control = st.columns([5, 2], gap="small", vertical_alignment="center")
     with identity:
         st.markdown(f"<h1 class='dhoa-brand-title'>{html.escape(DASHBOARD_TITLE)}</h1>", unsafe_allow_html=True)
         loaded = dashboard_kilns_file()
-        subtitle = "\u09ac\u09be\u0982\u09b2\u09be\u09a6\u09c7\u09b6\u09c7\u09b0 \u0987\u099f\u09ad\u09be\u099f\u09be \u09aa\u09b0\u09cd\u09af\u09ac\u09c7\u0995\u09cd\u09b7\u09a3 \u09a1\u09cd\u09af\u09be\u09b6\u09ac\u09cb\u09b0\u09cd\u09a1"
+        subtitle = _ui_text(
+            "\u09ac\u09be\u0982\u09b2\u09be\u09a6\u09c7\u09b6\u09c7\u09b0 \u0987\u099f\u09ad\u09be\u099f\u09be \u09aa\u09b0\u09cd\u09af\u09ac\u09c7\u0995\u09cd\u09b7\u09a3 \u09a1\u09cd\u09af\u09be\u09b6\u09ac\u09cb\u09b0\u09cd\u09a1",
+            "Bangladesh Brick Kiln Monitoring Dashboard",
+        )
         if loaded is not None:
             updated = datetime.fromtimestamp(loaded.stat().st_mtime, tz=UTC).date().isoformat()
             subtitle += f" \u00b7 \u09a4\u09a5\u09cd\u09af \u09b9\u09be\u09b2\u09a8\u09be\u0997\u09be\u09a6 {updated}"
         st.caption(subtitle)
+    with language_control:
+        st.toggle("English / \u09ac\u09be\u0982\u09b2\u09be", key="dhoa_english_ui")
+    view_options = ["inspector", "community"]
+    if st.session_state.get("dhoa_view_mode") not in view_options:
+        st.session_state["dhoa_view_mode"] = "inspector"
     mode = st.segmented_control(
-        "\u09ad\u09bf\u0989 \u09ac\u09be\u099b\u09be\u0987 \u0995\u09b0\u09c1\u09a8",
-        ["\U0001f3db \u09aa\u09b0\u09bf\u09a6\u09b0\u09cd\u09b6\u0995 \u09ad\u09bf\u0989", "\U0001f3d8 \u0995\u09ae\u09bf\u0989\u09a8\u09bf\u099f\u09bf \u09ad\u09bf\u0989"],
-        default="\U0001f3db \u09aa\u09b0\u09bf\u09a6\u09b0\u09cd\u09b6\u0995 \u09ad\u09bf\u0989",
+        _ui_text("\u09ad\u09bf\u0989 \u09ac\u09be\u099b\u09be\u0987 \u0995\u09b0\u09c1\u09a8", "Choose view"),
+        view_options,
+        format_func=lambda value: (
+            "\U0001f3db Inspector" if value == "inspector" and _english_ui()
+            else "\U0001f3d8 Community" if _english_ui()
+            else "\U0001f3db \u09aa\u09b0\u09bf\u09a6\u09b0\u09cd\u09b6\u0995 \u09ad\u09bf\u0989" if value == "inspector"
+            else "\U0001f3d8 \u0995\u09ae\u09bf\u0989\u09a8\u09bf\u099f\u09bf \u09ad\u09bf\u0989"
+        ),
         key="dhoa_view_mode", width="stretch",
     )
-    is_community = mode == "\U0001f3d8 \u0995\u09ae\u09bf\u0989\u09a8\u09bf\u099f\u09bf \u09ad\u09bf\u0989"
-    with st.popover("\u2754 \u0995\u09c0\u09ad\u09be\u09ac\u09c7 \u09ac\u09cd\u09af\u09ac\u09b9\u09be\u09b0 \u0995\u09b0\u09ac\u09c7\u09a8?", icon=":material/help:", width="stretch"):
-        if is_community:
+    is_community = mode == "community"
+    with st.popover(_ui_text("\u2754 \u0995\u09c0\u09ad\u09be\u09ac\u09c7 \u09ac\u09cd\u09af\u09ac\u09b9\u09be\u09b0 \u0995\u09b0\u09ac\u09c7\u09a8?", "\u2754 How to use"), icon=":material/help:", width="stretch"):
+        if _english_ui():
+            st.markdown(
+                "**Community view**\n\n"
+                "1. Search for a school, hospital, or area, then submit the search.\n"
+                "2. Adjust the search radius to update the results, list, and map.\n"
+                "3. Select a kiln to review its details and download the report.\n\n"
+                "**Inspector view**\n\n"
+                "1. Choose a district, then an upazila, and optionally adjust the radius.\n"
+                "2. Narrow the candidates by priority and kiln type.\n"
+                "3. Select a list row or map marker to review the kiln."
+            )
+        elif is_community:
             st.markdown("""
 **\u0995\u09ae\u09bf\u0989\u09a8\u09bf\u099f\u09bf \u09ad\u09bf\u0989 \u09ac\u09cd\u09af\u09ac\u09b9\u09be\u09b0**
 
@@ -1103,10 +1156,10 @@ def render_header(gdf: gpd.GeoDataFrame) -> str:
     high = int(gdf["priority_band"].eq("High").sum())
     flagged = _flagged_count(gdf, load_config()["rules"])
     items = (
-        (f"{len(gdf):,}", METRIC_LABELS["total_kilns"]),
-        (f"{high:,}", METRIC_LABELS["high_priority_kilns"]),
-        (f"{flagged:,}", METRIC_LABELS["rule_violations"]),
-        (datetime.now(UTC).date().isoformat(), METRIC_LABELS["last_updated"]),
+        (f"{len(gdf):,}", _ui_text(METRIC_LABELS["total_kilns"], "Total kilns")),
+        (f"{high:,}", _ui_text(METRIC_LABELS["high_priority_kilns"], "Environmentally hazardous kilns")),
+        (f"{flagged:,}", _ui_text(METRIC_LABELS["rule_violations"], "Rule violations")),
+        (datetime.now(UTC).date().isoformat(), _ui_text(METRIC_LABELS["last_updated"], "Last updated")),
     )
     metrics = "".join(f"<div class='dhoa-metric'><strong>{value}</strong><span>{label}</span></div>" for value, label in items)
     st.markdown(f"<div class='dhoa-metrics'>{metrics}</div>", unsafe_allow_html=True)
@@ -1194,14 +1247,16 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
             )
             district_options = ["\u09b8\u09ac \u099c\u09c7\u09b2\u09be", *district_values]
             filters["district"] = st.selectbox(
-                "\u099c\u09c7\u09b2\u09be",
+                _ui_text("\u099c\u09c7\u09b2\u09be", "District"),
                 district_options,
+                format_func=lambda value: _ui_text("\u09b8\u09ac \u099c\u09c7\u09b2\u09be", "All districts") if value == "\u09b8\u09ac \u099c\u09c7\u09b2\u09be" else value,
                 key="filter_district",
                 on_change=_reset_upazila_filter,
             )
 
-            upazila_source = gdf
-            if filters["district"] != "\u09b8\u09ac \u099c\u09c7\u09b2\u09be" and "district" in upazila_source:
+            district_selected = filters["district"] != "\u09b8\u09ac \u099c\u09c7\u09b2\u09be"
+            upazila_source = gdf if district_selected else gdf.iloc[0:0]
+            if district_selected and "district" in upazila_source:
                 upazila_source = upazila_source[
                     upazila_source["district"].astype(str).eq(str(filters["district"]))
                 ]
@@ -1213,13 +1268,15 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
             if st.session_state.get("filter_upazila") not in upazila_options:
                 st.session_state["filter_upazila"] = "\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be"
             filters["upazila"] = st.selectbox(
-                "\u098f\u09b2\u09be\u0995\u09be (\u0989\u09aa\u099c\u09c7\u09b2\u09be)",
+                _ui_text("\u098f\u09b2\u09be\u0995\u09be (\u0989\u09aa\u099c\u09c7\u09b2\u09be)", "Area (Upazila)"),
                 upazila_options,
+                format_func=lambda value: _ui_text("\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be", "All areas") if value == "\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be" else value,
                 key="filter_upazila",
+                disabled=not district_selected,
             )
             has_selected_upazila = filters["upazila"] != "\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be"
             filters["radius_m"] = st.slider(
-                "\u0985\u09a8\u09c1\u09b8\u09a8\u09cd\u09a7\u09be\u09a8 \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7",
+                _ui_text("\u0985\u09a8\u09c1\u09b8\u09a8\u09cd\u09a7\u09be\u09a8 \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7", "Search radius"),
                 min_value=250,
                 max_value=5000,
                 value=1000,
@@ -1229,15 +1286,16 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
                 help=(
                     None
                     if has_selected_upazila
-                    else "\u0989\u09aa\u099c\u09c7\u09b2\u09be \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09a8 \u0995\u09b0\u09b2\u09c7 \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7 \u09b8\u0995\u09cd\u09b0\u09bf\u09af\u09bc \u09b9\u09ac\u09c7"
+                    else _ui_text("\u0989\u09aa\u099c\u09c7\u09b2\u09be \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09a8 \u0995\u09b0\u09b2\u09c7 \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7 \u09b8\u0995\u09cd\u09b0\u09bf\u09af\u09bc \u09b9\u09ac\u09c7", "Select an upazila to enable the radius")
                 ),
             )
-            st.markdown("### \u09ab\u09bf\u09b2\u09cd\u099f\u09be\u09b0")
+            st.markdown(f"### {_ui_text('\u09ab\u09bf\u09b2\u09cd\u099f\u09be\u09b0', 'Filters')}")
             priority_options = ["\u0989\u099a\u09cd\u099a", "\u09ae\u09be\u099d\u09be\u09b0\u09bf", "\u09a8\u09bf\u09ae\u09cd\u09a8"]
             filters["priorities"] = st.multiselect(
-                "\u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0",
+                _ui_text("\u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0", "Priority"),
                 priority_options,
                 default=priority_options,
+                format_func=_priority_label,
                 key="filter_priority",
             )
             type_column = "class" if "class" in gdf.columns else "class_name"
@@ -1247,16 +1305,16 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
             )
             type_options = [ALL_KILN_TYPES, *available_types]
             filters["kiln_type"] = st.selectbox(
-                "\u09ad\u09be\u099f\u09be\u09b0 \u09a7\u09b0\u09a8",
+                _ui_text("\u09ad\u09be\u099f\u09be\u09b0 \u09a7\u09b0\u09a8", "Kiln type"),
                 type_options,
-                format_func=lambda value: KILN_TYPE_LABELS.get(value, value),
+                format_func=lambda value: _ui_text("\u09b8\u09ac \u09a7\u09b0\u09a8", "All types") if value == ALL_KILN_TYPES else _type_label(value),
                 key="filter_kiln_type",
             )
 
             visible = get_filtered_gdf(gdf)
             slug = str(filters["district"]).lower().replace(" ", "_")
             st.download_button(
-                "\u2b07 \u09ac\u09be\u099b\u09be\u0987\u0995\u09c3\u09a4 \u09a4\u09be\u09b2\u09bf\u0995\u09be \u09b8\u09bf\u098f\u09b8\u09ad\u09bf \u09a1\u09be\u0989\u09a8\u09b2\u09cb\u09a1",
+                _ui_text("\u2b07 \u09ac\u09be\u099b\u09be\u0987\u0995\u09c3\u09a4 \u09a4\u09be\u09b2\u09bf\u0995\u09be \u09b8\u09bf\u098f\u09b8\u09ad\u09bf \u09a1\u09be\u0989\u09a8\u09b2\u09cb\u09a1", "Download filtered CSV"),
                 make_download_csv(visible, INSPECTOR_CSV_COLUMNS),
                 f"dhoa_{slug}_{datetime.now(UTC):%Y%m%d}.csv",
                 "text/csv",
@@ -1268,16 +1326,16 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
             "satellite": "\u09b8\u09cd\u09af\u09be\u099f\u09c7\u09b2\u09be\u0987\u099f \u099b\u09ac\u09bf",
         }
         filters["map_tile"] = st.selectbox(
-            "\u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0\u09c7\u09b0 \u09a7\u09b0\u09a8",
+            _ui_text("\u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0\u09c7\u09b0 \u09a7\u09b0\u09a8", "Map style"),
             list(map_tile_options),
-            format_func=map_tile_options.get,
+            format_func=lambda value: _ui_text(map_tile_options[value], "Street map" if value == "street" else "Satellite imagery"),
             key="map_tile",
         )
         st.divider()
-        st.markdown("\u09aa\u09b0\u09bf\u09ac\u09c7\u09b6 \u0985\u09a7\u09bf\u09a6\u09aa\u09cd\u09a4\u09b0\u09c7\u09b0 \u09b9\u099f\u09b2\u09be\u0987\u09a8: \u09e7\u09ec\u09e7\u09e9\u09e7 | [doe.gov.bd](https://doe.gov.bd)")
+        st.markdown(_ui_text("\u09aa\u09b0\u09bf\u09ac\u09c7\u09b6 \u0985\u09a7\u09bf\u09a6\u09aa\u09cd\u09a4\u09b0\u09c7\u09b0 \u09b9\u099f\u09b2\u09be\u0987\u09a8: \u09e7\u09ec\u09e7\u09e9\u09e7 | [doe.gov.bd](https://doe.gov.bd)", "Department of Environment hotline: 16131 | [doe.gov.bd](https://doe.gov.bd)"))
         if mode == "inspector":
             st.button(
-                "\U0001f504 \u09ab\u09bf\u09b2\u09cd\u099f\u09be\u09b0 \u09b0\u09bf\u09b8\u09c7\u099f \u0995\u09b0\u09c1\u09a8",
+                _ui_text("\U0001f504 \u09ab\u09bf\u09b2\u09cd\u099f\u09be\u09b0 \u09b0\u09bf\u09b8\u09c7\u099f \u0995\u09b0\u09c1\u09a8", "\U0001f504 Reset filters"),
                 key="reset_inspector_filters",
                 on_click=_reset_inspector_filters,
                 width="stretch",
@@ -1291,23 +1349,24 @@ def _render_selected_candidate(row: pd.Series) -> None:
     forest_distance = pd.to_numeric(pd.Series([row.get("dist_government_forest_m")]), errors="coerce").iloc[0]
     if pd.isna(forest_distance):
         forest_distance = pd.to_numeric(pd.Series([row.get("dist_forests_m")]), errors="coerce").iloc[0]
-    st.subheader(f"\u2705 \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09bf\u09a4 \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0 \u00b7 \u0987\u099f\u09ad\u09be\u099f\u09be #{candidate_id}")
+    st.subheader(_ui_text(f"\u2705 \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09bf\u09a4 \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0 \u00b7 \u0987\u099f\u09ad\u09be\u099f\u09be #{candidate_id}", f"\u2705 Selected candidate · Kiln #{candidate_id}"))
     forest_distance_label = (
-        f"{float(forest_distance):,.0f} \u09ae\u09bf\u099f\u09be\u09b0"
+        _ui_text(f"{float(forest_distance):,.0f} \u09ae\u09bf\u099f\u09be\u09b0", f"{float(forest_distance):,.0f} m")
         if pd.notna(forest_distance)
-        else "\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987"
+        else _ui_text("\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987", "No data")
     )
-    st.markdown(f"**\u09b8\u09b0\u0995\u09be\u09b0\u09bf \u09ac\u09a8 \u09a5\u09c7\u0995\u09c7 \u09a6\u09c2\u09b0\u09a4\u09cd\u09ac:** {forest_distance_label}")
-    st.markdown(f"**\u09a7\u09b0\u09a8:** {_type_label(row.get('class'))}")
-    st.markdown(f"**\u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0:** {_priority_label(row.get('priority_band'))} \u2014 {_priority_reason(row)}")
-    st.markdown(f"**\u098f\u09b2\u09be\u0995\u09be:** {format_area_name(row)}")
-    detection = "\u09a8\u09a4\u09c1\u09a8 \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0 (\u09e8\u09e6\u09e8\u09eb\u2013\u09e8\u09e8)" if row.get("detection_status") == "New candidate (2025-26)" else "\u0986\u0997\u09c7 \u099a\u09bf\u09b9\u09cd\u09a8\u09bf\u09a4 (\u09e8\u09e6\u09e8\u09e9\u2013\u09e8\u09ea \u099c\u09b0\u09bf\u09aa)"
-    st.markdown(f"**\u09b6\u09a8\u09be\u0995\u09cd\u09a4\u0995\u09b0\u09a3\u09c7\u09b0 \u0985\u09ac\u09b8\u09cd\u09a5\u09be:** {detection}")
-    st.markdown(f"**\u09b8\u09cd\u09a5\u09be\u09a8\u09be\u0999\u09cd\u0995:** {lat:.5f}, {lon:.5f}")
+    st.markdown(f"**{_ui_text('\u09b8\u09b0\u0995\u09be\u09b0\u09bf \u09ac\u09a8 \u09a5\u09c7\u0995\u09c7 \u09a6\u09c2\u09b0\u09a4\u09cd\u09ac', 'Distance from government forest')}:** {forest_distance_label}")
+    st.markdown(f"**{_ui_text('\u09a7\u09b0\u09a8', 'Kiln type')}:** {_type_label(row.get('class'))}")
+    st.markdown(f"**{_ui_text('\u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0', 'Priority')}:** {_priority_label(row.get('priority_band'))} \u2014 {_priority_reason(row)}")
+    st.markdown(f"**{_ui_text('\u098f\u09b2\u09be\u0995\u09be', 'Area')}:** {format_area_name(row)}")
+    is_new = row.get("detection_status") == "New candidate (2025-26)"
+    detection = _ui_text("\u09a8\u09a4\u09c1\u09a8 \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0 (\u09e8\u09e6\u09e8\u09eb\u2013\u09e8\u09e8)" if is_new else "\u0986\u0997\u09c7 \u099a\u09bf\u09b9\u09cd\u09a8\u09bf\u09a4 (\u09e8\u09e6\u09e8\u09e9\u2013\u09e8\u09ea \u099c\u09b0\u09bf\u09aa)", "New candidate (2025-26)" if is_new else "Previously detected")
+    st.markdown(f"**{_ui_text('\u09b6\u09a8\u09be\u0995\u09cd\u09a4\u0995\u09b0\u09a3\u09c7\u09b0 \u0985\u09ac\u09b8\u09cd\u09a5\u09be', 'Detection status')}:** {detection}")
+    st.markdown(f"**{_ui_text('\u09b8\u09cd\u09a5\u09be\u09a8\u09be\u0999\u09cd\u0995', 'Coordinates')}:** {lat:.5f}, {lon:.5f}")
     columns = st.columns(3)
-    columns[0].link_button("\U0001f5fa\ufe0f \u09a6\u09bf\u0995\u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6\u09a8\u09be", f"https://www.google.com/maps/dir/?api=1&destination={lat:.6f},{lon:.6f}&travelmode=driving", width="stretch")
-    columns[1].link_button("\U0001f4cd \u09b0\u09be\u09b8\u09cd\u09a4\u09be\u09b0 \u09a6\u09c3\u09b6\u09cd\u09af", f"https://www.google.com/maps/@{lat:.6f},{lon:.6f},3a,90y,0h,90t/data=!3m1!1e3", width="stretch")
-    columns[2].link_button("\U0001f30d \u09aa\u09c3\u09a5\u09bf\u09ac\u09c0", f"https://earth.google.com/web/@{lat:.6f},{lon:.6f},500a,500d,35y", width="stretch")
+    columns[0].link_button(_ui_text("\U0001f5fa\ufe0f \u09a6\u09bf\u0995\u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6\u09a8\u09be", "\U0001f5fa\ufe0f Directions"), f"https://www.google.com/maps/dir/?api=1&destination={lat:.6f},{lon:.6f}&travelmode=driving", width="stretch")
+    columns[1].link_button(_ui_text("\U0001f4cd \u09b0\u09be\u09b8\u09cd\u09a4\u09be\u09b0 \u09a6\u09c3\u09b6\u09cd\u09af", "\U0001f4cd Street view"), f"https://www.google.com/maps/@{lat:.6f},{lon:.6f},3a,90y,0h,90t/data=!3m1!1e3", width="stretch")
+    columns[2].link_button(_ui_text("\U0001f30d \u09aa\u09c3\u09a5\u09bf\u09ac\u09c0", "\U0001f30d Google Earth"), f"https://earth.google.com/web/@{lat:.6f},{lon:.6f},500a,500d,35y", width="stretch")
 
 
 def _render_report_download(row: pd.Series) -> None:
@@ -1355,51 +1414,37 @@ def build_map(
 
     center = tuple(st.session_state["map_center"])
     zoom = int(st.session_state["map_zoom"])
-    map_view = st.session_state.get("dhoa_map_object")
     selected_tile = st.session_state.get("map_tile", "street")
-    if map_view is None or st.session_state.get("dhoa_map_base") != selected_tile:
-        map_view = folium.Map(location=center, zoom_start=zoom, control_scale=True, tiles=None)
-        _add_map_base_layers(map_view)
-        kilns_layer = folium.FeatureGroup(name="kilns", show=True).add_to(map_view)
-        heat_layer = folium.FeatureGroup(name="\u09b9\u09bf\u099f\u09ae\u09cd\u09af\u09be\u09aa", show=False).add_to(map_view)
-        map_view.get_root().html.add_child(
-            Element(
-                """<style>
-                .leaflet-popup-content-wrapper { max-width: min(320px, 76vw); }
+    map_view = folium.Map(location=center, zoom_start=zoom, control_scale=True, tiles=None)
+    _add_map_base_layers(map_view)
+    kilns_layer = folium.FeatureGroup(name="kilns", show=True).add_to(map_view)
+    heat_layer = folium.FeatureGroup(name="\u09b9\u09bf\u099f\u09ae\u09cd\u09af\u09be\u09aa", show=False).add_to(map_view)
+    map_view.get_root().html.add_child(
+        Element(
+            """<style>
+            .leaflet-popup-content-wrapper { max-width: min(320px, 76vw); }
+            .leaflet-popup-content {
+                width: min(280px, 68vw) !important; max-height: 240px;
+                overflow-y: auto; overflow-x: hidden; overflow-wrap: anywhere;
+            }
+            .dhoa-popup { max-width: 280px; overflow-wrap: anywhere; word-break: break-word; }
+            @media (max-width: 768px) {
+                .leaflet-control-zoom a {
+                    width: 40px; height: 40px; line-height: 40px; font-size: 20px;
+                }
+                .leaflet-control-layers-toggle { width: 40px; height: 40px; }
+                .leaflet-control-layers-expanded {
+                    max-height: 42vh; overflow-y: auto; font-size: 16px;
+                }
                 .leaflet-popup-content {
-                    width: min(280px, 68vw) !important; max-height: 240px;
-                    overflow-y: auto; overflow-x: hidden; overflow-wrap: anywhere;
+                    width: min(260px, 70vw) !important; max-height: 40vh;
                 }
-                .dhoa-popup { max-width: 280px; overflow-wrap: anywhere; word-break: break-word; }
-                @media (max-width: 768px) {
-                    .leaflet-control-zoom a {
-                        width: 40px; height: 40px; line-height: 40px; font-size: 20px;
-                    }
-                    .leaflet-control-layers-toggle { width: 40px; height: 40px; }
-                    .leaflet-control-layers-expanded {
-                        max-height: 42vh; overflow-y: auto; font-size: 16px;
-                    }
-                    .leaflet-popup-content {
-                        width: min(260px, 70vw) !important; max-height: 40vh;
-                    }
-                }
-                </style>"""
-            )
+            }
+            </style>"""
         )
-        st.session_state["dhoa_map_object"] = map_view
-        st.session_state["dhoa_kilns_layer"] = kilns_layer
-        st.session_state["dhoa_heat_layer"] = heat_layer
-        st.session_state["dhoa_map_base"] = selected_tile
-    else:
-        kilns_layer = st.session_state["dhoa_kilns_layer"]
-        heat_layer = st.session_state["dhoa_heat_layer"]
-        map_view.location = center
-        map_view.options["zoom"] = zoom
+    )
 
-    # Keep the Folium map instance and replace only data-dependent feature layers.
-    kilns_layer._children.clear()
-    heat_layer._children.clear()
-
+    # Populate fresh feature layers from the canonical filtered dataframe.
     selected_id = st.session_state.get("selected_kiln_id")
     heat_points: list[list[float]] = []
     for band, color in PRIORITY_COLORS.items():
@@ -1471,8 +1516,8 @@ def render_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> None:
     list_candidates = visible
     list_panel, map_panel = st.columns([2, 3], gap="medium")
     with list_panel:
-        st.subheader("\U0001f525 \u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0 \u09a4\u09be\u09b2\u09bf\u0995\u09be")
-        st.caption(f"{len(list_candidates):,}\u099f\u09bf \u09ab\u09bf\u09b2\u09cd\u099f\u09be\u09b0\u09c7\u09b0 \u09b8\u09be\u09a5\u09c7 \u09ae\u09c7\u09b2\u09be \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0")
+        st.subheader(_ui_text("\U0001f525 \u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0 \u09a4\u09be\u09b2\u09bf\u0995\u09be", "\U0001f525 Priority list"))
+        st.caption(_ui_text(f"{len(list_candidates):,}\u099f\u09bf \u09ab\u09bf\u09b2\u09cd\u099f\u09be\u09b0\u09c7\u09b0 \u09b8\u09be\u09a5\u09c7 \u09ae\u09c7\u09b2\u09be \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0", f"{len(list_candidates):,} candidates match filters"))
         if list_candidates.empty:
             st.info("এই ফিল্টারে কোনো প্রার্থী নেই।")
         else:
@@ -1481,6 +1526,8 @@ def render_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> None:
                 columns=list_frame.columns.tolist(),
                 rows=list_frame.astype(str).values.tolist(),
                 kiln_ids=list_candidates["kiln_id"].astype(str).tolist(),
+                select_label=_ui_text("\u09ad\u09be\u099f\u09be\u099f\u09bf \u09a6\u09c7\u0996\u09c1\u09a8", "View kiln"),
+                selected_label=_ui_text("\u2713 \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09bf\u09a4", "\u2713 Selected"),
                 selected_id=(
                     str(st.session_state.get("selected_kiln_id"))
                     if st.session_state.get("selected_kiln_id") is not None

@@ -259,7 +259,9 @@
               const button = document.createElement("button");
               button.type = "button";
               button.className = "select-kiln";
-              button.textContent = isSelected ? "\u2713 \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09bf\u09a4" : "\u09ad\u09be\u099f\u09be\u099f\u09bf \u09a6\u09c7\u0996\u09c1\u09a8";
+              button.textContent = isSelected
+                ? (args.selected_label || "\u2713 \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09bf\u09a4")
+                : (args.select_label || "\u09ad\u09be\u099f\u09be\u099f\u09bf \u09a6\u09c7\u0996\u09c1\u09a8");
               button.setAttribute("aria-pressed", String(isSelected));
               button.addEventListener("click", (event) => {
                 event.stopPropagation();
