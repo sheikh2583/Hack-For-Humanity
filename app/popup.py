@@ -50,6 +50,49 @@ def sanitize_popup_text(value: object) -> str:
     return html.escape(text)
 
 
+def _area_component(value: object) -> str | None:
+    """Return a cleaned administrative area component, or None if absent."""
+    if value is None:
+        return None
+    try:
+        if math.isnan(value):
+            return None
+    except (TypeError, ValueError):
+        pass
+    text = str(value).strip()
+    return None if text.casefold() in {"", "<na>", "nan", "nat", "none"} else text
+
+
+def format_district_label(value: object) -> str:
+    """Translate known district values while preserving other names."""
+    text = _area_component(value)
+    if text is None:
+        return "অজানা এলাকা"
+    return {
+        "All Districts": "সব জেলা",
+        "Chapainawabganj": "চাঁপাইনবাবগঞ্জ",
+        "Gazipur": "গাজীপুর",
+        "Rajshahi": "রাজশাহী",
+        "Dhaka": "ঢাকা",
+        "Chittagong": "চট্টগ্রাম",
+    }.get(text, text)
+
+
+def format_area_name(row: Mapping[str, object]) -> str:
+    """Format an administrative area as upazila, district with safe fallback.
+
+    Input schema: mapping with optional ``upazila`` and ``district`` values.
+    Output schema: ``upazila, district``, district only, or ``অজানা এলাকা``.
+    """
+    upazila = _area_component(row.get("upazila"))
+    district = _area_component(row.get("district"))
+    if district is not None:
+        district = format_district_label(district)
+    if upazila and district:
+        return f"{upazila}, {district}"
+    return upazila or district or "অজানা এলাকা"
+
+
 def parse_candidate_signals(value: object) -> list[str]:
     """Safely normalize a signal-ID attribute without evaluating code."""
     if isinstance(value, (list, tuple)):
@@ -122,101 +165,90 @@ def unavailable_provenance(
 
 
 def _display(value: object) -> str:
-    """Escape a scalar for safe insertion into popup HTML."""
+    """Escape a scalar for safe insertion into popup HTML.
+
+    Input schema: scalar popup value. Output schema: escaped Bengali display text.
+    """
     if value is None:
-        return "Not recorded"
+        return "\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987"
     try:
-        if math.isnan(value):  # NaN
-            return "Not recorded"
+        if math.isnan(value):
+            return "\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987"
     except (TypeError, ValueError):
         pass
     text = str(value)
-    text = text if text and text not in {"<NA>", "nan", "NaT"} else "Not recorded"
+    text = text if text and text not in {"<NA>", "nan", "NaT"} else "\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987"
     return sanitize_popup_text(text)
 
 
 def build_marker_popup(row: Mapping[str, object], rank: int, total: int) -> str:
-    """Render one marker popup with advisory language and signal provenance."""
-    signals = parse_candidate_signals(row.get("breached_rules", []))
-    provenance = parse_signal_provenance(row.get("signal_provenance_json"))
-    if not provenance and signals:
-        provenance = unavailable_provenance(signals, row)
+    """Render concise Bengali marker details for one candidate row.
+
+    Input schema: one row with kiln, area, class, priority, confidence, and
+    optional score/signal/distance fields. Output schema: escaped popup HTML.
+    """
     confidence = row.get("confidence")
     try:
         confidence_value = float(confidence)
-        confidence_text = f"{confidence_value:.2%}" if math.isfinite(confidence_value) else "Not recorded"
+        confidence_text = f"{confidence_value:.2%}" if math.isfinite(confidence_value) else _display(None)
     except (TypeError, ValueError):
-        confidence_text = "Not recorded"
-    kiln_id = _display(row.get("kiln_id", "Not recorded"))
-    klass = _display(row.get("class", "Not recorded"))
-    if str(row.get("verified", "")) == "Verified kiln":
-        verified_badge = '<div style="color:#48bb78;font-size:11px;margin-top:4px">✓ মাঠ যাচাই</div>'
-    else:
-        verified_badge = ""
-    score = _display(row.get("breach_score", "Not recorded"))
-    signal_text = ", ".join(_display(signal) for signal in signals) or "None recorded"
+        confidence_text = _display(None)
+
+    kiln_id = _display(row.get("kiln_id"))
+    class_value = str(row.get("class", ""))
+    class_label = {
+        "FCBK": "\u09ab\u09bf\u0995\u09cd\u09b8\u09a1 \u099a\u09bf\u09ae\u09a8\u09bf",
+        "Zigzag": "\u099c\u09bf\u0997\u099c\u09be\u0997",
+    }.get(class_value, "\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987")
+    area = _display(format_area_name(row))
+    priority = {
+        "High": "\u0989\u099a\u09cd\u099a",
+        "Medium": "\u09ae\u09be\u099d\u09be\u09b0\u09bf",
+        "Low": "\u09a8\u09bf\u09ae\u09cd\u09a8",
+    }.get(str(row.get("priority_band", "")), "\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987")
+    score = _display(row.get("breach_score"))
+    signal_labels = {
+        "near_school": "\u09b6\u09bf\u0995\u09cd\u09b7\u09be \u09aa\u09cd\u09b0\u09a4\u09bf\u09b7\u09cd\u09a0\u09be\u09a8\u09c7\u09b0 \u0995\u09be\u099b\u09c7",
+        "near_hospital": "\u09b9\u09be\u09b8\u09aa\u09be\u09a4\u09be\u09b2\u09c7\u09b0 \u0995\u09be\u099b\u09c7",
+        "near_railway": "\u09b0\u09c7\u09b2\u09aa\u09a5\u09c7\u09b0 \u0995\u09be\u099b\u09c7",
+        "near_forest": "\u09ac\u09a8\u09c7\u09b0 \u0995\u09be\u099b\u09c7",
+        "near_waterbody": "\u099c\u09b2\u09be\u09b6\u09df\u09c7\u09b0 \u0995\u09be\u099b\u09c7",
+        "technology_flagged": "\u09ab\u09bf\u0995\u09cd\u09b8\u09a1 \u099a\u09bf\u09ae\u09a8\u09bf \u09aa\u09cd\u09b0\u09af\u09c1\u0995\u09cd\u09a4\u09bf",
+    }
+    signals = parse_candidate_signals(row.get("breached_rules", []))
+    signal_text = ", ".join(signal_labels.get(str(signal), "\u0985\u09a8\u09cd\u09af\u09be\u09a8\u09cd\u09af \u09b8\u0999\u09cd\u0995\u09c7\u09a4") for signal in signals)
+    if not signal_text:
+        signal_text = "\u0995\u09cb\u09a8\u09cb \u09b8\u0999\u09cd\u0995\u09c7\u09a4 \u09a8\u09c7\u0987"
+
     parts = [
         "<div style='min-width:260px;font-family:sans-serif'>",
-        f"<h4>Kiln candidate {kiln_id}</h4>",
+        f"<h4>\u09ad\u09be\u099f\u09be \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0 {kiln_id}</h4>",
         "<table>",
-        f"<tr><th>Detected class</th><td>{klass}</td></tr>",
-        verified_badge,
-        f"<tr><th>Detector confidence</th><td>{confidence_text}</td></tr>",
-        f"<tr><th>Screening priority</th><td>#{int(rank)} of {int(total)}</td></tr>",
-        f"<tr><th>Screening score</th><td>{score}</td></tr>",
-        f"<tr><th>Candidate rule signals</th><td>{signal_text}</td></tr>",
+        f"<tr><th>\u09ad\u09be\u099f\u09be\u09b0 \u09a7\u09b0\u09a8</th><td>{class_label}</td></tr>",
+        f"<tr><th>\u098f\u09b2\u09be\u0995\u09be</th><td>{area}</td></tr>",
+        f"<tr><th>\u09ae\u09a1\u09c7\u09b2\u09c7\u09b0 \u0986\u09a4\u09cd\u09ae\u09ac\u09bf\u09b6\u09cd\u09ac\u09be\u09b8</th><td>{confidence_text}</td></tr>",
+        f"<tr><th>\u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0</th><td>{priority} (#{int(rank)} / {int(total)})</td></tr>",
+        f"<tr><th>\u09a8\u09bf\u09df\u09ae\u09c7\u09b0 \u09b8\u0999\u09cd\u0995\u09c7\u09a4</th><td>{signal_text}</td></tr>",
+        f"<tr><th>\u09b8\u0999\u09cd\u0995\u09c7\u09a4 \u09b8\u0999\u09cd\u0996\u09cd\u09af\u09be</th><td>{score}</td></tr>",
         "</table>",
     ]
-    distance_cols = [
-        column for column in row
-        if column.startswith("dist_") and column.endswith("_m")
-    ]
-    if distance_cols:
-        parts.append("<p><b>Distance to mapped feature geometry</b></p><ul>")
-        for column in distance_cols:
-            value = row[column]
+    distance_labels = {
+        "school": "\u09b6\u09bf\u0995\u09cd\u09b7\u09be \u09aa\u09cd\u09b0\u09a4\u09bf\u09b7\u09cd\u09a0\u09be\u09a8",
+        "hospital": "\u09b9\u09be\u09b8\u09aa\u09be\u09a4\u09be\u09b2",
+        "railway": "\u09b0\u09c7\u09b2\u09aa\u09a5",
+        "forest": "\u09ac\u09a8",
+        "waterbody": "\u099c\u09b2\u09be\u09b6\u09df",
+    }
+    distances = [column for column in row if column.startswith("dist_") and column.endswith("_m")]
+    if distances:
+        parts.append("<p><b>\u09a8\u09bf\u0995\u099f\u09ac\u09b0\u09cd\u09a4\u09c0 \u09a6\u09c2\u09b0\u09a4\u09cd\u09ac</b></p><ul>")
+        for column in distances:
             try:
-                value_text = f"{float(value):.0f} m" if float(value) != float("inf") else "Not available"
+                value_text = f"{float(row[column]):.0f} \u09ae\u09bf\u099f\u09be\u09b0" if math.isfinite(float(row[column])) else _display(None)
             except (TypeError, ValueError):
-                value_text = "Not available"
-            parts.append(f"<li>{_display(column[5:-2])}: {_display(value_text)}</li>")
+                value_text = _display(None)
+            feature = column[5:-2]
+            parts.append(f"<li>{distance_labels.get(feature, '\u0985\u099e\u09be\u09a4')} : {_display(value_text)}</li>")
         parts.append("</ul>")
-    parts.append("<details><summary>Signal source and method</summary>")
-    if not provenance:
-        parts.append("<p>Per-signal provenance was not recorded in this dataset.</p>")
-    else:
-        for item in provenance:
-            parts.append("<section><hr><b>" + _display(item.get("signal_id")) + "</b><table>")
-            for label, key in [
-                ("Screening status", "review_state"),
-                ("Rule config version", "rule_config_version"),
-                ("Source layer ID", "source_layer_id"),
-                ("Source authority", "source_authority"),
-                ("Source URL", "source_url"),
-                ("Source version/date", "source_version_date"),
-                ("Source accessed at", "source_accessed_at"),
-                ("Feature ID", "feature_id"),
-                ("Feature geometry provenance", "geometry_provenance"),
-                ("Distance (m)", "distance_m"),
-                ("Measurement method", "measurement_method"),
-                ("Legal instrument ID", "instrument_id"),
-                ("Effective dates", "effective_dates"),
-                ("Detector model", "detector_model"),
-                ("Detector version", "detector_version"),
-                ("Detector model/version", "detector_model_version"),
-                ("Detector confidence", "detector_confidence"),
-                ("Imagery date", "imagery_date"),
-                ("Reviewer", "reviewer"),
-                ("Review date", "reviewed_at"),
-                ("Evidence references", "evidence_references"),
-                ("Review notes", "review_notes"),
-            ]:
-                value = item.get(key)
-                if key == "source_url" and isinstance(value, str) and value.startswith(("https://", "http://")):
-                    shown = f"<a href='{html.escape(value, quote=True)}' rel='noopener'>{html.escape(value)}</a>"
-                else:
-                    shown = _display(value)
-                parts.append(f"<tr><th>{html.escape(label)}</th><td>{shown}</td></tr>")
-            parts.append("</table></section>")
-    parts.extend(["</details>", f"<p class='advisory'>{html.escape(ADVISORY_NOTICE)}</p>", "</div>"])
+    parts.append("</div>")
     return "".join(parts)

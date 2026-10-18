@@ -9,7 +9,6 @@ import sys
 import unicodedata
 from collections.abc import Mapping
 from datetime import UTC, datetime
-from io import StringIO
 from pathlib import Path
 from typing import Any
 
@@ -42,6 +41,7 @@ from dashboard_filters import (
     apply_candidate_filters,
 )
 from data_loader import load_kilns 
+from popup import format_area_name, format_district_label
 from src.rules.engine import _ensure_class_column 
 # isort: on
 
@@ -68,7 +68,27 @@ PRIORITY_COLORS = {
     "Medium": DESIGN_COLORS["medium"],
     "Low": DESIGN_COLORS["low"],
 }
-DISTRICTS = ["All Districts", "Chapainawabganj", "Gazipur", "Rajshahi", "Dhaka", "Chittagong"]
+INSPECTOR_AREA_RADIUS_M = 1000
+AREA_SEARCH_WARNING = "এলাকা খুঁজে পাওয়া যায়নি। অনুগ্রহ করে অন্য নাম দিয়ে চেষ্টা করুন।"
+INSPECTOR_CSV_COLUMNS = [
+    "kiln_id", "lat", "lon", "area", "district", "upazila", "priority_band",
+    "confidence", "breach_count", "verified",
+]
+COMMUNITY_CSV_COLUMNS = [
+    "kiln_id", "lat", "lon", "area", "district", "upazila", "priority_band",
+    "distance_m", "directions_url",
+]
+METRIC_LABELS = {
+    "total_kilns": "\u09ae\u09cb\u099f \u09ad\u09be\u099f\u09be",
+    "high_priority_kilns": "\u09aa\u09b0\u09bf\u09ac\u09c7\u09b6 \u09ac\u09bf\u09aa\u099c\u09cd\u099c\u09a8\u0995 \u09ad\u09be\u099f\u09be",
+    "rule_violations": "\u0986\u0987\u09a8 \u09b2\u0999\u09cd\u0998\u09a8",
+    "last_updated": "\u09b8\u09b0\u09cd\u09ac\u09b6\u09c7\u09b7 \u09b9\u09be\u09b2\u09a8\u09be\u0997\u09be\u09a6",
+    "total_candidates": "\u09ae\u09cb\u099f \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0",
+    "estimated_area": "\u0986\u09a8\u09c1\u09ae\u09be\u09a8\u09bf\u0995 \u098f\u09b2\u09be\u0995\u09be (\u09ac\u09b0\u09cd\u0997 \u0995\u09bf\u09ae\u09bf)",
+    "primary_signal": "\u09aa\u09cd\u09b0\u09a7\u09be\u09a8 \u09a8\u09bf\u09af\u09bc\u09ae-\u09b8\u0982\u0995\u09c7\u09a4",
+    "new_candidates": "\u09a8\u09a4\u09c1\u09a8 \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0",
+    "rule_signals": "\u09a8\u09bf\u09af\u09bc\u09ae \u09b8\u0982\u0995\u09c7\u09a4",
+}
 DISTRICT_CENTERS = {
     "All Districts": (23.80, 90.30),
     "Chapainawabganj": (24.60, 88.35),
@@ -135,7 +155,7 @@ h4 [data-testid="stHeaderActionElements"],
 }
 .dhoa-metrics {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: clamp(0.5rem, 1.2vw, 1rem);
     width: 100%;
     margin: 0.5rem 0 1rem;
@@ -283,14 +303,7 @@ def _priority_label(value: object) -> str:
 
 def _district_label(value: object) -> str:
     """Translate district options while preserving unknown district names."""
-    return {
-        "All Districts": "সব জেলা",
-        "Chapainawabganj": "চাঁপাইনবাবগঞ্জ",
-        "Gazipur": "গাজীপুর",
-        "Rajshahi": "রাজশাহী",
-        "Dhaka": "ঢাকা",
-        "Chittagong": "চট্টগ্রাম",
-    }.get(str(value), str(value))
+    return format_district_label(value)
 
 
 def _signal_label(value: object) -> str:
@@ -324,37 +337,6 @@ def _signals(row: pd.Series) -> list[str]:
     return [str(signal) for signal in value if signal is not None and pd.notna(signal) and str(signal).strip().casefold() not in {"", "nan", "none"}]
 
 
-def _area_label(row: Mapping[str, object], fallback: str = "district") -> str:
-    """Format stored OSM place enrichment or a district/coordinate fallback.
-
-    Input schema: candidate mapping with optional nearest_place, distance,
-    place type, district, lat, and lon. Output schema: display string.
-    """
-    name = row.get("nearest_place")
-    if name is not None and pd.notna(name) and str(name).strip():
-        distance = pd.to_numeric(pd.Series([row.get("nearest_place_dist_m")]), errors="coerce").iloc[0]
-        district = row.get("district")
-        district_text = _district_label(district) if district is not None and pd.notna(district) else ""
-        area = f"{name}, {district_text}" if district_text else str(name)
-        if pd.notna(distance):
-            return f"{area} \u09a5\u09c7\u0995\u09c7 {distance:.0f} \u09ae\u09bf\u099f\u09be\u09b0 \u09a6\u09c2\u09b0\u09c7"
-        return area
-    if fallback == "coordinates":
-        latitude = pd.to_numeric(pd.Series([row.get("lat")]), errors="coerce").iloc[0]
-        longitude = pd.to_numeric(pd.Series([row.get("lon")]), errors="coerce").iloc[0]
-        return f"{latitude:.4f}° উত্তর, {longitude:.4f}° পূর্ব" if pd.notna(latitude) and pd.notna(longitude) else "অবস্থান পাওয়া যায়নি"
-    district = row.get("district")
-    return f"জেলা: {_district_label(district)}" if district is not None and pd.notna(district) else "জেলার তথ্য নেই"
-
-
-def _place_type_label(value: str) -> str:
-    """Translate OSM place types for consistent Bangla area labels."""
-    return {
-        "village": "গ্রাম", "town": "শহর", "hamlet": "ছোট বসতি",
-        "suburb": "শহরতলি", "neighbourhood": "মহল্লা", "city": "নগর",
-    }.get(value.casefold(), value)
-
-
 def _priority_reason(row: pd.Series) -> str:
     names = {
         "near_school": ("school", "dist_schools_m"),
@@ -365,7 +347,7 @@ def _priority_reason(row: pd.Series) -> str:
         "near_government_forest": ("government forest", "dist_government_forest_m"),
     }
     for signal in _signals(row):
-        label, column = names.get(str(signal), ("rule signal", ""))
+        label, column = names.get(str(signal), ("\u09a8\u09bf\u09df\u09ae \u09b8\u0982\u0995\u09c7\u09a4", ""))
         distance = pd.to_numeric(pd.Series([row.get(column)]), errors="coerce").iloc[0] if column else None
         translated = {"school": "স্কুল", "hospital": "হাসপাতাল", "settlement": "বসতি", "railway": "রেলপথ", "wetland": "জলাভূমি", "government forest": "সরকারি বন"}.get(label, label)
         return f"{translated} থেকে {distance:,.0f} মিটার" if pd.notna(distance) else f"{translated}-সংক্রান্ত সংকেত"
@@ -406,6 +388,59 @@ def community_distances(gdf: gpd.GeoDataFrame, latitude: float, longitude: float
         gpd.points_from_xy(gdf["lon"], gdf["lat"], crs="EPSG:4326"), index=gdf.index
     ).to_crs(projected_crs)
     return kiln_points.distance(search_point)
+
+
+def get_filtered_gdf(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """Apply the active session filters and return their shared candidate set.
+
+    Input schema: prioritized GeoDataFrame with district, class, priority,
+    coordinates, and optional rule-signal fields. Output: copied GeoDataFrame
+    matching the active view's session-state filters.
+    """
+    rules = load_config()["rules"]
+    active_view = st.session_state.get("dhoa_active_view", "inspector")
+    if active_view == "community":
+        search = st.session_state.get("community_search")
+        if search is None:
+            return gdf.iloc[0:0].copy()
+        _, (search_lat, search_lon) = search
+        radius_m = int(st.session_state.get("community_radius_m", 1000))
+        distances = community_distances(gdf, float(search_lat), float(search_lon))
+        result = gdf.loc[distances.le(radius_m)].copy()
+        result["distance_m"] = distances.loc[result.index]
+        return result.sort_values("distance_m", ascending=True)
+
+    district = st.session_state.get("dhoa_district_filter", "All Districts")
+    kiln_type = st.session_state.get("dhoa_kiln_type_filter", "All types")
+    priorities = st.session_state.get("dhoa_priority_filter", ["High", "Medium", "Low"])
+    selected_signals = st.session_state.get("dhoa_signal_filter", [])
+    filters = {
+        "district": district,
+        "kiln_type": kiln_type,
+        "priorities": set(priorities) if priorities else None,
+        "new_only": st.session_state.get("dhoa_new_only", False),
+        "signal_filters": {signal: SIGNAL_PRESENT for signal in selected_signals},
+    }
+    result = apply_candidate_filters(
+        gdf,
+        rules,
+        districts=None if district == "All Districts" else {district},
+        classes=None if kiln_type == "All types" else {"FCBK" if "FCBK" in kiln_type else "Zigzag"},
+        priority_bands=filters["priorities"],
+        signal_filters=filters["signal_filters"],
+    )
+    if filters["new_only"] and "detection_status" in result.columns:
+        result = result[result["detection_status"].eq("New candidate (2025-26)")].copy()
+
+    area_search = st.session_state.get("inspector_area_search")
+    if area_search:
+        search_lat, search_lon = float(area_search[1]), float(area_search[2])
+        radius_m = int(area_search[3]) if len(area_search) > 3 else INSPECTOR_AREA_RADIUS_M
+        distances = community_distances(result, search_lat, search_lon)
+        result = result.loc[distances.le(radius_m)].copy()
+    if "priority" in result.columns:
+        result = result.sort_values("priority", ascending=False, na_position="last")
+    return result
 
 
 def community_alert_pdf(location: str, rows: pd.DataFrame, radius_m: int) -> bytes:
@@ -481,8 +516,8 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
     """
     st.markdown("<div class='dhoa-section-title'>\u0986\u09aa\u09a8\u09be\u09b0 \u098f\u09b2\u09be\u0995\u09be\u09b0 \u0995\u09be\u099b\u09be\u0995\u09be\u099b\u09bf \u0996\u09c1\u0981\u099c\u09c1\u09a8</div>", unsafe_allow_html=True)
     with st.container(border=True), st.form("community_search_form", border=False):
-            name = st.text_input('\u09a8\u09be\u09ae \u09b2\u09bf\u0996\u09c1\u09a8', placeholder='\u09af\u09c7\u09ae\u09a8: Chapainawabganj Government Primary School')
-            submitted = st.form_submit_button('\U0001f50d \u0996\u09c1\u0981\u099c\u09c1\u09a8', width="stretch")
+            name = st.text_input('\u09a8\u09be\u09ae \u09b2\u09bf\u0996\u09c1\u09a8', placeholder='\u09af\u09c7\u09ae\u09a8: \u0986\u09b6\u09c1\u09b2\u09bf')
+            submitted = st.form_submit_button('\U0001f50d \u0985\u09a8\u09c1\u09b8\u09a8\u09cd\u09a7\u09be\u09a8 \u0995\u09b0\u09c1\u09a8', width="stretch")
     if submitted:
         st.session_state.pop("community_search", None)
         st.session_state.pop("community_report", None)
@@ -508,44 +543,51 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
         return
     location_name, (search_lat, search_lon) = search
     radius_m = int(st.slider("\u0985\u09a8\u09c1\u09b8\u09a8\u09cd\u09a7\u09be\u09a8\u09c7\u09b0 \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7 (\u09ae\u09bf\u099f\u09be\u09b0)", min_value=250, max_value=5000, value=1000, step=250, key="community_radius_m"))
-    distances = community_distances(gdf, search_lat, search_lon)
-    nearby = gdf.loc[distances.le(radius_m)].copy()
-    nearby["distance_m"] = distances.loc[nearby.index]
-    nearby = nearby.sort_values("distance_m")
+    nearby = get_filtered_gdf(gdf)
+    nearby["directions_url"] = [
+        f"https://www.google.com/maps/dir/?api=1&destination={float(row['lat']):.6f}%2C{float(row['lon']):.6f}"
+        for _, row in nearby.iterrows()
+    ]
+    area_name = format_area_name(nearby.iloc[0]) if not nearby.empty else "\u0985\u099c\u09be\u09a8\u09be \u098f\u09b2\u09be\u0995\u09be"
 
     result_column, map_column = st.columns([2, 3], gap="medium")
     with result_column:
         st.subheader("\u0995\u09be\u099b\u09be\u0995\u09be\u099b\u09bf\u09b0 \u0987\u099f\u09ad\u09be\u099f\u09be\u09b0 \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0")
         with st.container(border=True):
-            st.metric(f"Candidates within {radius_m / 1000:g} km radius", f"{len(nearby):,}")
+            st.metric(f"{radius_m / 1000:g} \u0995\u09bf\u09ae\u09bf \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7\u09c7\u09b0 \u09ae\u09a7\u09cd\u09af\u09c7 \u09ad\u09be\u099f\u09be", f"{len(nearby):,}")
             try:
-                report = community_alert_pdf(location_name, nearby, radius_m)
+                report = community_alert_pdf(area_name, nearby, radius_m)
                 st.session_state["community_report"] = report
                 st.download_button(
-                    "Download community report", report,
+                    "\u09aa\u09cd\u09b0\u09a4\u09bf\u09ac\u09c7\u09a6\u09a8 \u09a1\u09be\u0989\u09a8\u09b2\u09cb\u09a1 \u0995\u09b0\u09c1\u09a8", report,
                     "dhoa_community_report.pdf", "application/pdf",
                     width="stretch", key="community_alert_download",
                 )
             except Exception:  # noqa: BLE001 - report generation boundary
                 logging.exception("Community PDF generation failed")
-                st.error("Could not create the community report. Please try again.")
+                st.error("\u09aa\u09cd\u09b0\u09a4\u09bf\u09ac\u09c7\u09a6\u09a8 \u09a4\u09c8\u09b0\u09bf \u0995\u09b0\u09be \u09af\u09be\u09af\u09bc\u09a8\u09bf\u0964 \u0986\u09ac\u09be\u09b0 \u099a\u09c7\u09b7\u09cd\u099f\u09be \u0995\u09b0\u09c1\u09a8\u0964")
             if nearby.empty:
-                st.success(f"No kiln candidates found within {radius_m / 1000:g} km of this location.")
+                st.success(f"{radius_m / 1000:g} \u0995\u09bf\u09ae\u09bf \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7\u09c7 \u0995\u09cb\u09a8\u09cb \u09ad\u09be\u099f\u09be \u09aa\u09be\u0993\u09af\u09bc\u09be \u09af\u09be\u09af\u09bc\u09a8\u09bf\u0964")
             else:
                 table = pd.DataFrame({
-                    "Distance (m)": nearby["distance_m"].round(0).astype("Int64").astype("string").fillna("No data").to_numpy(),
-                    "Area": [_area_label(row, fallback="district") for _, row in nearby.iterrows()],
-                    "Kiln type": [_type_label(row.get("class")) for _, row in nearby.iterrows()],
-                    "Priority": [_priority_label(row.get("priority_band")) for _, row in nearby.iterrows()],
-                    "Directions": [
-                        f"https://www.google.com/maps/dir/?api=1&destination={float(row['lat']):.6f}%2C{float(row['lon']):.6f}"
-                        for _, row in nearby.iterrows()
-                    ],
+                    "\u09a6\u09c2\u09b0\u09a4\u09cd\u09ac (\u09ae\u09bf\u099f\u09be\u09b0)": nearby["distance_m"].round(0).astype("Int64").astype("string").fillna("\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987").to_numpy(),
+                    "\u098f\u09b2\u09be\u0995\u09be": [format_area_name(row) for _, row in nearby.iterrows()],
+                    "\u09ad\u09be\u099f\u09be\u09b0 \u09a7\u09b0\u09a8": [_type_label(row.get("class")) for _, row in nearby.iterrows()],
+                    "\u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0": [_priority_label(row.get("priority_band")) for _, row in nearby.iterrows()],
+                    "\u09a6\u09bf\u0995\u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6\u09a8\u09be": nearby["directions_url"].tolist(),
                 })
                 st.dataframe(
                     table, hide_index=True, width="stretch",
-                    column_config={"Directions": st.column_config.LinkColumn(display_text="Open map")},
+                    column_config={'দিকনির্দেশনা': st.column_config.LinkColumn(display_text='দিকনির্দেশনা পান')},
                 )
+            st.download_button(
+                'কমিউনিটি তালিকা ডাউনলোড করুন',
+                make_download_csv(nearby, COMMUNITY_CSV_COLUMNS),
+                "dhoa_community_candidates.csv",
+                "text/csv",
+                width="stretch",
+                key="community_candidates_csv_download",
+            )
     with map_column:
         st.subheader("\u098f\u09b2\u09be\u0995\u09be\u09b0 \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0")
         st.markdown(
@@ -557,14 +599,14 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
             "</div>",
             unsafe_allow_html=True,
         )
-        st.caption(f"\u09a8\u09c0\u09b2 \u09ac\u09c3\u09a4\u09cd\u09a4\u09c7\u09b0 \u09b8\u09c0\u09ae\u09be\u09a8\u09be \u0996\u09cb\u0981\u099c\u09be\u09b0 \u09b8\u09cd\u09a5\u09be\u09a8 \u09a5\u09c7\u0995\u09c7 {radius_m / 1000:g} km \u09a6\u09c2\u09b0\u09a4\u09cd\u09ac \u09a6\u09c7\u0996\u09be\u09df\u0964 \u09b2\u09be\u09b2, \u0995\u09ae\u09b2\u09be \u0993 \u09b8\u09ac\u09c1\u099c \u09ac\u09bf\u09a8\u09cd\u09a6\u09c1 \u09ad\u09be\u099f\u09be\u09b0 \u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0 \u09a6\u09c7\u0996\u09be\u09df; \u09ac\u09bf\u09a8\u09cd\u09a6\u09c1\u09a4\u09c7 \u099a\u09be\u09aa\u09b2\u09c7 \u09ac\u09bf\u09b8\u09cd\u09a4\u09be\u09b0\u09bf\u09a4 \u09a6\u09c7\u0996\u09c1\u09a8\u0964")
+        st.caption(f"\u09a8\u09c0\u09b2 \u09ac\u09c3\u09a4\u09cd\u09a4\u09c7\u09b0 \u09b8\u09c0\u09ae\u09be\u09a8\u09be \u0996\u09cb\u0981\u099c\u09be\u09b0 \u09b8\u09cd\u09a5\u09be\u09a8 \u09a5\u09c7\u0995\u09c7 {radius_m / 1000:g} \u0995\u09bf\u09ae\u09bf \u09a6\u09c2\u09b0\u09a4\u09cd\u09ac \u09a6\u09c7\u0996\u09be\u09df\u0964 \u09b2\u09be\u09b2, \u0995\u09ae\u09b2\u09be \u0993 \u09b8\u09ac\u09c1\u099c \u09ac\u09bf\u09a8\u09cd\u09a6\u09c1 \u09ad\u09be\u099f\u09be\u09b0 \u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0 \u09a6\u09c7\u0996\u09be\u09df; \u09ac\u09bf\u09a8\u09cd\u09a6\u09c1\u09a4\u09c7 \u099a\u09be\u09aa\u09b2\u09c7 \u09ac\u09bf\u09b8\u09cd\u09a4\u09be\u09b0\u09bf\u09a4 \u09a6\u09c7\u0996\u09c1\u09a8\u0964")
         with st.container(border=True):
             map_view = folium.Map(location=[search_lat, search_lon], zoom_start=13, control_scale=True, tiles="OpenStreetMap")
             map_view.get_root().html.add_child(Element(_popup_styles()))
             folium.CircleMarker(
                 [search_lat, search_lon], radius=8, color=DESIGN_COLORS["new"],
                 fill=True, fill_color=DESIGN_COLORS["new"], fill_opacity=1,
-                tooltip=location_name,
+                tooltip=area_name,
             ).add_to(map_view)
             folium.Circle([search_lat, search_lon], radius=radius_m, color=DESIGN_COLORS["new"], fill=False).add_to(map_view)
             for _, row in nearby.iterrows():
@@ -587,13 +629,11 @@ def _popup_content(row: Mapping[str, object]) -> dict[str, Any]:
     def present(value: object, fallback: str = "\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987") -> str:
         return fallback if value is None or pd.isna(value) or not str(value).strip() else str(value)
 
-    area = _area_label(row)
+    area = format_area_name(row)
     priority = _priority_label(row.get("priority_band"))
     latitude = pd.to_numeric(pd.Series([row.get("lat")]), errors="coerce").iloc[0]
     longitude = pd.to_numeric(pd.Series([row.get("lon")]), errors="coerce").iloc[0]
     coordinates = f"{latitude:.5f}\u00b0 \u0989\u09a4\u09cd\u09a4\u09b0, {longitude:.5f}\u00b0 \u09aa\u09c2\u09b0\u09cd\u09ac" if pd.notna(latitude) and pd.notna(longitude) else "\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987"
-    district_value = row.get("district")
-    district = _district_label(district_value) if district_value is not None and pd.notna(district_value) else "\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987"
     signals: list[str] = []
     rules = load_config()["rules"].get("siting_rules", [])
     breaches = set(_signals(pd.Series(dict(row))))
@@ -618,7 +658,7 @@ def _popup_content(row: Mapping[str, object]) -> dict[str, Any]:
     is_new = str(row.get("detection_status", "")) == "New candidate (2025-26)"
     return {"type": _type_label(row.get("class", row.get("class_name"))), "is_new": is_new,
             "area": area, "priority": priority, "coordinates": coordinates,
-            "district": district, "signals": signals, "kiln_id": present(row.get("kiln_id")),
+            "signals": signals, "kiln_id": present(row.get("kiln_id")),
             "latitude": float(latitude) if pd.notna(latitude) else None,
             "longitude": float(longitude) if pd.notna(longitude) else None}
 
@@ -631,9 +671,9 @@ def build_popup(row: pd.Series) -> str:
     return "\n".join([badges, f"\u0987\u099f\u09ad\u09be\u099f\u09be\u09b0 \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0 \u00b7 {content['area']}", separator,
         f"\u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0: {content['priority']}",
         f"\U0001f4cd \u098f\u09b2\u09be\u0995\u09be: {content['area']}",
-        f"{content['coordinates']} \u00b7 {content['district']}", separator,
+        content["coordinates"], separator,
         "\u09a8\u09bf\u09af\u09bc\u09ae\u09c7\u09b0 \u09b8\u0982\u0995\u09c7\u09a4:", *content["signals"], separator,
-        "[\U0001f5fa\ufe0f \u09a6\u09bf\u0995\u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6\u09a8\u09be] [\U0001f4cd \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0] [\U0001f30d Earth]",
+        "[\U0001f5fa\ufe0f \u09a6\u09bf\u0995\u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6\u09a8\u09be] [\U0001f4cd \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0] [\U0001f30d \u09aa\u09c3\u09a5\u09bf\u09ac\u09c0]",
         f"[\U0001f4c4 \u09aa\u09cd\u09b0\u09a4\u09bf\u09ac\u09c7\u09a6\u09a8 \u09a8\u09ae\u09cd\u09ac\u09b0: {content['kiln_id']}]", separator])
 
 
@@ -652,7 +692,7 @@ def _popup_html(row: pd.Series) -> str:
         f"<strong>\u0987\u099f\u09ad\u09be\u099f\u09be\u09b0 \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0 \u00b7 {escaped(content['area'])}</strong><hr>"
         f"\u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0: {escaped(content['priority'])}<br>"
         f"\U0001f4cd \u098f\u09b2\u09be\u0995\u09be: {escaped(content['area'])}<br>"
-        f"{escaped(content['coordinates'])} \u00b7 {escaped(content['district'])}<hr>"
+        f"{escaped(content['coordinates'])}<hr>"
         f"<strong>\u09a8\u09bf\u09af\u09bc\u09ae\u09c7\u09b0 \u09b8\u0982\u0995\u09c7\u09a4:</strong>{signal_lines}<hr>"
         "<div class='popup-actions'>"
         f"<a href='{escaped(directions, quote=True)}' target='_blank' rel='noopener'>\U0001f5fa\ufe0f \u09a6\u09bf\u0995\u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6\u09a8\u09be</a>"
@@ -729,7 +769,7 @@ def _kiln_list_frame(gdf: gpd.GeoDataFrame) -> pd.DataFrame:
     }
     records: list[dict[str, object]] = []
     for _, row in gdf.iterrows():
-        location = f"\U0001f4cd {_area_label(row, fallback='coordinates')}"
+        location = f"\U0001f4cd {format_area_name(row)}"
         record: dict[str, object] = {
             select_label: select_label,
             location_label: location,
@@ -750,27 +790,20 @@ def _priority_table_style(value: object) -> str:
     return f"color: {color}; font-weight: 700"
 
 
-def _filtered(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> gpd.GeoDataFrame:
-    """Apply the sidebar filter state without rendering UI."""
-    result = apply_candidate_filters(
-        gdf,
-        load_config()["rules"],
-        districts=None if filters["district"] == "All Districts" else {filters["district"]},
-        classes=None if filters["kiln_type"] == "All types" else {"FCBK" if "FCBK" in filters["kiln_type"] else "Zigzag"},
-        priority_bands=filters["priorities"] or {"__none__"},
-        signal_filters=filters.get("signal_filters", {}),
-    )
-    if filters.get("new_only") and "detection_status" in result.columns:
-        result = result[result["detection_status"].eq("New candidate (2025-26)")].copy()
-    return result
+def make_download_csv(gdf: pd.DataFrame, columns: list[str]) -> bytes:
+    """Build an encoded CSV containing only available requested public fields.
 
-
-def _export_csv(gdf: pd.DataFrame) -> str:
-    """Create the fixed candidate CSV with configured rule distances."""
-    from src.eval.generate_report import generate_candidate_csv
-
-    exported = pd.read_csv(StringIO(generate_candidate_csv(gdf)))
-    return exported.drop(columns=["Confidence_Pct"], errors="ignore").to_csv(index=False, na_rep="")
+    Input schema: any candidate DataFrame and one explicit export schema.
+    Output schema: UTF-8 CSV bytes without index, geometry, or internal columns.
+    """
+    exported = gdf.copy()
+    if "area" in columns and "area" not in exported.columns:
+        exported["area"] = exported.apply(format_area_name, axis=1)
+    selected = [
+        column for column in columns
+        if column in exported.columns and not column.startswith("_")
+    ]
+    return exported.loc[:, selected].to_csv(index=False, na_rep="").encode("utf-8-sig")
 
 
 def _flagged_count(frame: pd.DataFrame, rules: Mapping[str, Any]) -> int:
@@ -822,11 +855,11 @@ def render_header(gdf: gpd.GeoDataFrame) -> str:
 
 1. \u09b8\u09cd\u0995\u09c1\u09b2, \u09b9\u09be\u09b8\u09aa\u09be\u09a4\u09be\u09b2 \u09ac\u09be \u098f\u09b2\u09be\u0995\u09be\u09b0 \u09a8\u09be\u09ae \u09b2\u09bf\u0996\u09c1\u09a8 \u0985\u09a5\u09ac\u09be \u0985\u0995\u09cd\u09b7\u09be\u0982\u09b6-\u09a6\u09cd\u09b0\u09be\u0998\u09bf\u09ae\u09be\u0982\u09b6 \u09a6\u09bf\u09a8\u0964 \u09a8\u09be\u09ae \u09a6\u09bf\u09b2\u09c7 \u09b8\u09cd\u09a5\u09be\u09a8\u09be\u0999\u09cd\u0995 \u0997\u09a3\u09cd\u09af \u0995\u09b0\u09be \u09b9\u09ac\u09c7 \u09a8\u09be\u0964
 
-2. **\u0996\u09c1\u0981\u099c\u09c1\u09a8** \u099a\u09be\u09aa\u09c1\u09a8\u0964 \u09ab\u09b2\u09be\u09ab\u09b2 \u0986\u09b8\u09be\u09b0 \u09aa\u09b0 **\u0985\u09a8\u09c1\u09b8\u09a8\u09cd\u09a7\u09be\u09a8\u09c7\u09b0 \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7** \u09b8\u09cd\u09b2\u09be\u0987\u09a1\u09be\u09b0 \u09a6\u09bf\u09df\u09c7 250 \u09ae\u09bf\u099f\u09be\u09b0 \u09a5\u09c7\u0995\u09c7 5 \u0995\u09bf\u09ae\u09bf \u09ac\u09be\u099b\u09c1\u09a8\u0964 \u09aa\u09cd\u09b0\u09a4\u09bf \u09a7\u09be\u09aa 250 \u09ae\u09bf\u099f\u09be\u09b0; \u09b6\u09c1\u09b0\u09c1\u09a4\u09c7 1 \u0995\u09bf\u09ae\u09bf \u09a5\u09be\u0995\u09c7\u0964 \u09b8\u0982\u0996\u09cd\u09af\u09be, \u09a4\u09be\u09b2\u09bf\u0995\u09be, \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0 \u0993 PDF \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09bf\u09a4 \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7 \u0985\u09a8\u09c1\u09af\u09be\u09df\u09c0 \u09b9\u09be\u09b2\u09a8\u09be\u0997 \u09b9\u09ac\u09c7\u0964
+2. **\u0996\u09c1\u0981\u099c\u09c1\u09a8** \u099a\u09be\u09aa\u09c1\u09a8\u0964 \u09ab\u09b2\u09be\u09ab\u09b2 \u0986\u09b8\u09be\u09b0 \u09aa\u09b0 **\u0985\u09a8\u09c1\u09b8\u09a8\u09cd\u09a7\u09be\u09a8\u09c7\u09b0 \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7** \u09b8\u09cd\u09b2\u09be\u0987\u09a1\u09be\u09b0 \u09a6\u09bf\u09df\u09c7 250 \u09ae\u09bf\u099f\u09be\u09b0 \u09a5\u09c7\u0995\u09c7 5 \u0995\u09bf\u09ae\u09bf \u09ac\u09be\u099b\u09c1\u09a8\u0964 \u09aa\u09cd\u09b0\u09a4\u09bf \u09a7\u09be\u09aa 250 \u09ae\u09bf\u099f\u09be\u09b0; \u09b6\u09c1\u09b0\u09c1\u09a4\u09c7 1 \u0995\u09bf\u09ae\u09bf \u09a5\u09be\u0995\u09c7\u0964 \u09b8\u0982\u0996\u09cd\u09af\u09be, \u09a4\u09be\u09b2\u09bf\u0995\u09be, \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0 \u0993 \u09aa\u09bf\u09a1\u09bf\u098f\u09ab \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09bf\u09a4 \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7 \u0985\u09a8\u09c1\u09af\u09be\u09df\u09c0 \u09b9\u09be\u09b2\u09a8\u09be\u0997 \u09b9\u09ac\u09c7\u0964
 
 3. \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0\u09c7 \u09a8\u09c0\u09b2 \u09aa\u09bf\u09a8 \u0996\u09cb\u0981\u099c\u09be \u09b8\u09cd\u09a5\u09be\u09a8, \u098f\u09ac\u0982 \u09a8\u09c0\u09b2 \u09ac\u09c3\u09a4\u09cd\u09a4\u09c7\u09b0 \u09b8\u09c0\u09ae\u09be\u09a8\u09be \u09ac\u09be\u099b\u09be \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7 \u09a6\u09c7\u0996\u09be\u09df\u0964 \u09b2\u09be\u09b2, \u0995\u09ae\u09b2\u09be \u0993 \u09b8\u09ac\u09c1\u099c \u09ac\u09bf\u09a8\u09cd\u09a6\u09c1 \u09af\u09a5\u09be\u0995\u09cd\u09b0\u09ae\u09c7 \u0989\u099a\u09cd\u099a, \u09ae\u09be\u099d\u09be\u09b0\u09bf \u0993 \u09a8\u09bf\u09ae\u09cd\u09a8 \u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0\u09c7\u09b0 \u09ad\u09be\u099f\u09be \u09a6\u09c7\u0996\u09be\u09df\u0964 \u09ac\u09bf\u09b8\u09cd\u09a4\u09be\u09b0\u09bf\u09a4 \u09a6\u09c7\u0996\u09a4\u09c7 \u09ad\u09be\u099f\u09be\u09b0 \u099a\u09bf\u09b9\u09cd\u09a8\u09c7 \u099a\u09be\u09aa \u09a6\u09bf\u09a8\u0964
 
-4. **Download community report** \u09ac\u09be\u099f\u09a8\u099f\u09bf \u09ab\u09b2\u09be\u09ab\u09b2\u09c7\u09b0 \u09aa\u09be\u09b6\u09c7, \u09a4\u09be\u09b2\u09bf\u0995\u09be\u09b0 \u0989\u09aa\u09b0\u09c7 \u09a5\u09be\u0995\u09c7\u0964 \u098f\u099f\u09bf\u09a4\u09c7 \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09bf\u09a4 \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7 \u0993 \u09ab\u09b2\u09be\u09ab\u09b2 \u09a5\u09be\u0995\u09c7\u0964
+4. **\u0995\u09ae\u09bf\u0989\u09a8\u09bf\u099f\u09bf \u09aa\u09cd\u09b0\u09a4\u09bf\u09ac\u09c7\u09a6\u09a8 \u09a1\u09be\u0989\u09a8\u09b2\u09cb\u09a1 \u0995\u09b0\u09c1\u09a8** \u09ac\u09be\u099f\u09a8\u099f\u09bf \u09ab\u09b2\u09be\u09ab\u09b2\u09c7\u09b0 \u09aa\u09be\u09b6\u09c7, \u09a4\u09be\u09b2\u09bf\u0995\u09be\u09b0 \u0989\u09aa\u09b0\u09c7 \u09a5\u09be\u0995\u09c7\u0964 \u098f\u099f\u09bf\u09a4\u09c7 \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09bf\u09a4 \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7 \u0993 \u09ab\u09b2\u09be\u09ab\u09b2 \u09a5\u09be\u0995\u09c7\u0964
 
 """)
         else:
@@ -837,7 +870,7 @@ def render_header(gdf: gpd.GeoDataFrame) -> str:
 
 \u09e8. **\u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0\u09c7\u09b0 \u09a4\u09be\u09b2\u09bf\u0995\u09be** \u09a5\u09c7\u0995\u09c7 \u0987\u099f\u09ad\u09be\u099f\u09be \u09ac\u09be\u099b\u09c1\u09a8, \u0985\u09a5\u09ac\u09be \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0\u09c7\u09b0 \u099a\u09bf\u09b9\u09cd\u09a8\u09c7 \u099a\u09be\u09aa \u09a6\u09bf\u09df\u09c7 \u09a4\u09be \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09a8 \u0995\u09b0\u09c1\u09a8\u0964 \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09bf\u09a4 \u0987\u099f\u09ad\u09be\u099f\u09be\u09b0 \u09a4\u09a5\u09cd\u09af \u09a6\u09c7\u0996\u09a4\u09c7 \u09aa\u09be\u09ac\u09c7\u09a8\u0964
 
-\u09e9. \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0\u09c7 **\u09b0\u09be\u09b8\u09cd\u09a4\u09be\u09b0 \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0** \u0985\u09a5\u09ac\u09be **\u09b8\u09cd\u09af\u09be\u099f\u09c7\u09b2\u09be\u0987\u099f \u099b\u09ac\u09bf** \u09ac\u09be\u099b\u09c1\u09a8\u0964 \u09aa\u09cd\u09b0\u09df\u09cb\u099c\u09a8\u09c7 CSV \u09a4\u09be\u09b2\u09bf\u0995\u09be \u0985\u09a5\u09ac\u09be \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09bf\u09a4 \u0987\u099f\u09ad\u09be\u099f\u09be\u09b0 PDF \u09aa\u09cd\u09b0\u09a4\u09bf\u09ac\u09c7\u09a6\u09a8 \u09a1\u09be\u0989\u09a8\u09b2\u09cb\u09a1 \u0995\u09b0\u09c1\u09a8\u0964
+\u09e9. \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0\u09c7 **\u09b0\u09be\u09b8\u09cd\u09a4\u09be\u09b0 \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0** \u0985\u09a5\u09ac\u09be **\u09b8\u09cd\u09af\u09be\u099f\u09c7\u09b2\u09be\u0987\u099f \u099b\u09ac\u09bf** \u09ac\u09be\u099b\u09c1\u09a8\u0964 \u09aa\u09cd\u09b0\u09df\u09cb\u099c\u09a8\u09c7 \u09b8\u09bf\u098f\u09b8\u09ad\u09bf \u09a4\u09be\u09b2\u09bf\u0995\u09be \u0985\u09a5\u09ac\u09be \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09bf\u09a4 \u0987\u099f\u09ad\u09be\u099f\u09be\u09b0 \u09aa\u09bf\u09a1\u09bf\u098f\u09ab \u09aa\u09cd\u09b0\u09a4\u09bf\u09ac\u09c7\u09a6\u09a8 \u09a1\u09be\u0989\u09a8\u09b2\u09cb\u09a1 \u0995\u09b0\u09c1\u09a8\u0964
 """)
     if is_community:
         st.caption("\u09b8\u09cd\u0995\u09c1\u09b2, \u09b9\u09be\u09b8\u09aa\u09be\u09a4\u09be\u09b2 \u09ac\u09be \u098f\u09b2\u09be\u0995\u09be\u09b0 \u09a8\u09be\u09ae \u09a6\u09bf\u09af\u09bc\u09c7 \u0996\u09c1\u0981\u099c\u09c1\u09a8, \u0985\u09a5\u09ac\u09be \u09ae\u09be\u09a8\u09c1\u09b7\u09bf\u0995 \u09b8\u09cd\u09a5\u09be\u09a8\u09be\u0999\u09cd\u0995 \u09a6\u09bf\u09af\u09bc\u09c7 \u09aa\u09bf\u09a8 \u09a6\u09bf\u09a8।")
@@ -846,14 +879,12 @@ def render_header(gdf: gpd.GeoDataFrame) -> str:
         st.caption("\u09b8\u09c1\u09b8\u099c\u09cd\u099c\u09bf\u09a4 \u09ad\u09be\u099f\u09be\u099f\u09bf\u09b0 \u09a4\u09be\u09b2\u09bf\u0995\u09be \u0993 \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0 \u09a6\u09c7\u0996\u09c1\u09a8, \u09ab\u09bf\u09b2\u09cd\u099f\u09be\u09b0 \u09a6\u09bf\u09af\u09bc\u09c7 \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0 \u0996\u09c1\u0981\u099c\u09c1\u09a8।")
         selected_mode = "inspector"
     high = int(gdf["priority_band"].eq("High").sum())
-    new_count = int(gdf.get("detection_status", pd.Series("Known", index=gdf.index)).eq("New candidate (2025-26)").sum())
     flagged = _flagged_count(gdf, load_config()["rules"])
     items = (
-        (f"{len(gdf):,}", "\u09ae\u09cb\u099f \u09ad\u09be\u099f\u09be"),
-        (f"{high:,}", "\u099c\u09b0\u09c1\u09b0\u09bf \u09ad\u09be\u099f\u09be"),
-        (f"{new_count:,}", "\u09a8\u09a4\u09c1\u09a8 \u0986\u09ac\u09bf\u09b7\u09cd\u0995\u09be\u09b0"),
-        (f"{flagged:,}", "\u0986\u0987\u09a8 \u09b2\u0999\u09cd\u0998\u09a8"),
-        (datetime.now(UTC).date().isoformat(), "\u09b8\u09b0\u09cd\u09ac\u09b6\u09c7\u09b7 \u09b9\u09be\u09b2\u09a8\u09be\u0997\u09be\u09a6"),
+        (f"{len(gdf):,}", METRIC_LABELS["total_kilns"]),
+        (f"{high:,}", METRIC_LABELS["high_priority_kilns"]),
+        (f"{flagged:,}", METRIC_LABELS["rule_violations"]),
+        (datetime.now(UTC).date().isoformat(), METRIC_LABELS["last_updated"]),
     )
     metrics = "".join(f"<div class='dhoa-metric'><strong>{value}</strong><span>{label}</span></div>" for value, label in items)
     st.markdown(f"<div class='dhoa-metrics'>{metrics}</div>", unsafe_allow_html=True)
@@ -881,7 +912,7 @@ def render_district_summary(district: str, gdf: gpd.GeoDataFrame) -> None:
     top_rule_signal = (
         rule_names.get(str(signal_counts.index[0]), _signal_label(signal_counts.index[0]))
         if not signal_counts.empty
-        else "None"
+        else "\u09a8\u09c7\u0987"
     )
     if selected.empty or selected.geometry.is_empty.all():
         coverage_km2 = 0.0
@@ -901,7 +932,7 @@ def render_district_summary(district: str, gdf: gpd.GeoDataFrame) -> None:
     columns = st.columns(4)
     for column, label, value in zip(
         columns,
-        ("মোট প্রার্থী", "উচ্চ অগ্রাধিকার", "আনুমানিক এলাকা (বর্গ কিমি)", "প্রধান নিয়ম-সংকেত"),
+        (METRIC_LABELS["total_candidates"], METRIC_LABELS["high_priority_kilns"], METRIC_LABELS["estimated_area"], METRIC_LABELS["primary_signal"]),
         (len(selected), high_count, f"{coverage_km2:,.2f}", top_rule_signal),
     ):
         column.metric(label, value)
@@ -912,6 +943,7 @@ def render_district_summary(district: str, gdf: gpd.GeoDataFrame) -> None:
 
 def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
     """Render Inspector filters and the persistent export/contact actions."""
+    st.session_state["dhoa_active_view"] = mode
     with st.sidebar:
         st.markdown(f"## {DASHBOARD_TITLE}")
         st.divider()
@@ -933,16 +965,26 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
                         except Exception:  # noqa: BLE001 - external geocoding boundary
                             location = None
                         if location is None:
-                            st.warning("\u09b8\u09cd\u09a5\u09be\u09a8\u099f\u09bf \u0996\u09c1\u0981\u099c\u09c7 \u09aa\u09be\u0993\u09df\u09be \u09af\u09be\u09df\u09a8\u09bf; \u09a8\u09be\u09ae \u09ac\u09be \u099c\u09c7\u09b2\u09be\u09b0 \u09a8\u09be\u09ae \u09af\u09cb\u0997 \u0995\u09b0\u09c1\u09a8\u0964")
+                            st.warning(AREA_SEARCH_WARNING)
                         else:
-                            st.session_state["inspector_area_search"] = (area_name.strip(), float(location.latitude), float(location.longitude))
+                            search_lat, search_lon = float(location.latitude), float(location.longitude)
+                            previous_search = st.session_state.get("inspector_area_search")
+                            st.session_state["inspector_area_search"] = (
+                                area_name.strip(), search_lat, search_lon, INSPECTOR_AREA_RADIUS_M
+                            )
+                            if get_filtered_gdf(gdf).empty:
+                                if previous_search is None:
+                                    st.session_state.pop("inspector_area_search", None)
+                                else:
+                                    st.session_state["inspector_area_search"] = previous_search
+                                st.warning(AREA_SEARCH_WARNING)
                     else:
-                        st.warning("\u098f\u0995\u099f\u09bf \u098f\u09b2\u09be\u0995\u09be\u09b0 \u09a8\u09be\u09ae \u09b2\u09bf\u0996\u09c1\u09a8\u0964")
+                        st.warning(AREA_SEARCH_WARNING)
                 area_search = st.session_state.get("inspector_area_search")
                 if area_search:
-                    area_label, search_lat, search_lon = area_search
-                    nearby_count = int(community_distances(gdf, search_lat, search_lon).le(1000).sum())
-                    st.caption(f"{area_label}: 1 km \u098f\u09b0 \u09ae\u09a7\u09cd\u09af\u09c7 {nearby_count:,} \u099f\u09bf \u09ad\u09be\u099f\u09be\u09b0 \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0. \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0 \u098f\u0987 \u098f\u09b2\u09be\u0995\u09be\u09df \u0995\u09c7\u09a8\u09cd\u09a6\u09cd\u09b0\u09bf\u09a4 \u09b9\u09ac\u09c7\u0964")
+                    if st.button("✕ এলাকা ফিল্টার সরান", key="clear_inspector_area_filter", width="stretch"):
+                        st.session_state.pop("inspector_area_search", None)
+                        st.rerun()
             with st.expander("\u09ab\u09bf\u09b2\u09cd\u099f\u09be\u09b0", expanded=False):
                 districts = ["All Districts", *sorted(gdf["district"].dropna().astype(str).unique())] if "district" in gdf else ["All Districts"]
                 filters["district"] = st.selectbox("\u099c\u09c7\u09b2\u09be", districts, format_func=lambda value: "\u09b8\u09ac \u099c\u09c7\u09b2\u09be" if value == "All Districts" else _district_label(value), key="dhoa_district_filter")
@@ -955,10 +997,15 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
                 selected_signals = st.multiselect("\u09a8\u09bf\u09df\u09ae-\u09b8\u0982\u0995\u09c7\u09a4", signal_ids, format_func=_signal_label, placeholder="\u09b8\u09ac", key="dhoa_signal_filter")
                 filters["signal_filters"] = {signal: SIGNAL_PRESENT for signal in selected_signals}
         st.divider()
-        visible = _filtered(gdf, filters) if mode == "inspector" else gdf
+        visible = get_filtered_gdf(gdf) if mode == "inspector" else gdf
+        if mode == "inspector":
+            if area_search:
+                area_label = str(area_search[0])
+                radius_m = int(area_search[3]) if len(area_search) > 3 else INSPECTOR_AREA_RADIUS_M
+                st.caption(f"{area_label}: {radius_m / 1000:g} km এর মধ্যে {len(visible):,} টি প্রার্থী")
         if mode == "inspector":
             slug = str(filters["district"]).lower().replace(" ", "_")
-            st.download_button("\u2b07 \u09ac\u09be\u099b\u09be\u0987\u0995\u09c3\u09a4 \u09a4\u09be\u09b2\u09bf\u0995\u09be CSV \u09a1\u09be\u0989\u09a8\u09b2\u09cb\u09a1", _export_csv(visible), f"dhoa_{slug}_{datetime.now(UTC):%Y%m%d}.csv", "text/csv", width="stretch", key="sidebar_export_list")
+            st.download_button("\u2b07 \u09ac\u09be\u099b\u09be\u0987\u0995\u09c3\u09a4 \u09a4\u09be\u09b2\u09bf\u0995\u09be \u09b8\u09bf\u098f\u09b8\u09ad\u09bf \u09a1\u09be\u0989\u09a8\u09b2\u09cb\u09a1", make_download_csv(visible, INSPECTOR_CSV_COLUMNS), f"dhoa_{slug}_{datetime.now(UTC):%Y%m%d}.csv", "text/csv", width="stretch", key="sidebar_export_list")
         st.markdown("\u09aa\u09b0\u09bf\u09ac\u09c7\u09b6 \u0985\u09a7\u09bf\u09a6\u09aa\u09cd\u09a4\u09b0\u09c7\u09b0 \u09b9\u099f\u09b2\u09be\u0987\u09a8: \u09e7\u09ec\u09e7\u09e9\u09e7 | [doe.gov.bd](https://doe.gov.bd)")
     return filters
 
@@ -978,14 +1025,14 @@ def _render_selected_candidate(row: pd.Series) -> None:
     st.markdown(f"**\u09b8\u09b0\u0995\u09be\u09b0\u09bf \u09ac\u09a8 \u09a5\u09c7\u0995\u09c7 \u09a6\u09c2\u09b0\u09a4\u09cd\u09ac:** {forest_distance_label}")
     st.markdown(f"**\u09a7\u09b0\u09a8:** {_type_label(row.get('class'))}")
     st.markdown(f"**\u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0:** {_priority_label(row.get('priority_band'))} \u2014 {_priority_reason(row)}")
-    st.markdown(f"**\u098f\u09b2\u09be\u0995\u09be:** {_area_label(row)}")
+    st.markdown(f"**\u098f\u09b2\u09be\u0995\u09be:** {format_area_name(row)}")
     detection = "\u09a8\u09a4\u09c1\u09a8 \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0 (\u09e8\u09e6\u09e8\u09eb\u2013\u09e8\u09e8)" if row.get("detection_status") == "New candidate (2025-26)" else "\u0986\u0997\u09c7 \u099a\u09bf\u09b9\u09cd\u09a8\u09bf\u09a4 (\u09e8\u09e6\u09e8\u09e9\u2013\u09e8\u09ea \u099c\u09b0\u09bf\u09aa)"
     st.markdown(f"**\u09b6\u09a8\u09be\u0995\u09cd\u09a4\u0995\u09b0\u09a3\u09c7\u09b0 \u0985\u09ac\u09b8\u09cd\u09a5\u09be:** {detection}")
     st.markdown(f"**\u09b8\u09cd\u09a5\u09be\u09a8\u09be\u0999\u09cd\u0995:** {lat:.5f}, {lon:.5f}")
     columns = st.columns(3)
     columns[0].link_button("\U0001f5fa\ufe0f \u09a6\u09bf\u0995\u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6\u09a8\u09be", f"https://www.google.com/maps/dir/?api=1&destination={lat:.6f},{lon:.6f}&travelmode=driving", width="stretch")
     columns[1].link_button("\U0001f4cd \u09b0\u09be\u09b8\u09cd\u09a4\u09be\u09b0 \u09a6\u09c3\u09b6\u09cd\u09af", f"https://www.google.com/maps/@{lat:.6f},{lon:.6f},3a,90y,0h,90t/data=!3m1!1e3", width="stretch")
-    columns[2].link_button("\U0001f30d Earth", f"https://earth.google.com/web/@{lat:.6f},{lon:.6f},500a,500d,35y", width="stretch")
+    columns[2].link_button("\U0001f30d \u09aa\u09c3\u09a5\u09bf\u09ac\u09c0", f"https://earth.google.com/web/@{lat:.6f},{lon:.6f},500a,500d,35y", width="stretch")
 
 
 def _render_report_download(row: pd.Series) -> None:
@@ -999,7 +1046,7 @@ def _render_report_download(row: pd.Series) -> None:
         safe_id = "".join(char if char.isalnum() or char in "-_" else "_" for char in candidate_id)
         filename = f"dhoa_report_{safe_id}_{datetime.now(UTC):%Y%m%d}.pdf"
         st.download_button(
-            "📄 নির্বাচিত প্রার্থীর PDF ডাউনলোড",
+            "📄 নির্বাচিত প্রার্থীর \u09aa\u09bf\u09a1\u09bf\u098f\u09ab ডাউনলোড",
             report,
             filename,
             "application/pdf",
@@ -1018,27 +1065,26 @@ def build_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> folium.Map:
     mapping. Output schema: Folium map with visible priority marker layers and
     a hidden-by-default weighted heatmap.
     """
-    filtered = _filtered(gdf, filters)
+    filtered = get_filtered_gdf(gdf)
     selected_id = st.session_state.get("selected_kiln_id")
     area_search = st.session_state.get("inspector_area_search")
-    if area_search:
+    selected = filtered.iloc[0:0]
+    if selected_id is not None and "kiln_id" in filtered.columns:
+        selected = filtered[filtered["kiln_id"].astype(str).eq(str(selected_id))]
+    if not selected.empty:
+        center = (float(selected.iloc[0]["lat"]), float(selected.iloc[0]["lon"]))
+        zoom = 15
+    elif area_search:
+        if selected_id is not None:
+            st.session_state["selected_kiln_id"] = None
         center = (float(area_search[1]), float(area_search[2]))
         zoom = 13
-    elif selected_id is not None and "kiln_id" in filtered.columns:
-        selected = filtered[filtered["kiln_id"].astype(str).eq(str(selected_id))]
-        if not selected.empty:
-            center = (float(selected.iloc[0]["lat"]), float(selected.iloc[0]["lon"]))
-            zoom = 18
-        else:
-            st.session_state["selected_kiln_id"] = None
-            center = DISTRICT_CENTERS.get(
-                str(filters.get("district", "All Districts")), DISTRICT_CENTERS["All Districts"]
-            )
-            zoom = 7 if filters.get("district") == "All Districts" else 10
     elif filters.get("district") == "All Districts" and not filtered.empty:
         center = (float(filtered["lat"].mean()), float(filtered["lon"].mean()))
         zoom = 7
     else:
+        if selected_id is not None:
+            st.session_state["selected_kiln_id"] = None
         center = DISTRICT_CENTERS.get(
             str(filters.get("district", "All Districts")), DISTRICT_CENTERS["All Districts"]
         )
@@ -1047,12 +1093,14 @@ def build_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> folium.Map:
     satellite = filters.get("map_style") == "Satellite imagery"
     map_view = folium.Map(location=center, zoom_start=zoom, control_scale=True, tiles=None)
     if area_search:
+        area_center = (float(area_search[1]), float(area_search[2]))
         folium.CircleMarker(
-            location=center, radius=8, color=DESIGN_COLORS["new"],
+            location=area_center, radius=8, color=DESIGN_COLORS["new"],
             fill=True, fill_color=DESIGN_COLORS["new"], fill_opacity=1,
             tooltip=str(area_search[0]),
         ).add_to(map_view)
-        folium.Circle(center, radius=1000, color=DESIGN_COLORS["new"], fill=False).add_to(map_view)
+        radius_m = int(area_search[3]) if len(area_search) > 3 else INSPECTOR_AREA_RADIUS_M
+        folium.Circle(area_center, radius=radius_m, color=DESIGN_COLORS["new"], fill=False).add_to(map_view)
     map_view.get_root().html.add_child(
         Element(
             """<style>
@@ -1096,7 +1144,7 @@ def build_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> folium.Map:
             latitude, longitude = float(row["lat"]), float(row["lon"])
             marker_label = (
                 f"{_priority_label(band)} অগ্রাধিকার | {_type_label(row.get('class'))} | "
-                f"{_district_label(row.get('district', 'জেলা নথিভুক্ত নয়'))}"
+                f"{format_area_name(row)}"
             )
             popup_html = _popup_html(row)
             is_selected = str(row.get("kiln_id")) == str(selected_id)
@@ -1152,20 +1200,28 @@ def render_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> None:
     Input schema: candidate GeoDataFrame and sidebar filter mapping. Output:
     an interactive Folium map plus the selected candidate's detail/report panel.
     """
-    visible = _filtered(gdf, filters)
-    high_candidates = visible[visible["priority_band"].astype(str).eq("High")]
+    visible = get_filtered_gdf(gdf)
+    selected_id = st.session_state.get("selected_kiln_id")
+    if selected_id is not None and (
+        "kiln_id" not in visible.columns
+        or not visible["kiln_id"].astype(str).eq(str(selected_id)).any()
+    ):
+        st.session_state["selected_kiln_id"] = None
+        st.session_state["dhoa_list_selection_token"] = None
+        st.session_state["dhoa_last_map_click_count"] = None
+    list_candidates = visible
     list_panel, map_panel = st.columns([2, 3], gap="medium")
     with list_panel:
         st.subheader("\U0001f525 \u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0 \u09a4\u09be\u09b2\u09bf\u0995\u09be")
-        st.caption(f"{len(high_candidates):,}\u099f\u09bf \u0989\u099a\u09cd\u099a \u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0\u09c7\u09b0 \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0")
-        if high_candidates.empty:
-            st.info("এই ফিল্টারে উচ্চ অগ্রাধিকারের কোনো প্রার্থী নেই।")
+        st.caption(f"{len(list_candidates):,}\u099f\u09bf \u09ab\u09bf\u09b2\u09cd\u099f\u09be\u09b0\u09c7\u09b0 \u09b8\u09be\u09a5\u09c7 \u09ae\u09c7\u09b2\u09be \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0")
+        if list_candidates.empty:
+            st.info("এই ফিল্টারে কোনো প্রার্থী নেই।")
         else:
-            list_frame = _kiln_list_frame(high_candidates)
+            list_frame = _kiln_list_frame(list_candidates)
             list_choice = _priority_candidate_list(
                 columns=list_frame.columns.tolist(),
                 rows=list_frame.astype(str).values.tolist(),
-                kiln_ids=high_candidates["kiln_id"].astype(str).tolist(),
+                kiln_ids=list_candidates["kiln_id"].astype(str).tolist(),
                 selected_id=(
                     str(st.session_state.get("selected_kiln_id"))
                     if st.session_state.get("selected_kiln_id") is not None
@@ -1190,7 +1246,7 @@ def render_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> None:
             else visible.iloc[0:0]
         )
         if selected_for_report.empty:
-            st.caption("PDF পেতে তালিকা বা মানচিত্র থেকে একটি প্রার্থী নির্বাচন করুন।")
+            st.caption("\u09aa\u09bf\u09a1\u09bf\u098f\u09ab পেতে তালিকা বা মানচিত্র থেকে একটি প্রার্থী নির্বাচন করুন।")
         else:
             _render_report_download(selected_for_report.iloc[0])
         map_selection_id = st.session_state.get("selected_kiln_id")
@@ -1311,13 +1367,13 @@ def main() -> None:
             render_community_view(gdf)
             render_footer()
             return
-        visible = _filtered(gdf, filters)
+        visible = get_filtered_gdf(gdf)
         render_map(gdf, filters)
         high_count = int(visible.get("priority_band", pd.Series(index=visible.index, dtype="string")).astype(str).eq("High").sum())
         flagged_count = _flagged_count(visible, load_config()["rules"])
         new_status = visible.get("detection_status", pd.Series("Known", index=visible.index))
         new_count = int(new_status.eq("New candidate (2025-26)").sum())
-        st.markdown(f"**{high_count:,} \u0989\u099a\u09cd\u099a \u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0 | {flagged_count:,} \u09a8\u09bf\u09df\u09ae \u09b8\u0982\u0995\u09c7\u09a4 | {new_count:,} \u09a8\u09a4\u09c1\u09a8 \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0**")
+        st.markdown(f"**{high_count:,} {METRIC_LABELS['high_priority_kilns']} | {flagged_count:,} {METRIC_LABELS['rule_signals']} | {new_count:,} {METRIC_LABELS['new_candidates']}**")
         render_footer()
     except Exception:
         logging.getLogger(__name__).exception("Dashboard view rendering failed")
