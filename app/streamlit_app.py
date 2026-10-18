@@ -608,6 +608,68 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
                 width="stretch",
                 key="community_candidates_csv_download",
             )
+            if not nearby.empty:
+                st.subheader("\u09ad\u09be\u099f\u09be \u09b0\u09bf\u09aa\u09cb\u09b0\u09cd\u099f \u0995\u09b0\u09c1\u09a8")
+            if not nearby.empty:
+                kiln_ids = nearby["kiln_id"].astype(str).tolist()
+                current_id = st.session_state.get("community_report_kiln_id")
+                if current_id not in kiln_ids:
+                    inspector_selection = st.session_state.get("selected_kiln_id")
+                    current_id = str(inspector_selection) if inspector_selection is not None and str(inspector_selection) in kiln_ids else None
+                    st.session_state["community_report_kiln_id"] = current_id
+                with st.expander(
+                    "\u26a0\ufe0f \u098f\u0987 \u09ad\u09be\u099f\u09be\u099f\u09bf \u09b0\u09bf\u09aa\u09cb\u09b0\u09cd\u099f \u0995\u09b0\u09c1\u09a8",
+                    expanded=current_id is not None,
+                ):
+                    selected_kiln_id = st.selectbox(
+                        "\u09ad\u09be\u099f\u09be \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09a8 \u0995\u09b0\u09c1\u09a8",
+                        kiln_ids,
+                        index=kiln_ids.index(current_id) if current_id in kiln_ids else None,
+                        placeholder="\u098f\u0995\u099f\u09bf \u09ad\u09be\u099f\u09be \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09a8 \u0995\u09b0\u09c1\u09a8",
+                        key="community_report_kiln_id",
+                        format_func=lambda kiln_id: f"#{kiln_id} \u00b7 {format_area_name(nearby.loc[nearby['kiln_id'].astype(str).eq(kiln_id)].iloc[0])}",
+                    )
+                    selected_report = nearby[nearby["kiln_id"].astype(str).eq(str(selected_kiln_id))] if selected_kiln_id is not None else nearby.iloc[0:0]
+                    report_text = ""
+                    if not selected_report.empty:
+                        kiln = selected_report.iloc[0]
+                        missing_value = "\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987"
+                        display_value = lambda value: missing_value if pd.isna(value) or not str(value).strip() else str(value)
+                        district = display_value(kiln.get("district"))
+                        upazila = display_value(kiln.get("upazila"))
+                        nearest_place = display_value(kiln.get("nearest_place"))
+                        nearest_dist = pd.to_numeric(pd.Series([kiln.get("nearest_place_dist_m")]), errors="coerce").iloc[0]
+                        nearest_dist_text = f"{nearest_dist:g}" if pd.notna(nearest_dist) else "\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987"
+                        latitude = pd.to_numeric(pd.Series([kiln.get("lat")]), errors="coerce").iloc[0]
+                        longitude = pd.to_numeric(pd.Series([kiln.get("lon")]), errors="coerce").iloc[0]
+                        location = f"{latitude:.4f}\u00b0N, {longitude:.4f}\u00b0E" if pd.notna(latitude) and pd.notna(longitude) else "\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987"
+                        priority = _priority_label(kiln.get("priority_band"))
+                        breach_count = display_value(kiln.get("breach_count"))
+                        report_text = (
+                            "\u0985\u09ad\u09bf\u09af\u09cb\u0997 \u09ac\u09bf\u09b7\u09af\u09bc: \u09b8\u09ae\u09cd\u09ad\u09be\u09ac\u09cd\u09af \u0985\u09ac\u09c8\u09a7 \u0987\u099f\u09ad\u09be\u099f\u09be\n"
+                            f"\u099c\u09c7\u09b2\u09be: {district}\n"
+                            f"\u0989\u09aa\u099c\u09c7\u09b2\u09be: {upazila}\n"
+                            f"\u09a8\u09bf\u0995\u099f\u09a4\u09ae \u09b8\u09cd\u09a5\u09be\u09a8: {nearest_place} ({nearest_dist_text} \u09ae\u09bf)\n"
+                            f"\u0986\u09a8\u09c1\u09ae\u09be\u09a8\u09bf\u0995 \u0985\u09ac\u09b8\u09cd\u09a5\u09be\u09a8: {location}\n"
+                            f"\u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0: {priority}\n"
+                            f"\u09b2\u0999\u09cd\u0998\u09a8 \u09b8\u0982\u0996\u09cd\u09af\u09be: {breach_count}\n"
+                            "\u09a4\u09a5\u09cd\u09af\u09b8\u09c2\u09a4\u09cd\u09b0: \u09a7\u09cb\u0981\u09af\u09bc\u09be \u09b8\u09cd\u09af\u09be\u099f\u09c7\u09b2\u09be\u0987\u099f \u09aa\u09b0\u09cd\u09af\u09ac\u09c7\u0995\u09cd\u09b7\u09a3 \u09a1\u09cd\u09af\u09be\u09b6\u09ac\u09cb\u09b0\u09cd\u09a1"
+                        )
+                    st.markdown(
+                        "\u09b8\u09b0\u0995\u09be\u09b0\u09bf \u09aa\u09b0\u09bf\u09ac\u09c7\u09b6 \u0985\u09ad\u09bf\u09af\u09cb\u0997 \u09b9\u09c7\u09b2\u09cd\u09aa\u09b2\u09be\u0987\u09a8\u09c7 \u09b0\u09bf\u09aa\u09cb\u09b0\u09cd\u099f \u0995\u09b0\u09a4\u09c7:\n\n\U0001f4de 333 \u09a8\u09ae\u09cd\u09ac\u09b0\u09c7 \u0995\u09b2 \u0995\u09b0\u09c1\u09a8 \u2192 4 \u099a\u09be\u09aa\u09c1\u09a8\n\n\u0986\u09aa\u09a8\u09be\u09b0 \u0985\u09ad\u09bf\u09af\u09cb\u0997 \u09b8\u09b0\u09be\u09b8\u09b0\u09bf \u09aa\u09b0\u09bf\u09ac\u09c7\u09b6 \u0995\u09b0\u09cd\u09ae\u0995\u09b0\u09cd\u09a4\u09be\u09b0 \u09a1\u09cd\u09af\u09be\u09b6\u09ac\u09cb\u09b0\u09cd\u09a1\u09c7 \u09af\u09be\u09ac\u09c7 \u098f\u09ac\u0982 SMS-\u098f \u0986\u09aa\u09a1\u09c7\u099f \u09aa\u09be\u09ac\u09c7\u09a8।"
+                    )
+                    st.text_area(
+                        "\u09b0\u09bf\u09aa\u09cb\u09b0\u09cd\u099f \u099f\u09c7\u0995\u09b8\u099f",
+                        value=report_text,
+                        placeholder="\u098f\u0995\u099f\u09bf \u09ad\u09be\u099f\u09be \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09a8 \u0995\u09b0\u09c1\u09a8",
+                        height=230,
+                        disabled=True,
+                        key="community_report_text_preview",
+                    )
+                    if st.button("\U0001f4cb \u09b0\u09bf\u09aa\u09cb\u09b0\u09cd\u099f \u099f\u09c7\u0995\u09b8\u099f \u0995\u09aa\u09bf \u0995\u09b0\u09c1\u09a8", key="community_report_copy_text") and report_text:
+                        st.code(report_text, language=None)
+            if not nearby.empty:
+                st.info("\u09b8\u09b0\u0995\u09be\u09b0\u09bf \u09aa\u09b0\u09bf\u09ac\u09c7\u09b6 \u09b9\u09c7\u09b2\u09cd\u09aa\u09b2\u09be\u0987\u09a8: \U0001f4de 333 \u2192 4 \u099a\u09be\u09aa\u09c1\u09a8 | \u09aa\u09b0\u09bf\u09ac\u09c7\u09b6 \u09ae\u09a8\u09cd\u09a4\u09cd\u09b0\u09a3\u09be\u09b2\u09af\u09bc, \u09ac\u09be\u0982\u09b2\u09be\u09a6\u09c7\u09b6")
     with map_column:
         st.subheader("\u098f\u09b2\u09be\u0995\u09be\u09b0 \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0")
         st.markdown(
