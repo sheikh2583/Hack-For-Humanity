@@ -3,6 +3,7 @@ geopandas
 folium
 streamlit-folium
 pandas
+openpyxl
 pyarrow
 pyyaml
 shapely

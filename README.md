@@ -60,8 +60,9 @@ On Linux/macOS, use:
 
 The dashboard provides district summaries, filters, a selectable high-priority
 list, an interactive map of filtered candidates, candidate details and
-navigation links, a one-candidate PDF report, and a filtered CSV review queue
-with coordinates and rule distances. The list and map are arranged side by
+navigation links, a one-candidate PDF report, a community search with an
+adjustable radius and matching PDF, and a filtered CSV review queue with
+coordinates and rule distances. The list and map are arranged side by
 side on desktop and adapt for narrow screens. See the
 [dashboard guide](docs/DASHBOARD_GUIDE.md) for the operator flow and export
 contents. Before a public demo, check selection, map controls, PDF, and CSV in

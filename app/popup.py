@@ -149,6 +149,10 @@ def build_marker_popup(row: Mapping[str, object], rank: int, total: int) -> str:
         confidence_text = "Not recorded"
     kiln_id = _display(row.get("kiln_id", "Not recorded"))
     klass = _display(row.get("class", "Not recorded"))
+    if str(row.get("verified", "")) == "Verified kiln":
+        verified_badge = '<div style="color:#48bb78;font-size:11px;margin-top:4px">✓ মাঠ যাচাই</div>'
+    else:
+        verified_badge = ""
     score = _display(row.get("breach_score", "Not recorded"))
     signal_text = ", ".join(_display(signal) for signal in signals) or "None recorded"
     parts = [
@@ -156,6 +160,7 @@ def build_marker_popup(row: Mapping[str, object], rank: int, total: int) -> str:
         f"<h4>Kiln candidate {kiln_id}</h4>",
         "<table>",
         f"<tr><th>Detected class</th><td>{klass}</td></tr>",
+        verified_badge,
         f"<tr><th>Detector confidence</th><td>{confidence_text}</td></tr>",
         f"<tr><th>Screening priority</th><td>#{int(rank)} of {int(total)}</td></tr>",
         f"<tr><th>Screening score</th><td>{score}</td></tr>",

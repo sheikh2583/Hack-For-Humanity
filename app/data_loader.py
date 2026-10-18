@@ -31,6 +31,8 @@ def load_kilns(path: Path) -> gpd.GeoDataFrame:
     if not path.exists():
         raise FileNotFoundError(path)
     gdf = gpd.read_parquet(path)
+    if "verified" in gdf.columns:
+        gdf = gdf[gdf["verified"] != "False positive"].copy()
     if gdf.crs is None:
         raise ValueError("Dashboard GeoParquet must declare a CRS")
     if gdf.empty:

@@ -408,11 +408,11 @@ def community_distances(gdf: gpd.GeoDataFrame, latitude: float, longitude: float
     return kiln_points.distance(search_point)
 
 
-def community_alert_pdf(location: str, rows: pd.DataFrame) -> bytes:
+def community_alert_pdf(location: str, rows: pd.DataFrame, radius_m: int) -> bytes:
     """Create a one-page community screening PDF.
 
     Input schema: searched location label and rows with distance_m, class,
-    priority band, lat, and lon. Output schema: A4 PDF bytes.
+    priority band, lat, lon, and radius in metres. Output: A4 PDF bytes.
     """
     from fpdf import FPDF
 
@@ -435,11 +435,11 @@ def community_alert_pdf(location: str, rows: pd.DataFrame) -> bytes:
     pdf.ln(2)
     pdf.multi_cell(
         0, 6,
-        f"{len(rows)} kiln candidates were identified within 1 km of {pdf_location} using satellite imagery analysis of the 2025-26 dry season.",
+        f"{len(rows)} kiln candidates were identified within {radius_m / 1000:g} km of {pdf_location} using satellite imagery analysis of the 2025-26 dry season.",
         new_x="LMARGIN", new_y="NEXT",
     )
     pdf.ln(2)
-    headers = ("Distance", "\u09a7\u09b0\u09a8", "\u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0", "Coordinates")
+    headers = ("Distance", "Kiln type", "Priority", "Coordinates")
     widths = (32, 38, 34, 78)
     pdf.set_font("Helvetica", "B", 8)
     for header, width in zip(headers, widths):
@@ -477,7 +477,7 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
 
     Input schema: prioritized kiln GeoDataFrame with lat/lon, class,
     priority, and optional OSM place fields. Output schema: a
-    community search form, 1 km result summary, map, and result table.
+    community search form, adjustable-radius result summary, map, and result table.
     """
     st.markdown("<div class='dhoa-section-title'>\u0986\u09aa\u09a8\u09be\u09b0 \u098f\u09b2\u09be\u0995\u09be\u09b0 \u0995\u09be\u099b\u09be\u0995\u09be\u099b\u09bf \u0996\u09c1\u0981\u099c\u09c1\u09a8</div>", unsafe_allow_html=True)
     with st.container(border=True), st.form("community_search_form", border=False):
@@ -510,8 +510,9 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
     if search is None:
         return
     location_name, (search_lat, search_lon) = search
+    radius_m = int(st.slider("\u0985\u09a8\u09c1\u09b8\u09a8\u09cd\u09a7\u09be\u09a8\u09c7\u09b0 \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7 (\u09ae\u09bf\u099f\u09be\u09b0)", min_value=250, max_value=5000, value=1000, step=250, key="community_radius_m"))
     distances = community_distances(gdf, search_lat, search_lon)
-    nearby = gdf.loc[distances.le(1000)].copy()
+    nearby = gdf.loc[distances.le(radius_m)].copy()
     nearby["distance_m"] = distances.loc[nearby.index]
     nearby = nearby.sort_values("distance_m")
 
@@ -519,9 +520,9 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
     with result_column:
         st.subheader("\u0995\u09be\u099b\u09be\u0995\u09be\u099b\u09bf\u09b0 \u0987\u099f\u09ad\u09be\u099f\u09be\u09b0 \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0")
         with st.container(border=True):
-            st.metric("\u09e7 \u0995\u09bf\u09ae\u09bf\u09b0 \u09ae\u09a7\u09cd\u09af\u09c7", f"{len(nearby):,}")
+            st.metric(f"{radius_m / 1000:g} km \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7\u09c7\u09b0 \u09ae\u09a7\u09cd\u09af\u09c7", f"{len(nearby):,}")
             if nearby.empty:
-                st.success("\u2705 \u098f\u0987 \u09b8\u09cd\u09a5\u09be\u09a8\u09c7\u09b0 \u09e7 \u0995\u09bf\u09ae\u09bf\u09b0 \u09ae\u09a7\u09cd\u09af\u09c7 \u0995\u09cb\u09a8\u09cb \u0987\u099f\u09ad\u09be\u099f\u09be\u09b0 \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0 \u09ae\u09c7\u09b2\u09c7\u09a8\u09bf?")
+                st.success(f"\u2705 \u098f\u0987 \u09b8\u09cd\u09a5\u09be\u09a8\u09c7\u09b0 {radius_m / 1000:g} km \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7\u09c7 \u0995\u09cb\u09a8\u09cb \u0987\u099f\u09ad\u09be\u099f\u09be\u09b0 \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0 \u09ae\u09c7\u09b2\u09c7\u09a8\u09bf?")
             else:
                 table = pd.DataFrame({
                     '\u09a6\u09c2\u09b0\u09a4\u09cd\u09ac (\u09ae\u09bf\u099f\u09be\u09b0)': nearby["distance_m"].round(0).astype("Int64").astype("string").fillna('\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987').to_numpy(),
@@ -538,7 +539,7 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
                     column_config={"\u09a6\u09bf\u0995\u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6\u09a8\u09be": st.column_config.LinkColumn(display_text="\U0001f5fa \u09af\u09be\u09a4\u09cd\u09b0\u09be\u09aa\u09a5")},
                 )
         try:
-            report = community_alert_pdf(location_name, nearby)
+            report = community_alert_pdf(location_name, nearby, radius_m)
             st.session_state["community_report"] = report
             st.download_button(
                 "\U0001f4c4 \u0995\u09ae\u09bf\u0989\u09a8\u09bf\u099f\u09bf \u09b0\u09bf\u09aa\u09cb\u09b0\u09cd\u099f \u09a1\u09be\u0989\u09a8\u09b2\u09cb\u09a1", report,
@@ -549,7 +550,14 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
             st.error('\u274c \u0995\u09ae\u09bf\u0989\u09a8\u09bf\u099f\u09bf \u09b0\u09bf\u09aa\u09cb\u09b0\u09cd\u099f \u09a4\u09c8\u09b0\u09bf \u0995\u09b0\u09be \u09af\u09be\u09df\u09a8\u09bf\u0964 \u0986\u09ac\u09be\u09b0 \u099a\u09c7\u09b7\u09cd\u099f\u09be \u0995\u09b0\u09c1\u09a8\u0964')
     with map_column:
         st.subheader("\u098f\u09b2\u09be\u0995\u09be\u09b0 \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0")
-        st.caption("নীল পিন: খোঁজা স্থান · লাল, কমলা ও সবুজ বৃত্ত: অগ্রাধিকার")
+        st.markdown(
+            f"**\u099a\u09bf\u09b9\u09cd\u09a8\u09c7\u09b0 \u0985\u09b0\u09cd\u09a5** &middot; <span style='color:{DESIGN_COLORS['new']}'>&#9679;</span> \u0996\u09cb\u0981\u099c\u09be\u09b0 \u09b8\u09cd\u09a5\u09be\u09a8 "
+            f"&middot; <span style='color:{PRIORITY_COLORS['High']}'>&#9679;</span> \u0989\u099a\u09cd\u099a \u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0 "
+            f"&middot; <span style='color:{PRIORITY_COLORS['Medium']}'>&#9679;</span> \u09ae\u09be\u099d\u09be\u09b0\u09bf "
+            f"&middot; <span style='color:{PRIORITY_COLORS['Low']}'>&#9679;</span> \u09a8\u09bf\u09ae\u09cd\u09a8",
+            unsafe_allow_html=True,
+        )
+        st.caption(f"\u09a8\u09c0\u09b2 \u09ac\u09c3\u09a4\u09cd\u09a4\u09c7\u09b0 \u09b8\u09c0\u09ae\u09be\u09a8\u09be \u0996\u09cb\u0981\u099c\u09be\u09b0 \u09b8\u09cd\u09a5\u09be\u09a8 \u09a5\u09c7\u0995\u09c7 {radius_m / 1000:g} km \u09a6\u09c2\u09b0\u09a4\u09cd\u09ac \u09a6\u09c7\u0996\u09be\u09df\u0964 \u09b2\u09be\u09b2, \u0995\u09ae\u09b2\u09be \u0993 \u09b8\u09ac\u09c1\u099c \u09ac\u09bf\u09a8\u09cd\u09a6\u09c1 \u09ad\u09be\u099f\u09be\u09b0 \u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0 \u09a6\u09c7\u0996\u09be\u09df; \u09ac\u09bf\u09a8\u09cd\u09a6\u09c1\u09a4\u09c7 \u099a\u09be\u09aa\u09b2\u09c7 \u09ac\u09bf\u09b8\u09cd\u09a4\u09be\u09b0\u09bf\u09a4 \u09a6\u09c7\u0996\u09c1\u09a8\u0964")
         with st.container(border=True):
             map_view = folium.Map(location=[search_lat, search_lon], zoom_start=13, control_scale=True, tiles="OpenStreetMap")
             map_view.get_root().html.add_child(Element(_popup_styles()))
@@ -558,7 +566,7 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
                 fill=True, fill_color=DESIGN_COLORS["new"], fill_opacity=1,
                 tooltip=location_name,
             ).add_to(map_view)
-            folium.Circle([search_lat, search_lon], radius=2000, color=DESIGN_COLORS["new"], fill=False).add_to(map_view)
+            folium.Circle([search_lat, search_lon], radius=radius_m, color=DESIGN_COLORS["new"], fill=False).add_to(map_view)
             for _, row in nearby.iterrows():
                 color = PRIORITY_COLORS.get(str(row.get("priority_band")), DESIGN_COLORS["advisory"])
                 popup = folium.Popup(_popup_html(row), min_width=320, max_width=320)
@@ -910,6 +918,31 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
             "signal_filters": {}, "map_style": "Road map",
         }
         if mode == "inspector":
+            with st.expander("\u098f\u09b2\u09be\u0995\u09be \u09a6\u09bf\u09df\u09c7 \u0996\u09c1\u0981\u099c\u09c1\u09a8", expanded=False):
+                with st.form("inspector_area_search_form", border=False):
+                    area_name = st.text_input("\u09b8\u09cd\u0995\u09c1\u09b2, \u09b9\u09be\u09b8\u09aa\u09be\u09a4\u09be\u09b2 \u09ac\u09be \u098f\u09b2\u09be\u0995\u09be\u09b0 \u09a8\u09be\u09ae", key="inspector_area_name", placeholder="\u09af\u09c7\u09ae\u09a8: Chapainawabganj")
+                    area_coords = st.columns(2, gap="small")
+                    area_lat = area_coords[0].number_input("Latitude", value=24.0, min_value=-90.0, max_value=90.0, format="%.6f", key="inspector_area_lat")
+                    area_lon = area_coords[1].number_input("Longitude", value=90.0, min_value=-180.0, max_value=180.0, format="%.6f", key="inspector_area_lon")
+                    area_submitted = st.form_submit_button("\U0001f50d \u098f\u09b2\u09be\u0995\u09be \u0996\u09c1\u0981\u099c\u09c1\u09a8", width="stretch")
+                if area_submitted:
+                    if area_name.strip():
+                        try:
+                            from geopy.geocoders import Nominatim
+                            location = Nominatim(user_agent="dhoa-bd").geocode(f"{area_name.strip()}, Bangladesh", timeout=10)
+                        except Exception:  # noqa: BLE001 - external geocoding boundary
+                            location = None
+                        if location is None:
+                            st.warning("\u09b8\u09cd\u09a5\u09be\u09a8\u099f\u09bf \u0996\u09c1\u0981\u099c\u09c7 \u09aa\u09be\u0993\u09df\u09be \u09af\u09be\u09df\u09a8\u09bf; \u09a8\u09be\u09ae \u09ac\u09be \u099c\u09c7\u09b2\u09be\u09b0 \u09a8\u09be\u09ae \u09af\u09cb\u0997 \u0995\u09b0\u09c1\u09a8\u0964")
+                        else:
+                            st.session_state["inspector_area_search"] = (area_name.strip(), float(location.latitude), float(location.longitude))
+                    else:
+                        st.session_state["inspector_area_search"] = (f"{area_lat:.5f}, {area_lon:.5f}", float(area_lat), float(area_lon))
+                area_search = st.session_state.get("inspector_area_search")
+                if area_search:
+                    area_label, search_lat, search_lon = area_search
+                    nearby_count = int(community_distances(gdf, search_lat, search_lon).le(1000).sum())
+                    st.caption(f"{area_label}: 1 km \u098f\u09b0 \u09ae\u09a7\u09cd\u09af\u09c7 {nearby_count:,} \u099f\u09bf \u09ad\u09be\u099f\u09be\u09b0 \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0. \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0 \u098f\u0987 \u098f\u09b2\u09be\u0995\u09be\u09df \u0995\u09c7\u09a8\u09cd\u09a6\u09cd\u09b0\u09bf\u09a4 \u09b9\u09ac\u09c7\u0964")
             with st.expander("\u09ab\u09bf\u09b2\u09cd\u099f\u09be\u09b0", expanded=False):
                 districts = ["All Districts", *sorted(gdf["district"].dropna().astype(str).unique())] if "district" in gdf else ["All Districts"]
                 filters["district"] = st.selectbox("\u099c\u09c7\u09b2\u09be", districts, format_func=lambda value: "\u09b8\u09ac \u099c\u09c7\u09b2\u09be" if value == "All Districts" else _district_label(value), key="dhoa_district_filter")
@@ -932,14 +965,23 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
                 st.download_button("\U0001f4c4 \u0995\u09ae\u09bf\u0989\u09a8\u09bf\u099f\u09bf \u09b0\u09bf\u09aa\u09cb\u09b0\u09cd\u099f \u09a1\u09be\u0989\u09a8\u09b2\u09cb\u09a1", report, "dhoa_community_report.pdf", "application/pdf", width="stretch", key="sidebar_community_alert")
             else:
                 st.button("\U0001f4c4 \u0995\u09ae\u09bf\u0989\u09a8\u09bf\u099f\u09bf \u09b0\u09bf\u09aa\u09cb\u09b0\u09cd\u099f \u09a1\u09be\u0989\u09a8\u09b2\u09cb\u09a1", disabled=True, width="stretch", key="sidebar_community_alert_disabled")
-        st.caption("\u09aa\u09b0\u09bf\u09ac\u09c7\u09b6 \u0985\u09a7\u09bf\u09a6\u09aa\u09cd\u09a4\u09b0\u09c7\u09b0 \u09b9\u099f\u09b2\u09be\u0987\u09a8: \u09e7\u09ec\u09e7\u09e9\u09e7 | doe.gov.bd")
+        st.markdown("\u09aa\u09b0\u09bf\u09ac\u09c7\u09b6 \u0985\u09a7\u09bf\u09a6\u09aa\u09cd\u09a4\u09b0\u09c7\u09b0 \u09b9\u099f\u09b2\u09be\u0987\u09a8: \u09e7\u09ec\u09e7\u09e9\u09e7 | [doe.gov.bd](https://doe.gov.bd)")
     return filters
 
 def _render_selected_candidate(row: pd.Series) -> None:
     """Render selected kiln details and navigation without confidence scores."""
     lat, lon = float(row.lat), float(row.lon)
     candidate_id = str(row.get("kiln_id", "\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987"))
+    forest_distance = pd.to_numeric(pd.Series([row.get("dist_government_forest_m")]), errors="coerce").iloc[0]
+    if pd.isna(forest_distance):
+        forest_distance = pd.to_numeric(pd.Series([row.get("dist_forests_m")]), errors="coerce").iloc[0]
     st.subheader(f"\u2705 \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09bf\u09a4 \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0 \u00b7 \u0987\u099f\u09ad\u09be\u099f\u09be #{candidate_id}")
+    forest_distance_label = (
+        f"{float(forest_distance):,.0f} \u09ae\u09bf\u099f\u09be\u09b0"
+        if pd.notna(forest_distance)
+        else "\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987"
+    )
+    st.markdown(f"**\u09b8\u09b0\u0995\u09be\u09b0\u09bf \u09ac\u09a8 \u09a5\u09c7\u0995\u09c7 \u09a6\u09c2\u09b0\u09a4\u09cd\u09ac:** {forest_distance_label}")
     st.markdown(f"**\u09a7\u09b0\u09a8:** {_type_label(row.get('class'))}")
     st.markdown(f"**\u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0:** {_priority_label(row.get('priority_band'))} \u2014 {_priority_reason(row)}")
     st.markdown(f"**\u098f\u09b2\u09be\u0995\u09be:** {_area_label(row)}")
@@ -984,7 +1026,11 @@ def build_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> folium.Map:
     """
     filtered = _filtered(gdf, filters)
     selected_id = st.session_state.get("selected_kiln_id")
-    if selected_id is not None and "kiln_id" in filtered.columns:
+    area_search = st.session_state.get("inspector_area_search")
+    if area_search:
+        center = (float(area_search[1]), float(area_search[2]))
+        zoom = 13
+    elif selected_id is not None and "kiln_id" in filtered.columns:
         selected = filtered[filtered["kiln_id"].astype(str).eq(str(selected_id))]
         if not selected.empty:
             center = (float(selected.iloc[0]["lat"]), float(selected.iloc[0]["lon"]))
@@ -1006,6 +1052,13 @@ def build_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> folium.Map:
 
     satellite = filters.get("map_style") == "Satellite imagery"
     map_view = folium.Map(location=center, zoom_start=zoom, control_scale=True, tiles=None)
+    if area_search:
+        folium.CircleMarker(
+            location=center, radius=8, color=DESIGN_COLORS["new"],
+            fill=True, fill_color=DESIGN_COLORS["new"], fill_opacity=1,
+            tooltip=str(area_search[0]),
+        ).add_to(map_view)
+        folium.Circle(center, radius=1000, color=DESIGN_COLORS["new"], fill=False).add_to(map_view)
     map_view.get_root().html.add_child(
         Element(
             """<style>
@@ -1182,8 +1235,13 @@ def render_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> None:
                 axis=1,
             )
             clicked_kiln_id = str(visible.loc[distances.idxmin(), "kiln_id"])
-            selection_changed = clicked_kiln_id != st.session_state.get("selected_kiln_id")
-            st.session_state["selected_kiln_id"] = clicked_kiln_id
+            current_kiln_id = st.session_state.get("selected_kiln_id")
+            selection_changed = True
+            if clicked_kiln_id == current_kiln_id:
+                st.session_state["selected_kiln_id"] = None
+                st.session_state["dhoa_list_selection_token"] = None
+            else:
+                st.session_state["selected_kiln_id"] = clicked_kiln_id
         st.session_state["dhoa_last_map_click_count"] = click_count
         if pd.notna(click_lat) and pd.notna(click_lon) and selection_changed:
             st.rerun()
@@ -1193,6 +1251,11 @@ def render_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> None:
     if selected.empty:
         st.info("বিস্তারিত ও প্রতিবেদন দেখতে মানচিত্রের কোনো ইটভাটার চিহ্নে চাপ দিন।")
     else:
+        if st.button("\u09ad\u09be\u099f\u09be\u09b0 \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09a8 \u09ac\u09be\u09a4\u09bf\u09b2 \u0995\u09b0\u09c1\u09a8 \u00b7 \u09b8\u09ac \u09ad\u09be\u099f\u09be \u09a6\u09c7\u0996\u09c1\u09a8", key="dhoa_clear_kiln_selection"):
+            st.session_state["selected_kiln_id"] = None
+            st.session_state["dhoa_list_selection_token"] = None
+            st.session_state["dhoa_last_map_click_count"] = None
+            st.rerun()
         _render_selected_candidate(selected.iloc[0])
 
 

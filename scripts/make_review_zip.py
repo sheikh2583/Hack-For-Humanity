@@ -25,8 +25,11 @@ INCLUDE_PATHS = (
     "tools",
     "scripts",
     "results",
+    ".streamlit/config.toml",
     "AGENTS.md",
+    "CLAUDE_HANDOFF_2026-10-13.md",
     "README.md",
+    "requirements.txt",
     "pyproject.toml",
     ".gitignore",
     ".gitattributes",
@@ -38,6 +41,9 @@ INCLUDE_PATHS = (
 )
 REQUIRED_ENTRIES = (
     "AGENTS.md",
+    "CLAUDE_HANDOFF_2026-10-13.md",
+    ".streamlit/config.toml",
+    "requirements.txt",
     "requirements-gpu-cu130.txt",
     "requirements-gpu-windows-py312.txt",
     "docs/PROGRESS.md",

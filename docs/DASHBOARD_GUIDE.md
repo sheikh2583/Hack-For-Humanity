@@ -52,6 +52,19 @@ The PDF contains one candidate's identity and location, triggered rule signals
 with their available distances, and map-navigation URLs. It is generated in
 memory when requested; the dashboard does not write report files to disk.
 
+## Community search and report
+
+In the community view, search by place name or coordinates, then set the
+search radius with the **search radius (metres)** slider (250 to 5,000 m, in
+250 m steps; default 1,000 m). The displayed candidate count and table, blue
+map circle, and downloadable community PDF all use the selected radius. Changing
+the slider refreshes the results and report. Distances are calculated from the
+search point to candidate coordinates using the configured local projected CRS.
+
+The community PDF reports the chosen radius and lists candidate distance, kiln
+type, priority, and coordinates. It is generated in memory and is not saved to
+disk.
+
 ## Responsive use
 
 On desktop, the high-priority list and map appear side by side. On narrow
