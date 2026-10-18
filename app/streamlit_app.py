@@ -515,10 +515,9 @@ def get_filtered_gdf(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         "\u09a8\u09bf\u09ae\u09cd\u09a8": "Low",
     }
     selected_priorities = {priority_values[value] for value in priorities if value in priority_values}
-    if "priority_band" in result:
-        result = result[result["priority_band"].astype(str).isin(selected_priorities)].copy()
-    else:
-        result = result.iloc[0:0].copy()
+    if "priority_band" not in result.columns:
+        result["priority_band"] = "Unknown / not available"
+    result = result[result["priority_band"].astype(str).isin(selected_priorities)].copy()
     if "priority" in result.columns:
         result = result.sort_values("priority", ascending=False, na_position="last")
     return result
@@ -1442,6 +1441,11 @@ def build_map(
     )
 
     # Populate fresh feature layers from the canonical filtered dataframe.
+    # Ensure priority_band column always exists to avoid KeyError when source
+    # parquet has no priority data columns.
+    if "priority_band" not in filtered.columns:
+        filtered = filtered.copy()
+        filtered["priority_band"] = "Unknown / not available"
     selected_id = st.session_state.get("selected_kiln_id")
     heat_points: list[list[float]] = []
     for band, color in PRIORITY_COLORS.items():
