@@ -435,8 +435,20 @@ def community_distances(gdf: gpd.GeoDataFrame, latitude: float, longitude: float
     return kiln_points.distance(search_point)
 
 
-def _add_map_base_layers(map_view: folium.Map) -> None:
-    """Add the selectable street and satellite basemaps to a Folium map."""
+def _add_map_base_layers(map_view: folium.Map, *, with_layer_control: bool = True) -> None:
+    """Add the selectable street and satellite basemaps to a Folium map.
+
+    Args:
+        map_view: The Folium map to add layers to.
+        with_layer_control: If True, also add a LayerControl widget inside the
+            map.  Set to False for the inspector map, where streamlit-folium
+            remounts the component whenever marker content changes — remounting
+            re-executes the map's JavaScript in the same iframe scope, and the
+            deterministic variable name ``layer_control_div_2`` (assigned by
+            streamlit-folium's ID-normalisation pass) causes a
+            "already declared" crash.  The inspector map controls tile
+            selection through the sidebar selectbox instead.
+    """
     selected_tile = st.session_state.get("map_tile", "street")
     folium.TileLayer(
         "OpenStreetMap",
@@ -453,7 +465,8 @@ def _add_map_base_layers(map_view: folium.Map) -> None:
         control=True,
         show=selected_tile == "satellite",
     ).add_to(map_view)
-    folium.LayerControl(collapsed=False).add_to(map_view)
+    if with_layer_control:
+        folium.LayerControl(collapsed=False).add_to(map_view)
 
 
 def get_filtered_gdf(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
@@ -519,6 +532,40 @@ def get_filtered_gdf(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         result = result[result["priority_band"].astype(str).isin(selected_priorities)].copy()
     else:
         result = result.iloc[0:0].copy()
+
+    # Violation-type filter: keep kilns whose breached_rules overlap at least
+    # one of the selected rule IDs.  An empty selection means "show all"
+    # (same as selecting every type). Kilns with no breached_rules data are
+    # kept regardless, so the filter never silently hides unscored kilns.
+    selected_violations: list[str] = st.session_state.get("filter_violation_types", [])
+    if selected_violations:  # non-empty → apply the restriction
+        selected_set = set(selected_violations)
+
+        def _has_breach_overlap(cell: object) -> bool:
+            """Return True when the cell contains at least one selected rule ID."""
+            if cell is None:
+                return True  # missing data → keep
+            try:
+                if pd.isna(cell):
+                    return True
+            except (TypeError, ValueError):
+                pass
+            if isinstance(cell, str):
+                try:
+                    cell = json.loads(cell)
+                except (json.JSONDecodeError, ValueError):
+                    # plain comma-separated string
+                    ids = {s.strip() for s in cell.split(",") if s.strip()}
+                    return not ids or bool(ids & selected_set)
+            if isinstance(cell, (list, tuple, set)):
+                ids = {str(item).strip() for item in cell if item is not None and str(item).strip()}
+                return not ids or bool(ids & selected_set)
+            return True  # unknown format → keep
+
+        if "breached_rules" in result.columns:
+            mask = result["breached_rules"].apply(_has_breach_overlap)
+            result = result[mask].copy()
+
     if "priority" in result.columns:
         result = result.sort_values("priority", ascending=False, na_position="last")
     return result
@@ -792,7 +839,7 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
                     color=color, fill=True, fill_color=color, fill_opacity=0.88,
                     popup=popup,
                 ).add_to(map_view)
-            st_folium(map_view, height=580, width=None, key="dhoa_community_map")
+            st_folium(map_view, height=580, width="100%", key="dhoa_community_map")
             # Mobile users should rotate their device for a wider map.
 
 def _popup_content(row: Mapping[str, object]) -> dict[str, Any]:
@@ -1230,6 +1277,16 @@ def _reset_inspector_filters() -> None:
         "\u0989\u099a\u09cd\u099a", "\u09ae\u09be\u099d\u09be\u09b0\u09bf", "\u09a8\u09bf\u09ae\u09cd\u09a8"
     ]
     st.session_state["filter_kiln_type"] = ALL_KILN_TYPES
+    # Default: all rule IDs (no restriction).
+    _cfg = load_config()
+    _all_rule_ids = [
+        str(r.get("id", ""))
+        for r in _cfg["rules"].get("siting_rules", [])
+        if r.get("id")
+    ]
+    if _cfg["rules"].get("technology"):
+        _all_rule_ids.insert(0, "technology_flagged")
+    st.session_state["filter_violation_types"] = _all_rule_ids
 
 
 def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
@@ -1309,6 +1366,24 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
                 type_options,
                 format_func=lambda value: _ui_text("\u09b8\u09ac \u09a7\u09b0\u09a8", "All types") if value == ALL_KILN_TYPES else _type_label(value),
                 key="filter_kiln_type",
+            )
+
+            # Violation-type filter — derived from rules.yaml at runtime.
+            _viol_cfg = load_config()["rules"]
+            _viol_rules: list[dict] = []
+            if _viol_cfg.get("technology"):
+                _viol_rules.append({"id": "technology_flagged"})
+            _viol_rules.extend(_viol_cfg.get("siting_rules", []))
+            viol_rule_ids = [str(r["id"]) for r in _viol_rules if r.get("id")]
+            # Seed session state default on first visit (before the widget exists).
+            if "filter_violation_types" not in st.session_state:
+                st.session_state["filter_violation_types"] = viol_rule_ids
+            filters["violation_types"] = st.multiselect(
+                _ui_text("\u09b2\u0999\u09cd\u0998\u09a8\u09c7\u09b0 \u09a7\u09b0\u09a8", "Violation type"),
+                viol_rule_ids,
+                default=viol_rule_ids,
+                format_func=lambda rid: _signal_label(rid),
+                key="filter_violation_types",
             )
 
             visible = get_filtered_gdf(gdf)
@@ -1416,7 +1491,7 @@ def build_map(
     zoom = int(st.session_state["map_zoom"])
     selected_tile = st.session_state.get("map_tile", "street")
     map_view = folium.Map(location=center, zoom_start=zoom, control_scale=True, tiles=None)
-    _add_map_base_layers(map_view)
+    _add_map_base_layers(map_view, with_layer_control=False)
     kilns_layer = folium.FeatureGroup(name="kilns", show=True).add_to(map_view)
     heat_layer = folium.FeatureGroup(name="\u09b9\u09bf\u099f\u09ae\u09cd\u09af\u09be\u09aa", show=False).add_to(map_view)
     map_view.get_root().html.add_child(
@@ -1551,71 +1626,62 @@ def render_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> None:
                         st.session_state["map_center"] = (chosen_lat, chosen_lng)
                         st.session_state["map_zoom"] = max(15, int(st.session_state.get("map_zoom", 15)))
                     st.session_state["dhoa_list_selection_token"] = click_token
-    with map_panel:
-        st.caption("চিহ্নের রং অগ্রাধিকার বোঝায়; গাঢ় সীমানা নির্বাচিত প্রার্থীকে দেখায়।")
-        selected_id_for_report = st.session_state.get("selected_kiln_id")
-        selected_for_report = (
-            visible[visible["kiln_id"].astype(str).eq(str(selected_id_for_report))]
-            if selected_id_for_report is not None
-            else visible.iloc[0:0]
-        )
-        if selected_for_report.empty:
-            st.caption("\u09aa\u09bf\u09a1\u09bf\u098f\u09ab পেতে তালিকা বা মানচিত্র থেকে একটি প্রার্থী নির্বাচন করুন।")
+        # Selected kiln detail — rendered here so we never re-enter this column later.
+        selected_id = st.session_state.get("selected_kiln_id")
+        selected = visible[visible["kiln_id"].astype(str).eq(str(selected_id))] if selected_id is not None else visible.iloc[0:0]
+        if selected.empty:
+            st.info("বিস্তারিত ও প্রতিবেদন দেখতে মানচিত্রের কোনো ইটভাটার চিহ্নে চাপ দিন।")
         else:
-            _render_report_download(selected_for_report.iloc[0])
+            if st.button("ভাটার নির্বাচন বাতিল করুন · সব ভাটা দেখুন", key="dhoa_clear_kiln_selection"):
+                st.session_state["selected_kiln_id"] = None
+                st.session_state["selected_lat"] = None
+                st.session_state["selected_lng"] = None
+                st.session_state["dhoa_list_selection_token"] = None
+                st.rerun()
+            _render_selected_candidate(selected.iloc[0])
+            _render_report_download(selected.iloc[0])
+    with map_panel:
+        st.caption("চিহ্নের রং অগ্রাধিকার বোঝায়; গাঢ় সীমানা নির্বাচিত প্রার্থীকে দেখায়। বিস্তারিত ও PDF বাম প্যানেলে পাবেন।")
         with st.container(key="dhoa_map_frame"):
             map_result = st_folium(
                 build_map(gdf, filters, filtered=visible),
-                key="main_map",
+                key=f"main_map_{st.session_state.get('filter_district', '')}_{st.session_state.get('filter_upazila', '')}",
                 height=580,
-                width=None,
-                use_container_width=True,
+                width="100%",
                 returned_objects=["last_object_clicked"],
             )
-    clicked = map_result.get("last_object_clicked") if isinstance(map_result, dict) else None
-    click_signature = (
-        round(float(clicked.get("lat")), 6), round(float(clicked.get("lng")), 6)
-    ) if isinstance(clicked, dict) and clicked.get("lat") is not None and clicked.get("lng") is not None else None
-    previous_signature = st.session_state.get("dhoa_last_map_click_signature")
-    if clicked and click_signature != previous_signature and not visible.empty:
-        click_lat = pd.to_numeric(pd.Series([clicked.get("lat")]), errors="coerce").iloc[0]
-        click_lon = pd.to_numeric(pd.Series([clicked.get("lng")]), errors="coerce").iloc[0]
-        if pd.notna(click_lat) and pd.notna(click_lon):
-            from pyproj import Geod
+        clicked = map_result.get("last_object_clicked") if isinstance(map_result, dict) else None
+        click_signature = (
+            round(float(clicked.get("lat")), 6), round(float(clicked.get("lng")), 6)
+        ) if isinstance(clicked, dict) and clicked.get("lat") is not None and clicked.get("lng") is not None else None
+        previous_signature = st.session_state.get("dhoa_last_map_click_signature")
+        if clicked and click_signature != previous_signature and not visible.empty:
+            click_lat = pd.to_numeric(pd.Series([clicked.get("lat")]), errors="coerce").iloc[0]
+            click_lon = pd.to_numeric(pd.Series([clicked.get("lng")]), errors="coerce").iloc[0]
+            if pd.notna(click_lat) and pd.notna(click_lon):
+                from pyproj import Geod
 
-            geod = Geod(ellps="WGS84")
-            distances = visible.apply(
-                lambda row: abs(
-                    geod.inv(
-                        float(click_lon),
-                        float(click_lat),
-                        float(row["lon"]),
-                        float(row["lat"]),
-                    )[2]
-                ),
-                axis=1,
-            )
-            nearest_index = distances.idxmin()
-            clicked_row = visible.loc[nearest_index]
-            st.session_state["selected_kiln_id"] = str(clicked_row["kiln_id"])
-            st.session_state["selected_lat"] = float(clicked_row["lat"])
-            st.session_state["selected_lng"] = float(clicked_row["lon"])
-        st.session_state["dhoa_last_map_click_signature"] = click_signature
-        if pd.notna(click_lat) and pd.notna(click_lon):
+                geod = Geod(ellps="WGS84")
+                distances = visible.apply(
+                    lambda row: abs(
+                        geod.inv(
+                            float(click_lon),
+                            float(click_lat),
+                            float(row["lon"]),
+                            float(row["lat"]),
+                        )[2]
+                    ),
+                    axis=1,
+                )
+                nearest_index = distances.idxmin()
+                clicked_row = visible.loc[nearest_index]
+                st.session_state["selected_kiln_id"] = str(clicked_row["kiln_id"])
+                st.session_state["selected_lat"] = float(clicked_row["lat"])
+                st.session_state["selected_lng"] = float(clicked_row["lon"])
+            st.session_state["dhoa_last_map_click_signature"] = click_signature
+            # Rerun so list_panel re-renders with the new selection (detail + PDF download).
+            # This is safe: the map key only changes when filters change, not on selection.
             st.rerun()
-
-    selected_id = st.session_state.get("selected_kiln_id")
-    selected = visible[visible["kiln_id"].astype(str).eq(str(selected_id))] if selected_id is not None else visible.iloc[0:0]
-    if selected.empty:
-        st.info("বিস্তারিত ও প্রতিবেদন দেখতে মানচিত্রের কোনো ইটভাটার চিহ্নে চাপ দিন।")
-    else:
-        if st.button("\u09ad\u09be\u099f\u09be\u09b0 \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09a8 \u09ac\u09be\u09a4\u09bf\u09b2 \u0995\u09b0\u09c1\u09a8 \u00b7 \u09b8\u09ac \u09ad\u09be\u099f\u09be \u09a6\u09c7\u0996\u09c1\u09a8", key="dhoa_clear_kiln_selection"):
-            st.session_state["selected_kiln_id"] = None
-            st.session_state["selected_lat"] = None
-            st.session_state["selected_lng"] = None
-            st.session_state["dhoa_list_selection_token"] = None
-            st.rerun()
-        _render_selected_candidate(selected.iloc[0])
 
 
 def render_footer() -> None:

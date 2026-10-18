@@ -1,7 +1,7 @@
-streamlit
+streamlit==1.39.0
 geopandas
-folium
-streamlit-folium
+folium==0.17.0
+streamlit-folium==0.22.0
 pandas
 openpyxl
 pyarrow
