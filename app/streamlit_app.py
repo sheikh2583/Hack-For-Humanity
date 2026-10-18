@@ -123,7 +123,7 @@ h4 [data-testid="stHeaderActionElements"],
 [data-testid="stStatusWidget"]::after,
 [data-testid^="stStatusWidget"]::after,
 [data-testid="stStatusWidgetRunningIcon"]::after {
-    content: "";
+    content: "পৃষ্ঠা লোড হচ্ছে, অপেক্ষা করুন…";
     display: block;
     max-width: 220px;
     color: #dbe3ec;
