@@ -125,7 +125,7 @@
       body.mobile-layout tbody { display: block; width: 100%; }
       body.mobile-layout tr.candidate {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 5px 8px;
         width: 100%;
         padding: 10px;
@@ -205,7 +205,10 @@
 
       function getPageViewport() {
         try {
-          return { width: window.parent.innerWidth, height: window.parent.innerHeight };
+          return {
+            width: document.documentElement.clientWidth || window.innerWidth,
+            height: window.parent.innerHeight,
+          };
         } catch (error) {
           return { width: window.innerWidth, height: window.innerHeight };
         }

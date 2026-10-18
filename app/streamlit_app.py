@@ -67,6 +67,12 @@ PRIORITY_COLORS = {
     "Medium": DESIGN_COLORS["medium"],
     "Low": DESIGN_COLORS["low"],
 }
+ALL_KILN_TYPES = "__all__"
+KILN_TYPE_LABELS = {
+    ALL_KILN_TYPES: "\u09b8\u09ac \u09a7\u09b0\u09a8",
+    "Zigzag": "\u099c\u09bf\u0997\u099c\u09cd\u09af\u09be\u0997 \u0987\u099f\u09ad\u09be\u099f\u09be",
+    "FCBK": "\u09ab\u09bf\u0995\u09cd\u09b8\u09a1 \u099a\u09bf\u09ae\u09a8\u09bf \u0987\u099f\u09ad\u09be\u099f\u09be",
+}
 INSPECTOR_CSV_COLUMNS = [
     ("kiln_id", "\u09ad\u09be\u099f\u09be ID"),
     ("lat", "\u0985\u0995\u09cd\u09b7\u09be\u0982\u09b6"),
@@ -403,12 +409,33 @@ def community_distances(gdf: gpd.GeoDataFrame, latitude: float, longitude: float
     return kiln_points.distance(search_point)
 
 
+def _add_map_base_layers(map_view: folium.Map) -> None:
+    """Add the selectable street and satellite basemaps to a Folium map."""
+    selected_tile = st.session_state.get("map_tile", "street")
+    folium.TileLayer(
+        "OpenStreetMap",
+        name="\u09b0\u09be\u09b8\u09cd\u09a4\u09be\u09b0 \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0",
+        overlay=False,
+        control=True,
+        show=selected_tile == "street",
+    ).add_to(map_view)
+    folium.TileLayer(
+        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        attr="Tiles \u00a9 Esri",
+        name="\u09b8\u09cd\u09af\u09be\u099f\u09c7\u09b2\u09be\u0987\u099f \u099b\u09ac\u09bf",
+        overlay=False,
+        control=True,
+        show=selected_tile == "satellite",
+    ).add_to(map_view)
+    folium.LayerControl(collapsed=False).add_to(map_view)
+
+
 def get_filtered_gdf(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     """Return candidates for the active view using its canonical session filters.
 
     Input schema: prioritized GeoDataFrame with district, upazila, lat/lon,
-    and priority_band. Output: copied GeoDataFrame after district, upazila,
-    optional centroid-radius, then priority filtering.
+    kiln class, and priority_band. Output: copied GeoDataFrame after district,
+    upazila, optional centroid-radius, kiln type, and priority filtering.
     """
     active_view = st.session_state.get("dhoa_active_view", "inspector")
     if active_view == "community":
@@ -426,6 +453,7 @@ def get_filtered_gdf(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     district = st.session_state.get("filter_district", "\u09b8\u09ac \u099c\u09c7\u09b2\u09be")
     upazila = st.session_state.get("filter_upazila", "\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be")
     radius_m = int(st.session_state.get("filter_radius_m", 1000))
+    kiln_type = st.session_state.get("filter_kiln_type", ALL_KILN_TYPES)
     priorities = st.session_state.get(
         "filter_priority", ["\u0989\u099a\u09cd\u099a", "\u09ae\u09be\u099d\u09be\u09b0\u09bf", "\u09a8\u09bf\u09ae\u09cd\u09a8"]
     )
@@ -448,6 +476,12 @@ def get_filtered_gdf(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
                 result = result.loc[distances.le(radius_m)].copy()
             else:
                 result = result.iloc[0:0].copy()
+
+    if kiln_type != ALL_KILN_TYPES:
+        type_column = "class" if "class" in result.columns else "class_name"
+        if type_column not in result.columns:
+            return result.iloc[0:0].copy()
+        result = result[result[type_column].astype(str).eq(str(kiln_type))].copy()
 
     priority_values = {
         "\u0989\u099a\u09cd\u099a": "High",
@@ -536,6 +570,12 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
     """
     st.markdown("<div class='dhoa-section-title'>\u0986\u09aa\u09a8\u09be\u09b0 \u098f\u09b2\u09be\u0995\u09be\u09b0 \u0995\u09be\u099b\u09be\u0995\u09be\u099b\u09bf \u0996\u09c1\u0981\u099c\u09c1\u09a8</div>", unsafe_allow_html=True)
     with st.container(border=True), st.form("community_search_form", border=False):
+            st.markdown("🔊 ব্যবহার নির্দেশিকা শুনুন")
+            community_guide = _ROOT / "app" / "static" / "community_guide.mp3"
+            if community_guide.is_file():
+                st.audio(str(community_guide))
+            else:
+                st.info("🔊 অডিও নির্দেশিকা শীঘ্রই আসছে")
             name = st.text_input('\u09a8\u09be\u09ae \u09b2\u09bf\u0996\u09c1\u09a8', placeholder='\u09af\u09c7\u09ae\u09a8: \u0986\u09b6\u09c1\u09b2\u09bf')
             submitted = st.form_submit_button('\U0001f50d \u0985\u09a8\u09c1\u09b8\u09a8\u09cd\u09a7\u09be\u09a8 \u0995\u09b0\u09c1\u09a8', width="stretch")
     if submitted:
@@ -645,6 +685,25 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
                         location = f"{latitude:.4f}\u00b0N, {longitude:.4f}\u00b0E" if pd.notna(latitude) and pd.notna(longitude) else "\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987"
                         priority = _priority_label(kiln.get("priority_band"))
                         breach_count = display_value(kiln.get("breach_count"))
+                        breached_rules = kiln.get("breached_rules")
+                        if isinstance(breached_rules, (list, tuple)):
+                            rule_names = [
+                                str(rule).strip()
+                                for rule in breached_rules
+                                if not pd.isna(rule) and str(rule).strip()
+                            ]
+                            breached_rules_formatted = (
+                                "\n".join(f"  \u2022 {rule}" for rule in rule_names)
+                                if rule_names else "\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987"
+                            )
+                        elif (
+                            breached_rules is None
+                            or pd.isna(breached_rules)
+                            or not str(breached_rules).strip()
+                        ):
+                            breached_rules_formatted = "\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987"
+                        else:
+                            breached_rules_formatted = str(breached_rules)
                         report_text = (
                             "\u0985\u09ad\u09bf\u09af\u09cb\u0997 \u09ac\u09bf\u09b7\u09af\u09bc: \u09b8\u09ae\u09cd\u09ad\u09be\u09ac\u09cd\u09af \u0985\u09ac\u09c8\u09a7 \u0987\u099f\u09ad\u09be\u099f\u09be\n"
                             f"\u099c\u09c7\u09b2\u09be: {district}\n"
@@ -652,6 +711,7 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
                             f"\u09a8\u09bf\u0995\u099f\u09a4\u09ae \u09b8\u09cd\u09a5\u09be\u09a8: {nearest_place} ({nearest_dist_text} \u09ae\u09bf)\n"
                             f"\u0986\u09a8\u09c1\u09ae\u09be\u09a8\u09bf\u0995 \u0985\u09ac\u09b8\u09cd\u09a5\u09be\u09a8: {location}\n"
                             f"\u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0: {priority}\n"
+                            f"\u09b2\u0999\u09cd\u0998\u09bf\u09a4 \u09a8\u09bf\u09af\u09bc\u09ae: {breached_rules_formatted}\n"
                             f"\u09b2\u0999\u09cd\u0998\u09a8 \u09b8\u0982\u0996\u09cd\u09af\u09be: {breach_count}\n"
                             "\u09a4\u09a5\u09cd\u09af\u09b8\u09c2\u09a4\u09cd\u09b0: \u09a7\u09cb\u0981\u09af\u09bc\u09be \u09b8\u09cd\u09af\u09be\u099f\u09c7\u09b2\u09be\u0987\u099f \u09aa\u09b0\u09cd\u09af\u09ac\u09c7\u0995\u09cd\u09b7\u09a3 \u09a1\u09cd\u09af\u09be\u09b6\u09ac\u09cb\u09b0\u09cd\u09a1"
                         )
@@ -683,7 +743,8 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
         )
         st.caption(f"\u09a8\u09c0\u09b2 \u09ac\u09c3\u09a4\u09cd\u09a4\u09c7\u09b0 \u09b8\u09c0\u09ae\u09be\u09a8\u09be \u0996\u09cb\u0981\u099c\u09be\u09b0 \u09b8\u09cd\u09a5\u09be\u09a8 \u09a5\u09c7\u0995\u09c7 {radius_m / 1000:g} \u0995\u09bf\u09ae\u09bf \u09a6\u09c2\u09b0\u09a4\u09cd\u09ac \u09a6\u09c7\u0996\u09be\u09df\u0964 \u09b2\u09be\u09b2, \u0995\u09ae\u09b2\u09be \u0993 \u09b8\u09ac\u09c1\u099c \u09ac\u09bf\u09a8\u09cd\u09a6\u09c1 \u09ad\u09be\u099f\u09be\u09b0 \u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0 \u09a6\u09c7\u0996\u09be\u09df; \u09ac\u09bf\u09a8\u09cd\u09a6\u09c1\u09a4\u09c7 \u099a\u09be\u09aa\u09b2\u09c7 \u09ac\u09bf\u09b8\u09cd\u09a4\u09be\u09b0\u09bf\u09a4 \u09a6\u09c7\u0996\u09c1\u09a8\u0964")
         with st.container(border=True):
-            map_view = folium.Map(location=[search_lat, search_lon], zoom_start=13, control_scale=True, tiles="OpenStreetMap")
+            map_view = folium.Map(location=[search_lat, search_lon], zoom_start=13, control_scale=True, tiles=None)
+            _add_map_base_layers(map_view)
             map_view.get_root().html.add_child(Element(_popup_styles()))
             folium.CircleMarker(
                 [search_lat, search_lon], radius=8, color=DESIGN_COLORS["new"],
@@ -737,8 +798,17 @@ def _popup_content(row: Mapping[str, object]) -> dict[str, Any]:
         signals.append(f"{icon} {label}: {description}")
     if not signals:
         signals.append("\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987")
-    is_new = str(row.get("detection_status", "")) == "New candidate (2025-26)"
-    return {"type": _type_label(row.get("class", row.get("class_name"))), "is_new": is_new,
+    detection_status = str(row.get("detection_status", ""))
+    is_new = detection_status == "New candidate (2025-26)"
+    detection_label = {
+        "New candidate (2025-26)": "\u09a8\u09a4\u09c1\u09a8 (\u09e8\u09e6\u09e8\u09eb\u2013\u09e8\u09ec)",
+        "Known (2023-24 survey)": "\u0986\u0997\u09c7 \u099a\u09bf\u09b9\u09cd\u09a8\u09bf\u09a4 (\u09e8\u09e6\u09e8\u09e9\u2013\u09e8\u09ea)",
+    }.get(detection_status, "\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987")
+    class_name = row.get("class_name")
+    if class_name is None or pd.isna(class_name):
+        class_name = row.get("class")
+    return {"type": _type_label(class_name), "is_new": is_new,
+            "detection_label": detection_label,
             "area": area, "priority": priority, "coordinates": coordinates,
             "signals": signals, "kiln_id": present(row.get("kiln_id")),
             "latitude": float(latitude) if pd.notna(latitude) else None,
@@ -767,12 +837,12 @@ def _popup_html(row: pd.Series) -> str:
     maps = f"https://www.google.com/maps?q={latitude:.6f}%2C{longitude:.6f}" if latitude is not None else "#"
     earth = f"https://earth.google.com/web/@{latitude:.6f},{longitude:.6f},500a,500d,35y" if latitude is not None else "#"
     escaped = html.escape
-    new_badge = "<span class='badge new-badge'>\u09a8\u09a4\u09c1\u09a8 (\u09e8\u09e6\u09e8\u09eb\u2013\u09e8\u09e8)</span>" if content["is_new"] else ""
-    signal_lines = "".join(f"<div>{escaped(signal)}</div>" for signal in content["signals"])
+    status_class = "new-badge" if content["is_new"] else "status-badge"
+    signal_lines = _popup_rule_signal_html(row)
     return ("<div class='dhoa-popup'><div class='badges'>"
-        f"<span class='badge'>{escaped(content['type'])}</span>{new_badge}</div>"
+        f"<span class='badge {status_class}'>{escaped(content['type'])} — {escaped(content['detection_label'])}</span></div>"
         f"<strong>\u0987\u099f\u09ad\u09be\u099f\u09be\u09b0 \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0 \u00b7 {escaped(content['area'])}</strong><hr>"
-        f"\u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0: {escaped(content['priority'])}<br>"
+        f"<span class='badge priority-badge'>\u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0: {escaped(content['priority'])}</span><br>"
         f"\U0001f4cd \u098f\u09b2\u09be\u0995\u09be: {escaped(content['area'])}<br>"
         f"{escaped(content['coordinates'])}<hr>"
         f"<strong>\u09a8\u09bf\u09af\u09bc\u09ae\u09c7\u09b0 \u09b8\u0982\u0995\u09c7\u09a4:</strong>{signal_lines}<hr>"
@@ -783,6 +853,72 @@ def _popup_html(row: pd.Series) -> str:
         f"<div>\U0001f4c4 \u09aa\u09cd\u09b0\u09a4\u09bf\u09ac\u09c7\u09a6\u09a8 \u09a8\u09ae\u09cd\u09ac\u09b0: {escaped(content['kiln_id'])}</div><hr></div>")
 
 
+def _popup_rule_signal_html(row: pd.Series) -> str:
+    """Render configured proximity rules with threshold-based status dots.
+
+    Input schema: one kiln row with rule distances and optional breached_rules.
+    Output schema: escaped HTML rows with dot, Bengali feature label, and distance.
+    """
+    rules = load_config()["rules"].get("siting_rules", [])
+    rules_by_id = {str(rule.get("id")): rule for rule in rules}
+    raw_breaches = row.get("breached_rules")
+    if hasattr(raw_breaches, "tolist") and not isinstance(raw_breaches, str):
+        raw_breaches = raw_breaches.tolist()
+    if isinstance(raw_breaches, str):
+        breached_ids = {item.strip() for item in raw_breaches.split(",") if item.strip()}
+    elif isinstance(raw_breaches, (list, tuple, set)):
+        breached_ids = {
+            str(item).strip()
+            for item in raw_breaches
+            if item is not None and not pd.isna(item) and str(item).strip()
+        }
+    else:
+        breached_ids = set()
+
+    rule_rows = (
+        ("near_school", "\u09b8\u09cd\u0995\u09c1\u09b2", "dist_schools_m"),
+        ("near_hospital", "\u09b9\u09be\u09b8\u09aa\u09be\u09a4\u09be\u09b2", "dist_hospitals_m"),
+        ("near_railway", "\u09b0\u09c7\u09b2\u09aa\u09a5", "dist_railways_m"),
+        ("near_government_forest", "\u09ac\u09a8", "dist_forests_m"),
+        ("near_settlement", "\u09ac\u09b8\u09a4\u09bf", "dist_settlements_m"),
+        ("near_wetland", "\u099c\u09b2\u09be\u09ad\u09c2\u09ae\u09bf", "dist_water_m"),
+    )
+    rows: list[str] = []
+    labels = {
+        "red": "\U0001f534",
+        "yellow": "\U0001f7e1",
+        "green": "\U0001f7e2",
+        "unknown": "\u26aa",
+    }
+    for rule_id, label, distance_column in rule_rows:
+        rule = rules_by_id.get(rule_id, {})
+        threshold = pd.to_numeric(
+            pd.Series([rule.get("buffer_m")]), errors="coerce"
+        ).iloc[0]
+        distance = pd.to_numeric(
+            pd.Series([row.get(distance_column)]), errors="coerce"
+        ).iloc[0]
+        if pd.isna(distance) or pd.isna(threshold):
+            icon = labels["unknown"]
+            distance_text = "\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987"
+        else:
+            if rule_id in breached_ids or distance <= threshold:
+                icon = labels["red"]
+                distance_text = f"{distance:,.0f} \u09ae\u09bf."
+            elif distance <= threshold * 1.5:
+                icon = labels["yellow"]
+                distance_text = f"{distance:,.0f} \u09ae\u09bf."
+            else:
+                icon = labels["green"]
+                distance_text = "\u09b8\u09c0\u09ae\u09be\u09b0 \u09ac\u09be\u0987\u09b0\u09c7"
+        rows.append(
+            "<div class='rule-signal-row'>"
+            f"<span>{icon}</span> {html.escape(label)}: {html.escape(distance_text)}"
+            "</div>"
+        )
+    return "".join(rows)
+
+
 def _popup_styles() -> str:
     """Return popup CSS using the shared design-system palette."""
     return (
@@ -791,6 +927,7 @@ def _popup_styles() -> str:
         f".dhoa-popup hr{{border:0;border-top:1px solid {DESIGN_COLORS['text']};opacity:.35;margin:.45rem 0}}"
         f".dhoa-popup .badge{{background:{DESIGN_COLORS['card']};padding:.1rem .35rem;border-radius:.25rem;font-weight:700}}"
         f".dhoa-popup .new-badge{{background:{DESIGN_COLORS['new']}}}"
+        ".dhoa-popup .rule-signal-row{margin:.12rem 0}"
         ".dhoa-popup .badges,.dhoa-popup .popup-actions{display:flex;gap:.4rem;flex-wrap:wrap}"
         "</style>"
     )
@@ -1032,13 +1169,14 @@ def _reset_upazila_filter() -> None:
 
 
 def _reset_inspector_filters() -> None:
-    """Restore the four Inspector filter widgets to their defaults."""
+    """Restore the Inspector filter widgets to their defaults."""
     st.session_state["filter_district"] = "\u09b8\u09ac \u099c\u09c7\u09b2\u09be"
     st.session_state["filter_upazila"] = "\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be"
     st.session_state["filter_radius_m"] = 1000
     st.session_state["filter_priority"] = [
         "\u0989\u099a\u09cd\u099a", "\u09ae\u09be\u099d\u09be\u09b0\u09bf", "\u09a8\u09bf\u09ae\u09cd\u09a8"
     ]
+    st.session_state["filter_kiln_type"] = ALL_KILN_TYPES
 
 
 def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
@@ -1079,6 +1217,7 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
                 upazila_options,
                 key="filter_upazila",
             )
+            has_selected_upazila = filters["upazila"] != "\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be"
             filters["radius_m"] = st.slider(
                 "\u0985\u09a8\u09c1\u09b8\u09a8\u09cd\u09a7\u09be\u09a8 \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7",
                 min_value=250,
@@ -1086,6 +1225,12 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
                 value=1000,
                 step=250,
                 key="filter_radius_m",
+                disabled=not has_selected_upazila,
+                help=(
+                    None
+                    if has_selected_upazila
+                    else "\u0989\u09aa\u099c\u09c7\u09b2\u09be \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09a8 \u0995\u09b0\u09b2\u09c7 \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7 \u09b8\u0995\u09cd\u09b0\u09bf\u09af\u09bc \u09b9\u09ac\u09c7"
+                ),
             )
             st.markdown("### \u09ab\u09bf\u09b2\u09cd\u099f\u09be\u09b0")
             priority_options = ["\u0989\u099a\u09cd\u099a", "\u09ae\u09be\u099d\u09be\u09b0\u09bf", "\u09a8\u09bf\u09ae\u09cd\u09a8"]
@@ -1094,6 +1239,18 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
                 priority_options,
                 default=priority_options,
                 key="filter_priority",
+            )
+            type_column = "class" if "class" in gdf.columns else "class_name"
+            available_types = (
+                sorted(gdf[type_column].dropna().astype(str).unique().tolist())
+                if type_column in gdf.columns else []
+            )
+            type_options = [ALL_KILN_TYPES, *available_types]
+            filters["kiln_type"] = st.selectbox(
+                "\u09ad\u09be\u099f\u09be\u09b0 \u09a7\u09b0\u09a8",
+                type_options,
+                format_func=lambda value: KILN_TYPE_LABELS.get(value, value),
+                key="filter_kiln_type",
             )
 
             visible = get_filtered_gdf(gdf)
@@ -1106,6 +1263,16 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
                 width="stretch",
                 key="sidebar_export_list",
             )
+        map_tile_options = {
+            "street": "\u09b0\u09be\u09b8\u09cd\u09a4\u09be\u09b0 \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0",
+            "satellite": "\u09b8\u09cd\u09af\u09be\u099f\u09c7\u09b2\u09be\u0987\u099f \u099b\u09ac\u09bf",
+        }
+        filters["map_tile"] = st.selectbox(
+            "\u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0\u09c7\u09b0 \u09a7\u09b0\u09a8",
+            list(map_tile_options),
+            format_func=map_tile_options.get,
+            key="map_tile",
+        )
         st.divider()
         st.markdown("\u09aa\u09b0\u09bf\u09ac\u09c7\u09b6 \u0985\u09a7\u09bf\u09a6\u09aa\u09cd\u09a4\u09b0\u09c7\u09b0 \u09b9\u099f\u09b2\u09be\u0987\u09a8: \u09e7\u09ec\u09e7\u09e9\u09e7 | [doe.gov.bd](https://doe.gov.bd)")
         if mode == "inspector":
@@ -1189,8 +1356,10 @@ def build_map(
     center = tuple(st.session_state["map_center"])
     zoom = int(st.session_state["map_zoom"])
     map_view = st.session_state.get("dhoa_map_object")
-    if map_view is None or st.session_state.get("dhoa_map_base") != "OpenStreetMap-only":
-        map_view = folium.Map(location=center, zoom_start=zoom, control_scale=True, tiles="OpenStreetMap")
+    selected_tile = st.session_state.get("map_tile", "street")
+    if map_view is None or st.session_state.get("dhoa_map_base") != selected_tile:
+        map_view = folium.Map(location=center, zoom_start=zoom, control_scale=True, tiles=None)
+        _add_map_base_layers(map_view)
         kilns_layer = folium.FeatureGroup(name="kilns", show=True).add_to(map_view)
         heat_layer = folium.FeatureGroup(name="\u09b9\u09bf\u099f\u09ae\u09cd\u09af\u09be\u09aa", show=False).add_to(map_view)
         map_view.get_root().html.add_child(
@@ -1217,11 +1386,10 @@ def build_map(
                 </style>"""
             )
         )
-        folium.LayerControl(collapsed=False).add_to(map_view)
         st.session_state["dhoa_map_object"] = map_view
         st.session_state["dhoa_kilns_layer"] = kilns_layer
         st.session_state["dhoa_heat_layer"] = heat_layer
-        st.session_state["dhoa_map_base"] = "OpenStreetMap-only"
+        st.session_state["dhoa_map_base"] = selected_tile
     else:
         kilns_layer = st.session_state["dhoa_kilns_layer"]
         heat_layer = st.session_state["dhoa_heat_layer"]
