@@ -1381,7 +1381,6 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
             filters["violation_types"] = st.multiselect(
                 _ui_text("\u09b2\u0999\u09cd\u0998\u09a8\u09c7\u09b0 \u09a7\u09b0\u09a8", "Violation type"),
                 viol_rule_ids,
-                default=viol_rule_ids,
                 format_func=lambda rid: _signal_label(rid),
                 key="filter_violation_types",
             )
