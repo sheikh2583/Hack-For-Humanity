@@ -61,6 +61,8 @@ map circle, and downloadable community PDF all use the selected radius. Changing
 the slider refreshes the results and report. Distances are calculated from the
 search point to candidate coordinates using the configured local projected CRS.
 
+The map legend uses blue for the searched location and red, orange, and green for high, medium, and low priority. The blue outline shows the selected radius. The community report download is placed above the candidate table in the results panel.
+
 The community PDF reports the chosen radius and lists candidate distance, kiln
 type, priority, and coordinates. It is generated in memory and is not saved to
 disk.

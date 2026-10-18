@@ -1,72 +1,52 @@
-# Claude handoff — 2026-10-13
+# Claude handoff - updated 2026-10-18
 
-Copy this note and upload `kilnwatch_bd_share.zip` to Claude to continue the
-Dhoa dashboard and hosting work.
+Use this note with `kilnwatch_bd_share.zip` when continuing Dhoa dashboard and hosting work.
 
-## Current request
+## Current status
 
-The user reports that the hosted link does not reflect the latest local
-changes. Diagnose the deployment source and build once the hosted URL and
-hosting platform are available. Do not assume the host, repository, branch, or
-entrypoint. The user has not supplied the hosted URL yet.
+The user reported that the map UI was difficult to read, the markers and radius were unclear, and the community report was not easy to find. The local Community View has since been updated:
+
+- A user-adjustable search radius is available from 250 m to 5,000 m in 250 m steps, defaulting to 1,000 m.
+- Candidate count, result table, map circle, and community PDF use the selected radius.
+- The map shows a blue search pin and a blue radius outline. Red, orange, and green candidate markers indicate high, medium, and low priority. The help popover now describes these markers and radius behavior.
+- The community report download is shown with the results above the table. The sidebar's duplicate disabled report button was removed.
+- Place-name search takes precedence over coordinate inputs; the form now explains this.
+- PDF generation errors are written to the application log.
+- `docs/DASHBOARD_GUIDE.md` documents the adjustable radius and community report contents.
+
+The UI and documentation changes are local and uncommitted. Python syntax parsing and `git diff --check` passed. No pytest suite or browser verification was run. Do not claim the report download or rendered UI has been confirmed until manually checked in the app.
 
 ## Repository state
 
 - Workspace: `X:\AIUB Hackathon` (Windows PowerShell).
-- Git remote: `github.com:sheikh2583/Hack-For-Humanity.git`.
-- Branch: `main`.
-- Latest pushed commit: `9dc8139514429290f75f2561808f4f3536f44955`
-  (`user facing`). At handoff creation the working tree is clean.
-- The latest commit includes the updated Streamlit dashboard, startup changes,
-  priority parquet update, OSM place enrichment, and presentation tests.
-- `data/processed/kilns_prioritised.parquet` is tracked in Git and is part of
-  the latest commit. The local 118.96 MB
-  `data/raw/boundaries/geoBoundaries_BGD_ADM3.geojson` remains on disk but is
-  ignored and untracked to avoid GitHub's 100 MB file limit.
-- The previous push was rejected because ADM3 GeoJSON exceeded that limit. It
-  was removed from the commit and the corrected commit was pushed successfully.
+- Branch: `main`, tracking `origin/main`.
+- HEAD and `origin/main` were aligned at inspection: `4da36dca5492cd4d5799d636ce14d0f6a6b67532` (`finally`, 2026-10-18).
+- Current modified files: `app/streamlit_app.py`, `docs/DASHBOARD_GUIDE.md`.
+- The project has a configured Git remote. Confirm the current remote before any push or deployment work.
+- `data/processed/kilns_prioritised.parquet` is tracked. The 118.96 MB `data/raw/boundaries/geoBoundaries_BGD_ADM3.geojson` is ignored and untracked to avoid GitHub's 100 MB file limit.
 
 ## Hosting diagnosis
 
-`docs/DEPLOYMENT.md` documents Streamlit Community Cloud as the recommended
-public hosting route and gives `app/streamlit_app.py` as the entrypoint, but
-the repo itself does not identify the user's actual deployed app, host, or
-selected deployment branch. GitHub `main` is current; this alone does not prove
-the hosted app is connected to it or has rebuilt successfully.
+The hosted URL and actual hosting provider have not been supplied. `docs/DEPLOYMENT.md` documents Streamlit Community Cloud as the recommended route and names `app/streamlit_app.py` as the entrypoint, but this does not prove which host, repository, branch, or commit the user's deployed app uses.
 
-Ask for or inspect the hosted URL and identify its provider. Then compare the
-deployment's repository, branch, entrypoint, and deployed commit with the
-commit above. Inspect build/runtime logs and the data source if needed. Do not
-change or redeploy an external app until its target is known. If this is
-Streamlit Community Cloud, check its app settings and latest deployment logs;
-the expected entrypoint is `app/streamlit_app.py` and the repo root must be the
-working directory. The app reads the committed prioritized parquet at
-`data/processed/kilns_prioritised.parquet`.
+Before diagnosing hosted staleness, obtain or inspect the deployed URL and identify its provider. Compare its repository, branch, entrypoint, deployed commit, build/runtime logs, and data source with the local project. Do not claim the host is fixed without checking the deployed URL and revision. Do not modify or redeploy an external app until the target is known. For Streamlit Community Cloud, check the app settings and latest deployment logs; expected entrypoint is `app/streamlit_app.py`, with the repository root as working directory. The app reads `data/processed/kilns_prioritised.parquet`.
 
 ## Project instructions
 
 Read `AGENTS.md` before editing. Key requirements:
 
-- Never invent schemas, legal thresholds, or coordinates; legal values are
-  sourced from `config/rules.yaml`.
-- Keep geometries in EPSG:4326 and do distance/area calculations in EPSG:9680
-  with the configured UTM fallback.
-- Keep GPU workloads user-managed. Do not run training, inference, benchmarks,
-  smoke tests, or other GPU work unless the user specifically requests it.
-- Never display developer-facing advisory, verification, preprocessing, or
-  legal-status wording in the UI. Keep it in docs/logs.
-- At task end, report what could not be verified and what the user should check
-  by hand.
+- Never invent schemas, legal thresholds, or coordinates; legal values are sourced from `config/rules.yaml`.
+- Keep geometries in EPSG:4326 and do distance/area calculations in EPSG:9680 with the configured UTM fallback.
+- Keep GPU workloads user-managed. Do not run training, inference, benchmarks, smoke tests, or other GPU work unless the user specifically requests it.
+- Never display developer-facing advisory, verification, preprocessing, or legal-status wording in the UI. Keep it in docs/logs.
+- At task end, report what could not be verified and what the user should check by hand.
+- Do not add or run tests unless the user asks.
 
-## Review scope
+## Next actions
 
-Review the source and current dashboard behavior in the ZIP. For the hosted
-staleness issue, determine what evidence is needed to distinguish a wrong
-deployment target from a failed or delayed build, stale runtime data, browser
-cache, or another cause. Clearly separate verified facts from hypotheses.
-Do not claim the host is fixed without checking the hosted URL and deployment
-revision. Do not run GPU workloads.
+1. Ask the user to check the Community View help popover, radius slider, map legend, and community report download in the browser.
+2. If the report still fails, inspect the application log entry added at the PDF generation boundary and fix the concrete failure.
+3. Continue the hosting diagnosis only after the hosted URL/provider is known. Verify deployment revision before reporting status.
+4. Preserve the current local changes unless the user asks to commit or discard them. No commit, push, or redeploy has been requested.
 
-The ZIP excludes credentials, model weights, datasets, rasters, and GeoParquet
-files. Source review is possible, but deployment account settings and runtime
-logs may require access from the user.
+The share ZIP omits credentials, model weights, datasets, rasters, and GeoParquet files. Deployment account settings and runtime logs may require the user's access.

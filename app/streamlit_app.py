@@ -486,6 +486,7 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
             latitude = coordinate_columns[0].number_input("\u0985\u0995\u09cd\u09b7\u09be\u0982\u09b6 (Latitude)", value=24.0, min_value=-90.0, max_value=90.0, format="%.6f")
             longitude = coordinate_columns[1].number_input("\u09a6\u09cd\u09b0\u09be\u0998\u09bf\u09ae\u09be\u0982\u09b6 (Longitude)", value=90.0, min_value=-180.0, max_value=180.0, format="%.6f")
             submitted = st.form_submit_button('\U0001f50d \u0996\u09c1\u0981\u099c\u09c1\u09a8', width="stretch")
+            st.caption("\u09a8\u09be\u09ae \u09a6\u09bf\u09df\u09c7 \u0996\u09cb\u0981\u099c\u09c1\u09a8, \u09a8\u09be \u09b8\u09cd\u09a5\u09be\u09a8\u09be\u0999\u09cd\u0995 \u09a6\u09bf\u09df\u09c7 \u0996\u09c1\u0981\u099c\u09c1\u09a8; \u09a8\u09be\u09ae \u09a6\u09bf\u09b2\u09c7 \u09b8\u09cd\u09a5\u09be\u09a8\u09be\u0999\u09cd\u0995 \u0997\u09a3\u09cd\u09af \u0995\u09b0\u09be \u09b9\u09ac\u09c7 \u09a8\u09be\u0964")
     if submitted:
         st.session_state.pop("community_search", None)
         st.session_state.pop("community_report", None)
@@ -520,41 +521,44 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
     with result_column:
         st.subheader("\u0995\u09be\u099b\u09be\u0995\u09be\u099b\u09bf\u09b0 \u0987\u099f\u09ad\u09be\u099f\u09be\u09b0 \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0")
         with st.container(border=True):
-            st.metric(f"{radius_m / 1000:g} km \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7\u09c7\u09b0 \u09ae\u09a7\u09cd\u09af\u09c7", f"{len(nearby):,}")
+            st.metric(f"Candidates within {radius_m / 1000:g} km radius", f"{len(nearby):,}")
+            try:
+                report = community_alert_pdf(location_name, nearby, radius_m)
+                st.session_state["community_report"] = report
+                st.download_button(
+                    "Download community report", report,
+                    "dhoa_community_report.pdf", "application/pdf",
+                    width="stretch", key="community_alert_download",
+                )
+            except Exception:  # noqa: BLE001 - report generation boundary
+                logging.exception("Community PDF generation failed")
+                st.error("Could not create the community report. Please try again.")
             if nearby.empty:
-                st.success(f"\u2705 \u098f\u0987 \u09b8\u09cd\u09a5\u09be\u09a8\u09c7\u09b0 {radius_m / 1000:g} km \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7\u09c7 \u0995\u09cb\u09a8\u09cb \u0987\u099f\u09ad\u09be\u099f\u09be\u09b0 \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0 \u09ae\u09c7\u09b2\u09c7\u09a8\u09bf?")
+                st.success(f"No kiln candidates found within {radius_m / 1000:g} km of this location.")
             else:
                 table = pd.DataFrame({
-                    '\u09a6\u09c2\u09b0\u09a4\u09cd\u09ac (\u09ae\u09bf\u099f\u09be\u09b0)': nearby["distance_m"].round(0).astype("Int64").astype("string").fillna('\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987').to_numpy(),
-                    "\u098f\u09b2\u09be\u0995\u09be": [_area_label(row, fallback="district") for _, row in nearby.iterrows()],
-                    "\u09a7\u09b0\u09a8": [_type_label(row.get("class")) for _, row in nearby.iterrows()],
-                    "\u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0": [_priority_label(row.get("priority_band")) for _, row in nearby.iterrows()],
-                    "\u09a6\u09bf\u0995\u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6\u09a8\u09be": [
+                    "Distance (m)": nearby["distance_m"].round(0).astype("Int64").astype("string").fillna("No data").to_numpy(),
+                    "Area": [_area_label(row, fallback="district") for _, row in nearby.iterrows()],
+                    "Kiln type": [_type_label(row.get("class")) for _, row in nearby.iterrows()],
+                    "Priority": [_priority_label(row.get("priority_band")) for _, row in nearby.iterrows()],
+                    "Directions": [
                         f"https://www.google.com/maps/dir/?api=1&destination={float(row['lat']):.6f}%2C{float(row['lon']):.6f}"
                         for _, row in nearby.iterrows()
                     ],
                 })
                 st.dataframe(
                     table, hide_index=True, width="stretch",
-                    column_config={"\u09a6\u09bf\u0995\u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6\u09a8\u09be": st.column_config.LinkColumn(display_text="\U0001f5fa \u09af\u09be\u09a4\u09cd\u09b0\u09be\u09aa\u09a5")},
+                    column_config={"Directions": st.column_config.LinkColumn(display_text="Open map")},
                 )
-        try:
-            report = community_alert_pdf(location_name, nearby, radius_m)
-            st.session_state["community_report"] = report
-            st.download_button(
-                "\U0001f4c4 \u0995\u09ae\u09bf\u0989\u09a8\u09bf\u099f\u09bf \u09b0\u09bf\u09aa\u09cb\u09b0\u09cd\u099f \u09a1\u09be\u0989\u09a8\u09b2\u09cb\u09a1", report,
-                "dhoa_community_report.pdf", "application/pdf",
-                width="stretch", key="community_alert_download",
-            )
-        except Exception:  # noqa: BLE001 - report generation boundary
-            st.error('\u274c \u0995\u09ae\u09bf\u0989\u09a8\u09bf\u099f\u09bf \u09b0\u09bf\u09aa\u09cb\u09b0\u09cd\u099f \u09a4\u09c8\u09b0\u09bf \u0995\u09b0\u09be \u09af\u09be\u09df\u09a8\u09bf\u0964 \u0986\u09ac\u09be\u09b0 \u099a\u09c7\u09b7\u09cd\u099f\u09be \u0995\u09b0\u09c1\u09a8\u0964')
     with map_column:
         st.subheader("\u098f\u09b2\u09be\u0995\u09be\u09b0 \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0")
         st.markdown(
-            f"**\u099a\u09bf\u09b9\u09cd\u09a8\u09c7\u09b0 \u0985\u09b0\u09cd\u09a5** &middot; <span style='color:{DESIGN_COLORS['new']}'>&#9679;</span> \u0996\u09cb\u0981\u099c\u09be\u09b0 \u09b8\u09cd\u09a5\u09be\u09a8 "
-            f"&middot; <span style='color:{PRIORITY_COLORS['High']}'>&#9679;</span> \u0989\u099a\u09cd\u099a \u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0 "
-            f"&middot; <span style='color:{PRIORITY_COLORS['Medium']}'>&#9679;</span> \u09ae\u09be\u099d\u09be\u09b0\u09bf "
-            f"&middot; <span style='color:{PRIORITY_COLORS['Low']}'>&#9679;</span> \u09a8\u09bf\u09ae\u09cd\u09a8",
+            "<div style='display:flex;flex-wrap:wrap;gap:.5rem;margin:.4rem 0'>"
+            f"<span style='background:#1e2329;padding:.35rem .6rem;border-radius:999px'><b style='color:{DESIGN_COLORS['new']}'>&#9679;</b> \u0996\u09cb\u0981\u099c\u09be\u09b0 \u09b8\u09cd\u09a5\u09be\u09a8</span>"
+            f"<span style='background:#1e2329;padding:.35rem .6rem;border-radius:999px'><b style='color:{PRIORITY_COLORS['High']}'>&#9679;</b> \u0989\u099a\u09cd\u099a \u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0</span>"
+            f"<span style='background:#1e2329;padding:.35rem .6rem;border-radius:999px'><b style='color:{PRIORITY_COLORS['Medium']}'>&#9679;</b> \u09ae\u09be\u099d\u09be\u09b0\u09bf</span>"
+            f"<span style='background:#1e2329;padding:.35rem .6rem;border-radius:999px'><b style='color:{PRIORITY_COLORS['Low']}'>&#9679;</b> \u09a8\u09bf\u09ae\u09cd\u09a8</span>"
+            "</div>",
             unsafe_allow_html=True,
         )
         st.caption(f"\u09a8\u09c0\u09b2 \u09ac\u09c3\u09a4\u09cd\u09a4\u09c7\u09b0 \u09b8\u09c0\u09ae\u09be\u09a8\u09be \u0996\u09cb\u0981\u099c\u09be\u09b0 \u09b8\u09cd\u09a5\u09be\u09a8 \u09a5\u09c7\u0995\u09c7 {radius_m / 1000:g} km \u09a6\u09c2\u09b0\u09a4\u09cd\u09ac \u09a6\u09c7\u0996\u09be\u09df\u0964 \u09b2\u09be\u09b2, \u0995\u09ae\u09b2\u09be \u0993 \u09b8\u09ac\u09c1\u099c \u09ac\u09bf\u09a8\u09cd\u09a6\u09c1 \u09ad\u09be\u099f\u09be\u09b0 \u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0 \u09a6\u09c7\u0996\u09be\u09df; \u09ac\u09bf\u09a8\u09cd\u09a6\u09c1\u09a4\u09c7 \u099a\u09be\u09aa\u09b2\u09c7 \u09ac\u09bf\u09b8\u09cd\u09a4\u09be\u09b0\u09bf\u09a4 \u09a6\u09c7\u0996\u09c1\u09a8\u0964")
@@ -818,13 +822,16 @@ def render_header(gdf: gpd.GeoDataFrame) -> str:
     with st.popover("\u2754 \u0995\u09c0\u09ad\u09be\u09ac\u09c7 \u09ac\u09cd\u09af\u09ac\u09b9\u09be\u09b0 \u0995\u09b0\u09ac\u09c7\u09a8?", icon=":material/help:", width="stretch"):
         if is_community:
             st.markdown("""
-**\u0995\u09ae\u09bf\u0989\u09a8\u09bf\u099f\u09bf \u09ad\u09bf\u0989 \u0995\u09c0\u09ad\u09be\u09ac\u09c7 \u09ac\u09cd\u09af\u09ac\u09b9\u09be\u09b0 \u0995\u09b0\u09ac\u09c7\u09a8**
+**\u0995\u09ae\u09bf\u0989\u09a8\u09bf\u099f\u09bf \u09ad\u09bf\u0989 \u09ac\u09cd\u09af\u09ac\u09b9\u09be\u09b0**
 
-\u09e7. \u09b8\u09cd\u0995\u09c1\u09b2, \u09b9\u09be\u09b8\u09aa\u09be\u09a4\u09be\u09b2 \u09ac\u09be \u098f\u09b2\u09be\u0995\u09be\u09b0 \u09a8\u09be\u09ae \u09b2\u09bf\u0996\u09c1\u09a8. \u09a8\u09be\u09ae \u0996\u09c1\u0981\u099c\u09c7 \u09a8\u09be \u09aa\u09c7\u09b2\u09c7 \u0985\u0995\u09cd\u09b7\u09be\u0982\u09b6 \u0993 \u09a6\u09cd\u09b0\u09be\u0998\u09bf\u09ae\u09be\u0982\u09b6 \u09a6\u09bf\u09df\u09c7 \u0985\u09ac\u09b8\u09cd\u09a5\u09be\u09a8 \u09a6\u09bf\u09a8\u0964
+1. \u09b8\u09cd\u0995\u09c1\u09b2, \u09b9\u09be\u09b8\u09aa\u09be\u09a4\u09be\u09b2 \u09ac\u09be \u098f\u09b2\u09be\u0995\u09be\u09b0 \u09a8\u09be\u09ae \u09b2\u09bf\u0996\u09c1\u09a8 \u0985\u09a5\u09ac\u09be \u0985\u0995\u09cd\u09b7\u09be\u0982\u09b6-\u09a6\u09cd\u09b0\u09be\u0998\u09bf\u09ae\u09be\u0982\u09b6 \u09a6\u09bf\u09a8\u0964 \u09a8\u09be\u09ae \u09a6\u09bf\u09b2\u09c7 \u09b8\u09cd\u09a5\u09be\u09a8\u09be\u0999\u09cd\u0995 \u0997\u09a3\u09cd\u09af \u0995\u09b0\u09be \u09b9\u09ac\u09c7 \u09a8\u09be\u0964
 
-\u09e8. **\u0996\u09c1\u0981\u099c\u09c1\u09a8** \u099a\u09be\u09aa\u09c1\u09a8\u0964 \u098f\u0996\u09be\u09a8\u09c7 \u0996\u09cb\u0981\u099c\u09be \u09b8\u09cd\u09a5\u09be\u09a8\u09c7\u09b0 \u09e7 \u0995\u09bf\u09ae\u09bf\u09b0 \u09ae\u09a7\u09cd\u09af\u09c7 \u09a5\u09be\u0995\u09be \u0987\u099f\u09ad\u09be\u099f\u09be\u09b0 \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0 \u09a6\u09c7\u0996\u09be\u09ac\u09c7\u0964 \u09a8\u09c0\u09b2 \u09aa\u09bf\u09a8 \u0996\u09cb\u0981\u099c\u09be \u09b8\u09cd\u09a5\u09be\u09a8 \u09a6\u09c7\u0996\u09be\u09df; \u09ac\u09c3\u09a4\u09cd\u09a4\u09c7\u09b0 \u09b0\u0982 \u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0 \u09ac\u09cb\u099d\u09be\u09df\u0964
+2. **\u0996\u09c1\u0981\u099c\u09c1\u09a8** \u099a\u09be\u09aa\u09c1\u09a8\u0964 \u09ab\u09b2\u09be\u09ab\u09b2 \u0986\u09b8\u09be\u09b0 \u09aa\u09b0 **\u0985\u09a8\u09c1\u09b8\u09a8\u09cd\u09a7\u09be\u09a8\u09c7\u09b0 \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7** \u09b8\u09cd\u09b2\u09be\u0987\u09a1\u09be\u09b0 \u09a6\u09bf\u09df\u09c7 250 \u09ae\u09bf\u099f\u09be\u09b0 \u09a5\u09c7\u0995\u09c7 5 \u0995\u09bf\u09ae\u09bf \u09ac\u09be\u099b\u09c1\u09a8\u0964 \u09aa\u09cd\u09b0\u09a4\u09bf \u09a7\u09be\u09aa 250 \u09ae\u09bf\u099f\u09be\u09b0; \u09b6\u09c1\u09b0\u09c1\u09a4\u09c7 1 \u0995\u09bf\u09ae\u09bf \u09a5\u09be\u0995\u09c7\u0964 \u09b8\u0982\u0996\u09cd\u09af\u09be, \u09a4\u09be\u09b2\u09bf\u0995\u09be, \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0 \u0993 PDF \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09bf\u09a4 \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7 \u0985\u09a8\u09c1\u09af\u09be\u09df\u09c0 \u09b9\u09be\u09b2\u09a8\u09be\u0997 \u09b9\u09ac\u09c7\u0964
 
-\u09e9. **\u09af\u09be\u09a4\u09cd\u09b0\u09be\u09aa\u09a5** \u09b2\u09bf\u0982\u0995 \u09a5\u09c7\u0995\u09c7 \u09aa\u09a5 \u09a6\u09c7\u0996\u09c1\u09a8, \u0985\u09a5\u09ac\u09be **\u0995\u09ae\u09bf\u0989\u09a8\u09bf\u099f\u09bf \u09b0\u09bf\u09aa\u09cb\u09b0\u09cd\u099f \u09a1\u09be\u0989\u09a8\u09b2\u09cb\u09a1** \u099a\u09be\u09aa\u09c1\u09a8\u0964
+3. \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0\u09c7 \u09a8\u09c0\u09b2 \u09aa\u09bf\u09a8 \u0996\u09cb\u0981\u099c\u09be \u09b8\u09cd\u09a5\u09be\u09a8, \u098f\u09ac\u0982 \u09a8\u09c0\u09b2 \u09ac\u09c3\u09a4\u09cd\u09a4\u09c7\u09b0 \u09b8\u09c0\u09ae\u09be\u09a8\u09be \u09ac\u09be\u099b\u09be \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7 \u09a6\u09c7\u0996\u09be\u09df\u0964 \u09b2\u09be\u09b2, \u0995\u09ae\u09b2\u09be \u0993 \u09b8\u09ac\u09c1\u099c \u09ac\u09bf\u09a8\u09cd\u09a6\u09c1 \u09af\u09a5\u09be\u0995\u09cd\u09b0\u09ae\u09c7 \u0989\u099a\u09cd\u099a, \u09ae\u09be\u099d\u09be\u09b0\u09bf \u0993 \u09a8\u09bf\u09ae\u09cd\u09a8 \u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0\u09c7\u09b0 \u09ad\u09be\u099f\u09be \u09a6\u09c7\u0996\u09be\u09df\u0964 \u09ac\u09bf\u09b8\u09cd\u09a4\u09be\u09b0\u09bf\u09a4 \u09a6\u09c7\u0996\u09a4\u09c7 \u09ad\u09be\u099f\u09be\u09b0 \u099a\u09bf\u09b9\u09cd\u09a8\u09c7 \u099a\u09be\u09aa \u09a6\u09bf\u09a8\u0964
+
+4. **Download community report** \u09ac\u09be\u099f\u09a8\u099f\u09bf \u09ab\u09b2\u09be\u09ab\u09b2\u09c7\u09b0 \u09aa\u09be\u09b6\u09c7, \u09a4\u09be\u09b2\u09bf\u0995\u09be\u09b0 \u0989\u09aa\u09b0\u09c7 \u09a5\u09be\u0995\u09c7\u0964 \u098f\u099f\u09bf\u09a4\u09c7 \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09bf\u09a4 \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7 \u0993 \u09ab\u09b2\u09be\u09ab\u09b2 \u09a5\u09be\u0995\u09c7\u0964
+
 """)
         else:
             st.markdown("""
@@ -846,10 +853,10 @@ def render_header(gdf: gpd.GeoDataFrame) -> str:
     new_count = int(gdf.get("detection_status", pd.Series("Known", index=gdf.index)).eq("New candidate (2025-26)").sum())
     flagged = _flagged_count(gdf, load_config()["rules"])
     items = (
-        (f"{len(gdf):,}", "\u09ae\u09cb\u099f \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0"),
-        (f"{high:,}", "\u0989\u099a\u09cd\u099a \u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0"),
-        (f"{new_count:,}", "\u09a8\u09a4\u09c1\u09a8 \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0"),
-        (f"{flagged:,}", "\u09a8\u09bf\u09df\u09ae \u09b8\u0982\u0995\u09c7\u09a4"),
+        (f"{len(gdf):,}", "\u09ae\u09cb\u099f \u09ad\u09be\u099f\u09be"),
+        (f"{high:,}", "\u099c\u09b0\u09c1\u09b0\u09bf \u09ad\u09be\u099f\u09be"),
+        (f"{new_count:,}", "\u09a8\u09a4\u09c1\u09a8 \u0986\u09ac\u09bf\u09b7\u09cd\u0995\u09be\u09b0"),
+        (f"{flagged:,}", "\u0986\u0987\u09a8 \u09b2\u0999\u09cd\u0998\u09a8"),
         (datetime.now(UTC).date().isoformat(), "\u09b8\u09b0\u09cd\u09ac\u09b6\u09c7\u09b7 \u09b9\u09be\u09b2\u09a8\u09be\u0997\u09be\u09a6"),
     )
     metrics = "".join(f"<div class='dhoa-metric'><strong>{value}</strong><span>{label}</span></div>" for value, label in items)
@@ -959,12 +966,6 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
         if mode == "inspector":
             slug = str(filters["district"]).lower().replace(" ", "_")
             st.download_button("\u2b07 \u09ac\u09be\u099b\u09be\u0987\u0995\u09c3\u09a4 \u09a4\u09be\u09b2\u09bf\u0995\u09be CSV \u09a1\u09be\u0989\u09a8\u09b2\u09cb\u09a1", _export_csv(visible), f"dhoa_{slug}_{datetime.now(UTC):%Y%m%d}.csv", "text/csv", width="stretch", key="sidebar_export_list")
-        else:
-            report = st.session_state.get("community_report")
-            if report:
-                st.download_button("\U0001f4c4 \u0995\u09ae\u09bf\u0989\u09a8\u09bf\u099f\u09bf \u09b0\u09bf\u09aa\u09cb\u09b0\u09cd\u099f \u09a1\u09be\u0989\u09a8\u09b2\u09cb\u09a1", report, "dhoa_community_report.pdf", "application/pdf", width="stretch", key="sidebar_community_alert")
-            else:
-                st.button("\U0001f4c4 \u0995\u09ae\u09bf\u0989\u09a8\u09bf\u099f\u09bf \u09b0\u09bf\u09aa\u09cb\u09b0\u09cd\u099f \u09a1\u09be\u0989\u09a8\u09b2\u09cb\u09a1", disabled=True, width="stretch", key="sidebar_community_alert_disabled")
         st.markdown("\u09aa\u09b0\u09bf\u09ac\u09c7\u09b6 \u0985\u09a7\u09bf\u09a6\u09aa\u09cd\u09a4\u09b0\u09c7\u09b0 \u09b9\u099f\u09b2\u09be\u0987\u09a8: \u09e7\u09ec\u09e7\u09e9\u09e7 | [doe.gov.bd](https://doe.gov.bd)")
     return filters
 
