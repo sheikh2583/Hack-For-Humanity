@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+from io import BytesIO
 import json
 import logging
 import sys
@@ -67,12 +68,28 @@ PRIORITY_COLORS = {
     "Low": DESIGN_COLORS["low"],
 }
 INSPECTOR_CSV_COLUMNS = [
-    "kiln_id", "lat", "lon", "area", "district", "upazila", "priority_band",
-    "confidence", "breach_count", "verified",
+    ("kiln_id", "\u09ad\u09be\u099f\u09be ID"),
+    ("lat", "\u0985\u0995\u09cd\u09b7\u09be\u0982\u09b6"),
+    ("lon", "\u09a6\u09cd\u09b0\u09be\u0998\u09bf\u09ae\u09be\u0982\u09b6"),
+    ("district", "\u099c\u09c7\u09b2\u09be"),
+    ("upazila", "\u0989\u09aa\u099c\u09c7\u09b2\u09be"),
+    ("nearest_place", "\u09a8\u09bf\u0995\u099f\u09a4\u09ae \u09b8\u09cd\u09a5\u09be\u09a8"),
+    ("nearest_place_dist_m", "\u09a6\u09c2\u09b0\u09a4\u09cd\u09ac (\u09ae\u09bf)"),
+    ("priority_band", "\u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0"),
+    ("confidence", "\u09a8\u09bf\u09b6\u09cd\u099a\u09bf\u09a4\u09a4\u09be"),
+    ("breach_count", "\u09b2\u0999\u09cd\u0998\u09a8 \u09b8\u0982\u0996\u09cd\u09af\u09be"),
+    ("verified", "\u09af\u09be\u099a\u09be\u0987 \u0985\u09ac\u09b8\u09cd\u09a5\u09be"),
 ]
 COMMUNITY_CSV_COLUMNS = [
-    "kiln_id", "lat", "lon", "area", "district", "upazila", "priority_band",
-    "distance_m", "directions_url",
+    ("kiln_id", "\u09ad\u09be\u099f\u09be ID"),
+    ("lat", "\u0985\u0995\u09cd\u09b7\u09be\u0982\u09b6"),
+    ("lon", "\u09a6\u09cd\u09b0\u09be\u0998\u09bf\u09ae\u09be\u0982\u09b6"),
+    ("district", "\u099c\u09c7\u09b2\u09be"),
+    ("upazila", "\u0989\u09aa\u099c\u09c7\u09b2\u09be"),
+    ("nearest_place", "\u09a8\u09bf\u0995\u099f\u09a4\u09ae \u09b8\u09cd\u09a5\u09be\u09a8"),
+    ("nearest_place_dist_m", "\u09a6\u09c2\u09b0\u09a4\u09cd\u09ac (\u09ae\u09bf)"),
+    ("priority_band", "\u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0"),
+    ("verified", "\u09af\u09be\u099a\u09be\u0987 \u0985\u09ac\u09b8\u09cd\u09a5\u09be"),
 ]
 METRIC_LABELS = {
     "total_kilns": "\u09ae\u09cb\u099f \u09ad\u09be\u099f\u09be",
@@ -793,20 +810,23 @@ def _priority_table_style(value: object) -> str:
     return f"color: {color}; font-weight: 700"
 
 
-def make_download_csv(gdf: pd.DataFrame, columns: list[str]) -> bytes:
-    """Build an encoded CSV containing only available requested public fields.
+def make_download_csv(
+    gdf: pd.DataFrame, columns: list[tuple[str, str]]
+) -> bytes:
+    """Build an encoded CSV with only the requested fields and display headers.
 
     Input schema: any candidate DataFrame and one explicit export schema.
     Output schema: UTF-8 CSV bytes without index, geometry, or internal columns.
     """
-    exported = gdf.copy()
-    if "area" in columns and "area" not in exported.columns:
-        exported["area"] = exported.apply(format_area_name, axis=1)
-    selected = [
-        column for column in columns
-        if column in exported.columns and not column.startswith("_")
-    ]
-    return exported.loc[:, selected].to_csv(index=False, na_rep="").encode("utf-8-sig")
+    export_columns = [column for column, _ in columns if not column.startswith("_")]
+    exported = gdf.reindex(columns=export_columns).rename(
+        columns={column: label for column, label in columns}
+    )
+    buffer = BytesIO()
+    exported.to_csv(
+        buffer, index=False, na_rep="", encoding="utf-8-sig"
+    )
+    return buffer.getvalue()
 
 
 def _flagged_count(frame: pd.DataFrame, rules: Mapping[str, Any]) -> int:
