@@ -31,26 +31,14 @@ FEATURE_EXPORT_COLUMNS = {
     "railways": "Dist_Railway_m", "settlements": "Dist_Settlement_m",
     "forests": "Dist_Forest_m", "water": "Dist_Water_m",
 }
-SIGNAL_DISTANCE_COLUMNS = {
-    "near_school": ("dist_schools_m", "dist_school_m"),
-    "near_hospital": ("dist_hospitals_m", "dist_hospital_m"),
-    "near_settlement": ("dist_settlements_m", "dist_settlement_m"),
-    "near_railway": ("dist_railways_m", "dist_railway_m"),
-    "near_wetland": ("dist_water_m", "dist_wetland_m"),
-    "near_government_forest": (
-        "dist_government_forest_m",
-        "dist_forests_m",
-    ),
-}
-SIGNAL_LABELS = {
-    "near_school": "Near school",
-    "near_hospital": "Near hospital",
-    "near_settlement": "Near settlement",
-    "near_railway": "Near railway",
-    "near_wetland": "Near wetland",
-    "near_government_forest": "Near government forest",
-    "technology_flagged": "Fixed chimney technology",
-}
+SIGNAL_FIELDS = (
+    ("near_school", "Near school", "dist_schools_m"),
+    ("near_hospital", "Near hospital", "dist_hospitals_m"),
+    ("near_railway", "Near railway", "dist_railways_m"),
+    ("near_government_forest", "Near government forest", "dist_forests_m"),
+    ("near_settlement", "Near settlement", "dist_settlements_m"),
+    ("near_wetland", "Near wetland", "dist_water_m"),
+)
 
 
 def generate_candidate_csv(rows: pd.DataFrame) -> str:
@@ -151,7 +139,6 @@ def generate_kiln_report(row: dict[str, Any]) -> bytes | None:
         fields = [
             ("Candidate ID", kiln_id), ("District", _value(row, "district")),
             ("Type", _value(row, "class", _value(row, "class_name"))),
-            ("Confidence", _value(row, "confidence")),
             ("Priority", _value(row, "priority_band")),
             ("Coordinates", f"{lat:.6f}, {lon:.6f}"),
             ("Detection Status", _value(row, "detection_status", "Known")),
@@ -164,40 +151,62 @@ def generate_kiln_report(row: dict[str, Any]) -> bytes | None:
         pdf.ln(4)
         pdf.set_font("Helvetica", "B", 12)
         pdf.cell(0, 7, "Rule Signals", new_x="LMARGIN", new_y="NEXT")
-        signals = row.get("breached_rules", [])
-        if hasattr(signals, "tolist") and not isinstance(signals, str):
-            signals = signals.tolist()
-        if isinstance(signals, str):
+        breached_rules = row.get("breached_rules", [])
+        if hasattr(breached_rules, "tolist") and not isinstance(breached_rules, str):
+            breached_rules = breached_rules.tolist()
+        if isinstance(breached_rules, str):
             try:
-                signals = json.loads(signals)
+                breached_rules = json.loads(breached_rules)
             except json.JSONDecodeError:
-                signals = [item.strip() for item in signals.split(",") if item.strip()]
+                breached_rules = [
+                    item.strip() for item in breached_rules.split(",") if item.strip()
+                ]
+        if not isinstance(breached_rules, (list, tuple)):
+            breached_rules = []
+        breached_ids = {
+            str(signal)
+            for signal in breached_rules
+            if signal is not None
+        }
+        rules_path = Path(__file__).resolve().parents[2] / "config" / "rules.yaml"
+        with rules_path.open(encoding="utf-8") as stream:
+            configured_rules = yaml.safe_load(stream) or {}
+        thresholds = {
+            str(rule["id"]): float(rule["buffer_m"])
+            for rule in configured_rules.get("siting_rules", [])
+            if rule.get("id") is not None and rule.get("buffer_m") is not None
+        }
         pdf.set_font("Helvetica", size=9)
-        if isinstance(signals, (list, tuple)) and signals:
-            for signal in signals:
-                signal_id = str(signal)
-                distance = next(
-                    (
-                        value
-                        for column in SIGNAL_DISTANCE_COLUMNS.get(signal_id, ())
-                        if pd.notna(
-                            value := pd.to_numeric(
-                                pd.Series([row.get(column)]), errors="coerce"
-                            ).iloc[0]
-                        )
-                    ),
-                    None,
-                )
-                distance_text = f"{distance:,.0f} m" if distance is not None else "Not recorded"
-                signal_label = SIGNAL_LABELS.get(signal_id, signal_id)
-                pdf.multi_cell(
-                    0,
-                    5,
-                    f"- {signal_label}: {distance_text}",
-                    new_x="LMARGIN",
-                    new_y="NEXT",
-                )
-        else:
+        added_signal = False
+        for signal_id, signal_label, distance_column in SIGNAL_FIELDS:
+            threshold = thresholds.get(signal_id)
+            distance = pd.to_numeric(
+                pd.Series([row.get(distance_column)]), errors="coerce"
+            ).iloc[0]
+            if (
+                threshold is None
+                or pd.isna(distance)
+                or (signal_id not in breached_ids and float(distance) > threshold)
+            ):
+                continue
+            added_signal = True
+            pdf.multi_cell(
+                0,
+                5,
+                f"- {signal_label}: {float(distance):,.0f} m",
+                new_x="LMARGIN",
+                new_y="NEXT",
+            )
+        if "technology_flagged" in breached_ids:
+            added_signal = True
+            pdf.multi_cell(
+                0,
+                5,
+                "- Fixed chimney technology",
+                new_x="LMARGIN",
+                new_y="NEXT",
+            )
+        if not added_signal:
             pdf.cell(0, 5, "No triggered rule signals recorded.", new_x="LMARGIN", new_y="NEXT")
         pdf.ln(3)
         pdf.set_font("Helvetica", "B", 12)
