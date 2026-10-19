@@ -29,6 +29,7 @@ dependencies = [
     "streamlit-folium>=0.22.0",
     "fpdf2>=2.7.9",
     "uharfbuzz",
+    "geopy>=2.4.0",
 ]
 
 [project.optional-dependencies]
