@@ -941,12 +941,36 @@ def _popup_rule_signal_html(row: pd.Series) -> str:
         breached_ids = set()
 
     rule_rows = (
-        ("near_school", "\u09b8\u09cd\u0995\u09c1\u09b2", "dist_schools_m"),
-        ("near_hospital", "\u09b9\u09be\u09b8\u09aa\u09be\u09a4\u09be\u09b2", "dist_hospitals_m"),
-        ("near_railway", "\u09b0\u09c7\u09b2\u09aa\u09a5", "dist_railways_m"),
-        ("near_government_forest", "\u09ac\u09a8", "dist_forests_m"),
-        ("near_settlement", "\u09ac\u09b8\u09a4\u09bf", "dist_settlements_m"),
-        ("near_wetland", "\u099c\u09b2\u09be\u09ad\u09c2\u09ae\u09bf", "dist_water_m"),
+        (
+            "near_school",
+            "\u09b8\u09cd\u0995\u09c1\u09b2",
+            ("dist_school_m", "dist_schools_m"),
+        ),
+        (
+            "near_hospital",
+            "\u09b9\u09be\u09b8\u09aa\u09be\u09a4\u09be\u09b2",
+            ("dist_hospital_m", "dist_hospitals_m"),
+        ),
+        (
+            "near_railway",
+            "\u09b0\u09c7\u09b2\u09aa\u09a5",
+            ("dist_rail_m", "dist_railway_m", "dist_railways_m"),
+        ),
+        (
+            "near_government_forest",
+            "\u09ac\u09a8",
+            ("dist_forest_m", "dist_government_forest_m", "dist_forests_m"),
+        ),
+        (
+            "near_settlement",
+            "\u09ac\u09b8\u09a4\u09bf",
+            ("dist_settlement_m", "dist_settlements_m"),
+        ),
+        (
+            "near_wetland",
+            "\u099c\u09b2\u09be\u09ad\u09c2\u09ae\u09bf",
+            ("dist_water_m",),
+        ),
     )
     rows: list[str] = []
     labels = {
@@ -955,14 +979,19 @@ def _popup_rule_signal_html(row: pd.Series) -> str:
         "green": "\U0001f7e2",
         "unknown": "\u26aa",
     }
-    for rule_id, label, distance_column in rule_rows:
+    for rule_id, label, distance_columns in rule_rows:
         rule = rules_by_id.get(rule_id, {})
         threshold = pd.to_numeric(
             pd.Series([rule.get("buffer_m")]), errors="coerce"
         ).iloc[0]
-        distance = pd.to_numeric(
-            pd.Series([row.get(distance_column)]), errors="coerce"
-        ).iloc[0]
+        distance = float("nan")
+        for distance_column in distance_columns:
+            candidate_distance = pd.to_numeric(
+                pd.Series([row.get(distance_column)]), errors="coerce"
+            ).iloc[0]
+            if pd.notna(candidate_distance):
+                distance = float(candidate_distance)
+                break
         if pd.isna(distance) or pd.isna(threshold):
             icon = labels["unknown"]
             distance_text = "\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987"
