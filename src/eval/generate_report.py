@@ -31,6 +31,26 @@ FEATURE_EXPORT_COLUMNS = {
     "railways": "Dist_Railway_m", "settlements": "Dist_Settlement_m",
     "forests": "Dist_Forest_m", "water": "Dist_Water_m",
 }
+SIGNAL_DISTANCE_COLUMNS = {
+    "near_school": ("dist_schools_m", "dist_school_m"),
+    "near_hospital": ("dist_hospitals_m", "dist_hospital_m"),
+    "near_settlement": ("dist_settlements_m", "dist_settlement_m"),
+    "near_railway": ("dist_railways_m", "dist_railway_m"),
+    "near_wetland": ("dist_water_m", "dist_wetland_m"),
+    "near_government_forest": (
+        "dist_government_forest_m",
+        "dist_forests_m",
+    ),
+}
+SIGNAL_LABELS = {
+    "near_school": "Near school",
+    "near_hospital": "Near hospital",
+    "near_settlement": "Near settlement",
+    "near_railway": "Near railway",
+    "near_wetland": "Near wetland",
+    "near_government_forest": "Near government forest",
+    "technology_flagged": "Fixed chimney technology",
+}
 
 
 def generate_candidate_csv(rows: pd.DataFrame) -> str:
@@ -133,21 +153,35 @@ def generate_kiln_report(row: dict[str, Any]) -> bytes | None:
         pdf.set_font("Helvetica", "B", 12)
         pdf.cell(0, 7, "Rule Signals", new_x="LMARGIN", new_y="NEXT")
         signals = row.get("breached_rules", [])
+        if hasattr(signals, "tolist") and not isinstance(signals, str):
+            signals = signals.tolist()
         if isinstance(signals, str):
             try:
                 signals = json.loads(signals)
             except json.JSONDecodeError:
-                signals = [signals]
+                signals = [item.strip() for item in signals.split(",") if item.strip()]
         pdf.set_font("Helvetica", size=9)
         if isinstance(signals, (list, tuple)) and signals:
             for signal in signals:
-                feature = str(signal).removeprefix("near_")
-                distance = row.get(f"dist_{feature}_m")
-                distance_text = f"{float(distance):,.0f} m" if distance is not None else "Not recorded"
+                signal_id = str(signal)
+                distance = next(
+                    (
+                        value
+                        for column in SIGNAL_DISTANCE_COLUMNS.get(signal_id, ())
+                        if pd.notna(
+                            value := pd.to_numeric(
+                                pd.Series([row.get(column)]), errors="coerce"
+                            ).iloc[0]
+                        )
+                    ),
+                    None,
+                )
+                distance_text = f"{distance:,.0f} m" if distance is not None else "Not recorded"
+                signal_label = SIGNAL_LABELS.get(signal_id, signal_id)
                 pdf.multi_cell(
                     0,
                     5,
-                    f"- {signal}: {distance_text}",
+                    f"- {signal_label}: {distance_text}",
                     new_x="LMARGIN",
                     new_y="NEXT",
                 )

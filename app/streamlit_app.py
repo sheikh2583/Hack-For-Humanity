@@ -372,11 +372,13 @@ def _signal_label(value: object) -> str:
 
 def _signals(row: pd.Series) -> list[str]:
     value = row.get("breached_rules", [])
+    if hasattr(value, "tolist") and not isinstance(value, str):
+        value = value.tolist()
     if isinstance(value, str):
         try:
             value = json.loads(value)
         except json.JSONDecodeError:
-            value = [value]
+            value = [item.strip() for item in value.split(",") if item.strip()]
     if not isinstance(value, (list, tuple)):
         return []
     return [str(signal) for signal in value if signal is not None and pd.notna(signal) and str(signal).strip().casefold() not in {"", "nan", "none"}]
@@ -384,19 +386,38 @@ def _signals(row: pd.Series) -> list[str]:
 
 def _priority_reason(row: pd.Series) -> str:
     names = {
-        "near_school": ("school", "dist_schools_m"),
-        "near_hospital": ("hospital", "dist_hospitals_m"),
-        "near_settlement": ("settlement", "dist_settlements_m"),
-        "near_railway": ("railway", "dist_railways_m"),
-        "near_wetland": ("wetland", "dist_water_m"),
-        "near_government_forest": ("government forest", "dist_government_forest_m"),
+        "near_school": ("স্কুল", ("dist_schools_m", "dist_school_m")),
+        "near_hospital": ("হাসপাতাল", ("dist_hospitals_m", "dist_hospital_m")),
+        "near_settlement": ("বসতি", ("dist_settlements_m", "dist_settlement_m")),
+        "near_railway": ("রেলপথ", ("dist_railways_m", "dist_railway_m")),
+        "near_wetland": ("জলাভূমি", ("dist_water_m", "dist_wetland_m")),
+        "near_government_forest": (
+            "সরকারি বন",
+            ("dist_government_forest_m", "dist_forests_m"),
+        ),
+        "technology_flagged": ("ফিক্সড চিমনি প্রযুক্তি", ()),
     }
+    reasons: list[str] = []
     for signal in _signals(row):
-        label, column = names.get(str(signal), ("\u09a8\u09bf\u09df\u09ae \u09b8\u0982\u0995\u09c7\u09a4", ""))
-        distance = pd.to_numeric(pd.Series([row.get(column)]), errors="coerce").iloc[0] if column else None
-        translated = {"school": "স্কুল", "hospital": "হাসপাতাল", "settlement": "বসতি", "railway": "রেলপথ", "wetland": "জলাভূমি", "government forest": "সরকারি বন"}.get(label, label)
-        return f"{translated} থেকে {distance:,.0f} মিটার" if pd.notna(distance) else f"{translated}-সংক্রান্ত সংকেত"
-    return "কোনো নিয়ম-সংকেত নথিভুক্ত নেই"
+        label, columns = names.get(str(signal), (str(signal), ()))
+        distance = next(
+            (
+                value
+                for column in columns
+                if pd.notna(
+                    value := pd.to_numeric(
+                        pd.Series([row.get(column)]), errors="coerce"
+                    ).iloc[0]
+                )
+            ),
+            None,
+        )
+        reasons.append(
+            f"{label} থেকে {distance:,.0f} মিটার"
+            if distance is not None
+            else label
+        )
+    return " · ".join(reasons) if reasons else "কোনো নিয়ম-সংকেত নথিভুক্ত নেই"
 
 
 @st.cache_data(show_spinner=False)
@@ -741,25 +762,11 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
                         location = f"{latitude:.4f}\u00b0N, {longitude:.4f}\u00b0E" if pd.notna(latitude) and pd.notna(longitude) else "\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987"
                         priority = _priority_label(kiln.get("priority_band"))
                         breach_count = display_value(kiln.get("breach_count"))
-                        breached_rules = kiln.get("breached_rules")
-                        if isinstance(breached_rules, (list, tuple)):
-                            rule_names = [
-                                str(rule).strip()
-                                for rule in breached_rules
-                                if not pd.isna(rule) and str(rule).strip()
-                            ]
-                            breached_rules_formatted = (
-                                "\n".join(f"  \u2022 {rule}" for rule in rule_names)
-                                if rule_names else "\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987"
-                            )
-                        elif (
-                            breached_rules is None
-                            or pd.isna(breached_rules)
-                            or not str(breached_rules).strip()
-                        ):
-                            breached_rules_formatted = "\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987"
-                        else:
-                            breached_rules_formatted = str(breached_rules)
+                        rule_names = _signals(kiln)
+                        breached_rules_formatted = (
+                            "\n".join(f"  \u2022 {rule}" for rule in rule_names)
+                            if rule_names else "\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987"
+                        )
                         report_text = (
                             "\u0985\u09ad\u09bf\u09af\u09cb\u0997 \u09ac\u09bf\u09b7\u09af\u09bc: \u09b8\u09ae\u09cd\u09ad\u09be\u09ac\u09cd\u09af \u0985\u09ac\u09c8\u09a7 \u0987\u099f\u09ad\u09be\u099f\u09be\n"
                             f"\u099c\u09c7\u09b2\u09be: {district}\n"
