@@ -130,8 +130,20 @@ def generate_kiln_report(row: dict[str, Any]) -> bytes | None:
         pdf.core_fonts_encoding = "cp1252"
         pdf.set_auto_page_break(auto=False, margin=12)
         pdf.add_page()
+        bengali_font = Path(__file__).resolve().parent / "fonts" / "NotoSansBengali-Regular.ttf"
+        pdf.add_font("NotoBengali", fname=str(bengali_font))
+        pdf.set_font("NotoBengali", size=16)
+        pdf.set_text_shaping(
+            use_shaping_engine=True,
+            direction="ltr",
+            script="beng",
+            language="ben",
+        )
+        pdf.cell(40, 10, "ধোঁয়া")
+        pdf.set_text_shaping(use_shaping_engine=False)
         pdf.set_font("Helvetica", "B", 17)
-        pdf.cell(0, 10, "KilnRank - Inspection Candidate Report", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(0, 10, "- Inspection Candidate Report", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_title("ধোঁয়া - Inspection Candidate Report")
         pdf.set_font("Helvetica", size=9)
         pdf.cell(0, 6, f"Date generated: {today}", align="R", new_x="LMARGIN", new_y="NEXT")
         pdf.ln(3)
