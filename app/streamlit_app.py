@@ -695,9 +695,11 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
                     "dhoa_community_report.pdf", "application/pdf",
                     width="stretch", key="community_alert_download",
                 )
-            except Exception:  # noqa: BLE001 - report generation boundary
+            except Exception as _exc:  # noqa: BLE001
+                import traceback as _tb
                 logging.exception("Community PDF generation failed")
-                st.error("\u09aa\u09cd\u09b0\u09a4\u09bf\u09ac\u09c7\u09a6\u09a8 \u09a4\u09c8\u09b0\u09bf \u0995\u09b0\u09be \u09af\u09be\u09af\u09bc\u09a8\u09bf\u0964 \u0986\u09ac\u09be\u09b0 \u099a\u09c7\u09b7\u09cd\u099f\u09be \u0995\u09b0\u09c1\u09a8\u0964")
+                st.error(f"Report error: {_exc}")
+                st.code(_tb.format_exc())
             if nearby.empty:
                 st.success(_ui_text(f"{radius_m / 1000:g} \u0995\u09bf\u09ae\u09bf \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7\u09c7 \u0995\u09cb\u09a8\u09cb \u09ad\u09be\u099f\u09be \u09aa\u09be\u0993\u09af\u09bc\u09be \u09af\u09be\u09af\u09bc\u09a8\u09bf\u0964", f"No kilns found within {radius_m / 1000:g} km."))
             else:
@@ -1415,8 +1417,10 @@ def _render_report_download(row: pd.Series) -> None:
             width="stretch",
             key=f"kiln_report_{safe_id}",
         )
-    except Exception:  # noqa: BLE001 - report generation boundary
-        st.error("\u274c \u09aa\u09cd\u09b0\u09a4\u09bf\u09ac\u09c7\u09a6\u09a8 \u09a4\u09c8\u09b0\u09bf \u0995\u09b0\u09be \u09af\u09be\u09df\u09a8\u09bf\u0964 \u0986\u09ac\u09be\u09b0 \u099a\u09c7\u09b7\u09cd\u099f\u09be \u0995\u09b0\u09c1\u09a8\u0964")
+    except Exception as _exc:  # noqa: BLE001
+        import traceback as _tb
+        st.error(f"Inspector report error: {_exc}")
+        st.code(_tb.format_exc())
 
 
 def build_map(
