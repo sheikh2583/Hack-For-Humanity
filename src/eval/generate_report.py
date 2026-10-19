@@ -183,11 +183,9 @@ def generate_kiln_report(row: dict[str, Any]) -> bytes | None:
             distance = pd.to_numeric(
                 pd.Series([row.get(distance_column)]), errors="coerce"
             ).iloc[0]
-            if (
-                threshold is None
-                or pd.isna(distance)
-                or (signal_id not in breached_ids and float(distance) > threshold)
-            ):
+            if threshold is None or pd.isna(distance):
+                continue
+            if float(distance) >= float(threshold):
                 continue
             added_signal = True
             pdf.multi_cell(
