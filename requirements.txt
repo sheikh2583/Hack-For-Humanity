@@ -11,5 +11,5 @@ shapely
 pyproj
 numpy
 rich
-fpdf2
+fpdf2>=2.7.9
 geopy
