@@ -1014,11 +1014,11 @@ def _popup_rule_signal_html(row: pd.Series) -> str:
 
 
 def _popup_styles() -> str:
-    """Return popup CSS using the shared design-system palette."""
+    """Return popup CSS with readable contrast on Leaflet's white popup surface."""
     return (
         "<style>"
-        f".dhoa-popup{{width:290px;color:{DESIGN_COLORS['text']};line-height:1.45}}"
-        f".dhoa-popup hr{{border:0;border-top:1px solid {DESIGN_COLORS['text']};opacity:.35;margin:.45rem 0}}"
+        ".dhoa-popup{width:290px;color:#1f2937;line-height:1.45}"
+        ".dhoa-popup hr{border:0;border-top:1px solid #64748b;opacity:.45;margin:.45rem 0}"
         f".dhoa-popup .badge{{background:{DESIGN_COLORS['card']};padding:.1rem .35rem;border-radius:.25rem;font-weight:700}}"
         f".dhoa-popup .new-badge{{background:{DESIGN_COLORS['new']}}}"
         ".dhoa-popup .rule-signal-row{margin:.12rem 0}"
