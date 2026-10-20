@@ -646,12 +646,23 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
         if location_name:
             try:
                 from geopy.geocoders import Nominatim
-                loc = Nominatim(user_agent="dhoa-bd").geocode(f"{location_name}, Bangladesh", timeout=10)
+                _geo = Nominatim(user_agent="dhoa-bd-v2", timeout=15)
+                # Try progressively broader queries so "Ashulia" alone works
+                _queries = [
+                    location_name,
+                    f"{location_name}, Dhaka, Bangladesh",
+                    f"{location_name}, Bangladesh",
+                ]
+                loc = None
+                for _q in _queries:
+                    loc = _geo.geocode(_q, country_codes="BD")
+                    if loc is not None:
+                        break
             except Exception:  # noqa: BLE001 - geocoding/import are an external service boundary
-                st.warning('\u26a0\ufe0f \u09a8\u09be\u09ae\u09c7\u09b0 \u0996\u09cb\u0981\u099c\u09be\u09af\u09bc \u09ac\u09cd\u09af\u09b0\u09cd\u09a5\u0964 \u09ac\u09be\u09a8\u09be\u09a8 \u09b2\u09bf\u0996\u09c1\u09a8 \u0985\u09a5\u09ac\u09be \u099c\u09c7\u09b2\u09be\u09b0 \u09a8\u09be\u09ae \u09af\u09cb\u0997 \u0995\u09b0\u09c1\u09a8\u0964')
+                st.warning("⚠️ নামের খোঁজায় ব্যর্থ। বানান লিখুন অথবা জেলার নাম যোগ করুন।")
                 return
             if loc is None:
-                st.warning("\u26a0\ufe0f \u09b8\u09cd\u09a5\u09be\u09a8\u09c7\u09b0 \u09a8\u09be\u09ae \u09aa\u09be\u0993\u09af\u09bc\u09be\u09af\u09a8\u09bf\u0964 \u09b8\u09cd\u09aa\u09c7\u09b2\u09bf\u0982\u09af\u09bc\u09be\u099f\u09bf\u0982\u09af\u09bc\u09c7\u09b0 \u09b8\u09be\u09a5\u09c7 \u099c\u09c7\u09b2\u09be\u09b0 \u09a8\u09be\u09ae \u09af\u09cb\u0997 \u0995\u09b0\u09c1\u09a8\u0964")
+                st.warning("⚠️ স্থানের নাম পাওয়া যায়নি। অন্য বানান বা 'Ashulia, Savar' এর মতো লিখুন।")
                 return
             point = (float(loc.latitude), float(loc.longitude))
         else:
