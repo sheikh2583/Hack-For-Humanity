@@ -520,8 +520,7 @@ def get_filtered_gdf(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     if district != "\u09b8\u09ac \u099c\u09c7\u09b2\u09be":
         if "district" not in result:
             return result.iloc[0:0].copy()
-        district_values = result["district"].astype(str).str.casefold()
-        result = result[district_values.eq(str(district).casefold())].copy()
+        result = result[result["district"].astype(str).eq(str(district))].copy()
     if upazila != "\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be":
         if "upazila" not in result:
             return result.iloc[0:0].copy()
@@ -1296,10 +1295,23 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
                 if "district" in gdf else []
             )
             district_options = ["\u09b8\u09ac \u099c\u09c7\u09b2\u09be", *district_values]
+            district_labels = {
+                "Chapainawabganj": "\u099a\u09be\u0981\u09aa\u09be\u0987\u09a8\u09ac\u09be\u09ac\u0997\u099e\u09cd\u099c",
+                "Gazipur": "\u0997\u09be\u099c\u09c0\u09aa\u09c1\u09b0",
+                "Rajshahi": "\u09b0\u09be\u099c\u09b6\u09be\u09b9\u09c0",
+                "Dhaka": "\u09a2\u09be\u0995\u09be",
+                "Chittagong": "\u099a\u099f\u09cd\u099f\u0997\u09cd\u09b0\u09be\u09ae",
+            }
+            if st.session_state.get("filter_district") not in district_options:
+                st.session_state["filter_district"] = "\u09b8\u09ac \u099c\u09c7\u09b2\u09be"
             filters["district"] = st.selectbox(
                 _ui_text("\u099c\u09c7\u09b2\u09be", "District"),
                 district_options,
-                format_func=lambda value: _ui_text("\u09b8\u09ac \u099c\u09c7\u09b2\u09be", "All districts") if value == "\u09b8\u09ac \u099c\u09c7\u09b2\u09be" else value,
+                format_func=lambda value: (
+                    _ui_text("\u09b8\u09ac \u099c\u09c7\u09b2\u09be", "All districts")
+                    if value == "\u09b8\u09ac \u099c\u09c7\u09b2\u09be"
+                    else district_labels.get(value, value)
+                ),
                 key="filter_district",
                 on_change=_reset_upazila_filter,
             )
