@@ -628,9 +628,9 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
     priority, and optional OSM place fields. Output schema: a
     community search form, adjustable-radius result summary, map, and result table.
     """
-    st.markdown(f"<div class='dhoa-section-title'>{_ui_text('\u0986\u09aa\u09a8\u09be\u09b0 \u098f\u09b2\u09be\u0995\u09be\u09b0 \u0995\u09be\u099b\u09be\u099b\u09bf \u0996\u09c1\u0981\u099c\u09c1\u09a8', 'Find kilns near you')}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='dhoa-section-title'>{_ui_text('\u0986\u09aa\u09a8\u09be\u09b0 \u098f\u09b2\u09be\u0995\u09be\u09b0 \u0995\u09be\u099b\u09be\u099b\u09bf \u0996\u09c1\u0981\u099c\u09c1\u09a8', 'Find kilns near your area')}</div>", unsafe_allow_html=True)
     with st.container(border=True):
-        st.markdown(_ui_text("\U0001f50a \u09ac\u09cd\u09af\u09ac\u09b9\u09be\u09b0 \u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6\u09bf\u0995\u09be \u09b6\u09c1\u09a8\u09c1\u09a8", "\U0001f50a Listen to the guide"))
+        st.markdown(_ui_text("\U0001f50a \u09ac\u09cd\u09af\u09ac\u09b9\u09be\u09b0 \u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6\u09bf\u0995\u09be \u09b6\u09c1\u09a8\u09c1\u09a8", "\U0001f50a Listen to usage guide"))
         community_guide = _ROOT / "app" / "static" / "community_guide.mp3"
         if community_guide.is_file():
             st.audio(str(community_guide))
@@ -657,14 +657,23 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
                     except Exception:
                         continue
             except Exception:  # noqa: BLE001 - geocoding/import are an external service boundary
-                st.warning("⚠️ নামের খোঁজায় ব্যর্থ। বানান লিখুন অথবা জেলার নাম যোগ করুন।")
+                st.warning(_ui_text(
+                    "\u26a0\ufe0f \u09a8\u09be\u09ae\u09c7\u09b0 \u0996\u09cb\u0981\u099c\u09be\u09af\u09bc \u09ac\u09cd\u09af\u09b0\u09cd\u09a5\u0964 \u09ac\u09be\u09a8\u09be\u09a8 \u09b2\u09bf\u0996\u09c1\u09a8 \u0985\u09a5\u09ac\u09be \u099c\u09c7\u09b2\u09be\u09b0 \u09a8\u09be\u09ae \u09af\u09cb\u0997 \u0995\u09b0\u09c1\u09a8\u0964",
+                    "\u26a0\ufe0f Search failed. Check spelling or add a district name.",
+                ))
                 return
             if loc is None:
-                st.warning("⚠️ স্থানের নাম পাওয়া যায়নি। অন্য বানান বা 'Ashulia, Savar' এর মতো লিখুন।")
+                st.warning(_ui_text(
+                    "\u26a0\ufe0f \u09b8\u09cd\u09a5\u09be\u09a8\u09c7\u09b0 \u09a8\u09be\u09ae \u09aa\u09be\u0993\u09af\u09bc\u09be \u09af\u09be\u09af\u09bc\u09a8\u09bf\u0964 \u0985\u09a8\u09cd\u09af \u09ac\u09be\u09a8\u09be\u09a8 \u09ac\u09be 'Ashulia, Savar' \u09b2\u09bf\u0996\u09c7 \u0986\u09ac\u09be\u09b0 \u099a\u09c7\u09b7\u09cd\u099f\u09be \u0995\u09b0\u09c1\u09a8\u0964",
+                    "\u26a0\ufe0f Location not found. Try a different spelling or 'Ashulia, Savar'.",
+                ))
                 return
             point = (float(loc.latitude), float(loc.longitude))
         else:
-            st.warning("\u26a0\ufe0f \u0996\u09cb\u0981\u099c\u09be\u09b0 \u099c\u09a8\u09cd\u09af \u098f\u0995\u099f\u09bf \u098f\u09b2\u09be\u0995\u09be\u09b0 \u09a8\u09be\u09ae \u09b2\u09bf\u0996\u09c1\u09a8\u0964")
+            st.warning(_ui_text(
+                "\u26a0\ufe0f \u0996\u09cb\u0981\u099c\u09be\u09b0 \u099c\u09a8\u09cd\u09af \u098f\u0995\u099f\u09bf \u098f\u09b2\u09be\u0995\u09be\u09b0 \u09a8\u09be\u09ae \u09b2\u09bf\u0996\u09c1\u09a8\u0964",
+                "\u26a0\ufe0f Please enter a location name to search.",
+            ))
             return
         st.session_state["community_search"] = (location_name, point)
 
@@ -672,7 +681,7 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
     if search is None:
         return
     location_name, (search_lat, search_lon) = search
-    radius_m = int(st.slider("\u0985\u09a8\u09c1\u09b8\u09a8\u09cd\u09a7\u09be\u09a8\u09c7\u09b0 \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7 (\u09ae\u09bf\u099f\u09be\u09b0)", min_value=250, max_value=5000, value=1000, step=250, key="community_radius_m"))
+    radius_m = int(st.slider(_ui_text("\u0985\u09a8\u09c1\u09b8\u09a8\u09cd\u09a7\u09be\u09a8\u09c7\u09b0 \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7 (\u09ae\u09bf\u099f\u09be\u09b0)", "Search radius (metres)"), min_value=250, max_value=5000, value=1000, step=250, key="community_radius_m"))
     nearby = get_filtered_gdf(gdf)
     nearby["directions_url"] = [
         f"https://www.google.com/maps/dir/?api=1&destination={float(row['lat']):.6f}%2C{float(row['lon']):.6f}"
@@ -689,7 +698,7 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
                 report = community_alert_pdf(area_name, nearby, radius_m)
                 st.session_state["community_report"] = report
                 st.download_button(
-                    "\u09aa\u09cd\u09b0\u09a4\u09bf\u09ac\u09c7\u09a6\u09a8 \u09a1\u09be\u0989\u09a8\u09b2\u09cb\u09a1 \u0995\u09b0\u09c1\u09a8", report,
+                    _ui_text("\u09aa\u09cd\u09b0\u09a4\u09bf\u09ac\u09c7\u09a6\u09a8 \u09a1\u09be\u0989\u09a8\u09b2\u09cb\u09a1 \u0995\u09b0\u09c1\u09a8", "Download report"), report,
                     "dhoa_community_report.pdf", "application/pdf",
                     width="stretch", key="community_alert_download",
                 )
@@ -804,7 +813,10 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
             "</div>",
             unsafe_allow_html=True,
         )
-        st.caption(f"\u09a8\u09c0\u09b2 \u09ac\u09c3\u09a4\u09cd\u09a4\u09c7\u09b0 \u09b8\u09c0\u09ae\u09be\u09a8\u09be \u0996\u09cb\u0981\u099c\u09be\u09b0 \u09b8\u09cd\u09a5\u09be\u09a8 \u09a5\u09c7\u0995\u09c7 {radius_m / 1000:g} \u0995\u09bf\u09ae\u09bf \u09a6\u09c2\u09b0\u09a4\u09cd\u09ac \u09a6\u09c7\u0996\u09be\u09df\u0964 \u09b2\u09be\u09b2, \u0995\u09ae\u09b2\u09be \u0993 \u09b8\u09ac\u09c1\u099c \u09ac\u09bf\u09a8\u09cd\u09a6\u09c1 \u09ad\u09be\u099f\u09be\u09b0 \u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0 \u09a6\u09c7\u0996\u09be\u09df; \u09ac\u09bf\u09a8\u09cd\u09a6\u09c1\u09a4\u09c7 \u099a\u09be\u09aa\u09b2\u09c7 \u09ac\u09bf\u09b8\u09cd\u09a4\u09be\u09b0\u09bf\u09a4 \u09a6\u09c7\u0996\u09c1\u09a8\u0964")
+        st.caption(_ui_text(
+            f"\u09a8\u09c0\u09b2 \u09ac\u09c3\u09a4\u09cd\u09a4\u09c7\u09b0 \u09b8\u09c0\u09ae\u09be\u09a8\u09be \u0996\u09cb\u0981\u099c\u09be\u09b0 \u09b8\u09cd\u09a5\u09be\u09a8 \u09a5\u09c7\u0995\u09c7 {radius_m / 1000:g} \u0995\u09bf\u09ae\u09bf \u09a6\u09c2\u09b0\u09a4\u09cd\u09ac \u09a6\u09c7\u0996\u09be\u09df\u0964 \u09b2\u09be\u09b2, \u0995\u09ae\u09b2\u09be \u0993 \u09b8\u09ac\u09c1\u099c \u09ac\u09bf\u09a8\u09cd\u09a6\u09c1 \u09ad\u09be\u099f\u09be\u09b0 \u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0 \u09a6\u09c7\u0996\u09be\u09df; \u09ac\u09bf\u09a8\u09cd\u09a6\u09c1\u09a4\u09c7 \u099a\u09be\u09aa\u09b2\u09c7 \u09ac\u09bf\u09b8\u09cd\u09a4\u09be\u09b0\u09bf\u09a4 \u09a6\u09c7\u0996\u09c1\u09a8\u0964",
+            f"The blue circle shows {radius_m / 1000:g} km from your search location. Red, orange and green dots show kiln priority; tap a dot for details.",
+        ))
         with st.container(border=True):
             map_view = folium.Map(location=[search_lat, search_lon], zoom_start=13, control_scale=True, tiles=None)
             _add_map_base_layers(map_view)
@@ -1211,7 +1223,10 @@ def render_header(gdf: gpd.GeoDataFrame) -> str:
         st.caption("\u09b8\u09cd\u0995\u09c1\u09b2, \u09b9\u09be\u09b8\u09aa\u09be\u09a4\u09be\u09b2 \u09ac\u09be \u098f\u09b2\u09be\u0995\u09be\u09b0 \u09a8\u09be\u09ae \u09a6\u09bf\u09af\u09bc\u09c7 \u0996\u09c1\u0981\u099c\u09c1\u09a8, \u0985\u09a5\u09ac\u09be \u09ae\u09be\u09a8\u09c1\u09b7\u09bf\u0995 \u09b8\u09cd\u09a5\u09be\u09a8\u09be\u0999\u09cd\u0995 \u09a6\u09bf\u09af\u09bc\u09c7 \u09aa\u09bf\u09a8 \u09a6\u09bf\u09a8।")
         selected_mode = "community"
     else:
-        st.caption("\u09b8\u09c1\u09b8\u099c\u09cd\u099c\u09bf\u09a4 \u09ad\u09be\u099f\u09be\u099f\u09bf\u09b0 \u09a4\u09be\u09b2\u09bf\u0995\u09be \u0993 \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0 \u09a6\u09c7\u0996\u09c1\u09a8, \u09ab\u09bf\u09b2\u09cd\u099f\u09be\u09b0 \u09a6\u09bf\u09af\u09bc\u09c7 \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0 \u0996\u09c1\u0981\u099c\u09c1\u09a8।")
+        st.caption(_ui_text(
+            "\u09b8\u09c1\u09b8\u099c\u09cd\u099c\u09bf\u09a4 \u09ad\u09be\u099f\u09be\u099f\u09bf\u09b0 \u09a4\u09be\u09b2\u09bf\u0995\u09be \u0993 \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0 \u09a6\u09c7\u0996\u09c1\u09a8, \u09ab\u09bf\u09b2\u09cd\u099f\u09be\u09b0 \u09a6\u09bf\u09af\u09bc\u09c7 \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0 \u0996\u09c1\u0981\u099c\u09c1\u09a8\u0964",
+            "Browse the kiln list and map, use filters to find candidates.",
+        ))
         selected_mode = "inspector"
     high = int(gdf["priority_band"].eq("High").sum())
     flagged = _flagged_count(gdf, load_config()["rules"])
@@ -1385,7 +1400,7 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
             visible = get_filtered_gdf(gdf)
             slug = str(filters["district"]).lower().replace(" ", "_")
             st.download_button(
-                _ui_text("\u2b07 \u09ac\u09be\u099b\u09be\u0987\u0995\u09c3\u09a4 \u09a4\u09be\u09b2\u09bf\u0995\u09be \u09b8\u09bf\u098f\u09b8\u09ad\u09bf \u09a1\u09be\u0989\u09a8\u09b2\u09cb\u09a1", "Download filtered CSV"),
+                _ui_text("\u2b07 \u09ac\u09be\u099b\u09be\u0987\u0995\u09c3\u09a4 \u09a4\u09be\u09b2\u09bf\u0995\u09be \u09b8\u09bf\u098f\u09b8\u09ad\u09bf \u09a1\u09be\u0989\u09a8\u09b2\u09cb\u09a1", "\u2b07 Download filtered CSV"),
                 make_download_csv(visible, INSPECTOR_CSV_COLUMNS),
                 f"dhoa_{slug}_{datetime.now(UTC):%Y%m%d}.csv",
                 "text/csv",
@@ -1393,7 +1408,7 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
                 key="sidebar_export_list",
             )
         filters["map_tile"] = st.selectbox(
-            _ui_text("\u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0\u09c7\u09b0 \u09a7\u09b0\u09a8", "Map style"),
+            _ui_text("\u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0\u09c7\u09b0 \u09a7\u09b0\u09a8", "Map type"),
             ["street", "satellite"],
             format_func=lambda value: _ui_text(
                 "\u09b0\u09be\u09b8\u09cd\u09a4\u09be\u09b0 \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0" if value == "street" else "\u09b8\u09cd\u09af\u09be\u099f\u09c7\u09b2\u09be\u0987\u099f \u099c\u09ac\u09bf",
@@ -1581,7 +1596,10 @@ def render_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> None:
                         st.session_state["map_zoom"] = max(15, int(st.session_state.get("map_zoom", 15)))
                     st.session_state["dhoa_list_selection_token"] = click_token
     with map_panel:
-        st.caption("\u09b2\u09be\u09b2, \u0995\u09ae\u09b2\u09be \u0993 \u09b8\u09ac\u09c1\u099c \u09ac\u09bf\u09a8\u09cd\u09a6\u09c1 \u09ad\u09be\u099f\u09be\u09b0 \u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0 \u09a6\u09c7\u0996\u09be\u09df; \u09ac\u09bf\u09a8\u09cd\u09a6\u09c1\u09a4\u09c7 \u099a\u09be\u09aa\u09b2\u09c7 \u09ac\u09bf\u09b8\u09cd\u09a4\u09be\u09b0\u09bf\u09a4 \u09a6\u09c7\u0996\u09c1\u09a8\u0964")
+        st.caption(_ui_text(
+            "\u09b2\u09be\u09b2, \u0995\u09ae\u09b2\u09be \u0993 \u09b8\u09ac\u09c1\u099c \u09ac\u09bf\u09a8\u09cd\u09a6\u09c1 \u09ad\u09be\u099f\u09be\u09b0 \u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0 \u09a6\u09c7\u0996\u09be\u09df; \u09ac\u09bf\u09a8\u09cd\u09a6\u09c1\u09a4\u09c7 \u099a\u09be\u09aa\u09b2\u09c7 \u09ac\u09bf\u09b8\u09cd\u09a4\u09be\u09b0\u09bf\u09a4 \u09a6\u09c7\u0996\u09c1\u09a8\u0964",
+            "Red, orange and green dots show kiln priority; tap a dot for details.",
+        ))
         selected_id_for_report = st.session_state.get("selected_kiln_id")
         selected_for_report = (
             visible[visible["kiln_id"].astype(str).eq(str(selected_id_for_report))]
@@ -1589,7 +1607,10 @@ def render_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> None:
             else visible.iloc[0:0]
         )
         if selected_for_report.empty:
-            st.caption("\u09aa\u09bf\u09a1\u09bf\u098f\u09ab পেতে তালিকা বা মানচিত্র থেকে একটি প্রার্থী নির্বাচন করুন।")
+            st.caption(_ui_text(
+                "\u09aa\u09bf\u09a1\u09bf\u098f\u09ab \u09aa\u09c7\u09a4\u09c7 \u09a4\u09be\u09b2\u09bf\u0995\u09be \u09ac\u09be \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0 \u09a5\u09c7\u0995\u09c7 \u098f\u0995\u099f\u09bf \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0 \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09a8 \u0995\u09b0\u09c1\u09a8\u0964",
+                "Select a candidate from the list or map to generate a PDF report.",
+            ))
         else:
             _render_report_download(selected_for_report.iloc[0])
         try:
@@ -1645,7 +1666,10 @@ def render_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> None:
     selected_id = st.session_state.get("selected_kiln_id")
     selected = visible[visible["kiln_id"].astype(str).eq(str(selected_id))] if selected_id is not None else visible.iloc[0:0]
     if selected.empty:
-        st.info("বিস্তারিত ও প্রতিবেদন দেখতে মানচিত্রের কোনো ইটভাটার চিহ্নে চাপ দিন।")
+        st.info(_ui_text(
+            "বিস্তারিত ও প্রতিবেদন দেখতে মানচিত্রের কোনো ইটভাটার চিহ্নে চাপ দিন।",
+            "Tap any kiln marker on the map to view details and generate a report.",
+        ))
     else:
         if st.button("\u09ad\u09be\u099f\u09be\u09b0 \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09a8 \u09ac\u09be\u09a4\u09bf\u09b2 \u0995\u09b0\u09c1\u09a8 \u00b7 \u09b8\u09ac \u09ad\u09be\u099f\u09be \u09a6\u09c7\u0996\u09c1\u09a8", key="dhoa_clear_kiln_selection"):
             st.session_state["selected_kiln_id"] = None
@@ -1691,7 +1715,10 @@ def main() -> None:
         if "detection_status" not in gdf.columns:
             gdf["detection_status"] = "Known"
         mode = render_header(gdf)
-        with st.expander("⚖️ প্রাসঙ্গিক আইন — ইট প্রস্তুত ও ভাটা স্থাপন (নিয়ন্ত্রণ) আইন, ২০১৩"):
+        with st.expander(_ui_text(
+            "\u2696\ufe0f \u09aa\u09cd\u09b0\u09be\u09b8\u0999\u09cd\u0997\u09bf\u0995 \u0986\u0987\u09a8 \u2014 \u0987\u099f \u09aa\u09cd\u09b0\u09b8\u09cd\u09a4\u09c1\u09a4 \u0993 \u09ad\u09be\u099f\u09be \u09b8\u09cd\u09a5\u09be\u09aa\u09a8 (\u09a8\u09bf\u09af\u09bc\u09a8\u09cd\u09a4\u09cd\u09b0\u09a3) \u0986\u0987\u09a8, \u09e8\u09e6\u09e7\u09e9",
+            "\u2696\ufe0f Relevant law \u2014 Brick Manufacturing and Kiln Establishment (Control) Act, 2013",
+        )):
             st.markdown("""
 **ধারা ৮(১)** — নিষিদ্ধ এলাকায় ইটভাটা স্থাপন করা যাবে না:
 - আবাসিক এলাকা (কমপক্ষে ৫০টি পরিবার)
