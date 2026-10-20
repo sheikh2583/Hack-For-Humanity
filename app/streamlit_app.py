@@ -494,8 +494,8 @@ def get_filtered_gdf(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     """Return candidates for the active view using its canonical session filters.
 
     Input schema: prioritized GeoDataFrame with district, upazila, lat/lon,
-    kiln class, and priority_band. Output: copied GeoDataFrame after district,
-    upazila, optional centroid-radius, kiln type, and priority filtering.
+    kiln class, and priority_band. Output: copied GeoDataFrame after
+    case-insensitive district, upazila, kiln type, and priority filtering.
     """
     active_view = st.session_state.get("dhoa_active_view", "inspector")
     if active_view == "community":
@@ -512,7 +512,6 @@ def get_filtered_gdf(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     result = gdf.copy()
     district = st.session_state.get("filter_district", "\u09b8\u09ac \u099c\u09c7\u09b2\u09be")
     upazila = st.session_state.get("filter_upazila", "\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be")
-    radius_m = int(st.session_state.get("filter_radius_m", 1000))
     kiln_type = st.session_state.get("filter_kiln_type", ALL_KILN_TYPES)
     priorities = st.session_state.get(
         "filter_priority", ["\u0989\u099a\u09cd\u099a", "\u09ae\u09be\u099d\u09be\u09b0\u09bf", "\u09a8\u09bf\u09ae\u09cd\u09a8"]
@@ -521,21 +520,12 @@ def get_filtered_gdf(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     if district != "\u09b8\u09ac \u099c\u09c7\u09b2\u09be":
         if "district" not in result:
             return result.iloc[0:0].copy()
-        result = result[result["district"].astype(str).eq(str(district))].copy()
+        district_values = result["district"].astype(str).str.casefold()
+        result = result[district_values.eq(str(district).casefold())].copy()
     if upazila != "\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be":
         if "upazila" not in result:
             return result.iloc[0:0].copy()
         result = result[result["upazila"].astype(str).eq(str(upazila))].copy()
-        if not {"lat", "lon"}.issubset(result.columns):
-            return result.iloc[0:0].copy()
-        if not result.empty:
-            centroid_lat = pd.to_numeric(result["lat"], errors="coerce").mean()
-            centroid_lon = pd.to_numeric(result["lon"], errors="coerce").mean()
-            if pd.notna(centroid_lat) and pd.notna(centroid_lon):
-                distances = community_distances(result, float(centroid_lat), float(centroid_lon))
-                result = result.loc[distances.le(radius_m)].copy()
-            else:
-                result = result.iloc[0:0].copy()
 
     if kiln_type != ALL_KILN_TYPES:
         type_column = "class" if "class" in result.columns else "class_name"
