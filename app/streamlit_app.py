@@ -645,20 +645,17 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
         location_name = name.strip()
         if location_name:
             try:
-                from geopy.geocoders import Nominatim
-                import time as _time
+                from geopy.geocoders import Photon
 
-                _geo = Nominatim(user_agent="dhoa-bd-v2", timeout=15)
+                _geo = Photon(user_agent="dhoa-bd-v2", timeout=15)
                 loc = None
-                for _q in [f"{location_name}, Bangladesh", f"{location_name}, Dhaka, Bangladesh", location_name]:
+                for _q in [f"{location_name}, Bangladesh", f"{location_name}, Dhaka", location_name]:
                     try:
-                        loc = _geo.geocode(_q, country_codes="BD")
+                        loc = _geo.geocode(_q)
+                        if loc is not None:
+                            break
                     except Exception:
-                        _time.sleep(2)
                         continue
-                    if loc is not None:
-                        break
-                    _time.sleep(1)
             except Exception:  # noqa: BLE001 - geocoding/import are an external service boundary
                 st.warning("⚠️ নামের খোঁজায় ব্যর্থ। বানান লিখুন অথবা জেলার নাম যোগ করুন।")
                 return
