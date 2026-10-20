@@ -646,18 +646,19 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
         if location_name:
             try:
                 from geopy.geocoders import Nominatim
+                import time as _time
+
                 _geo = Nominatim(user_agent="dhoa-bd-v2", timeout=15)
-                # Try progressively broader queries so "Ashulia" alone works
-                _queries = [
-                    location_name,
-                    f"{location_name}, Dhaka, Bangladesh",
-                    f"{location_name}, Bangladesh",
-                ]
                 loc = None
-                for _q in _queries:
-                    loc = _geo.geocode(_q, country_codes="BD")
+                for _q in [f"{location_name}, Bangladesh", f"{location_name}, Dhaka, Bangladesh", location_name]:
+                    try:
+                        loc = _geo.geocode(_q, country_codes="BD")
+                    except Exception:
+                        _time.sleep(2)
+                        continue
                     if loc is not None:
                         break
+                    _time.sleep(1)
             except Exception:  # noqa: BLE001 - geocoding/import are an external service boundary
                 st.warning("⚠️ নামের খোঁজায় ব্যর্থ। বানান লিখুন অথবা জেলার নাম যোগ করুন।")
                 return
