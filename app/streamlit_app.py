@@ -5,7 +5,9 @@ from __future__ import annotations
 import html
 from io import BytesIO
 import json
+import json as _json
 import logging
+import pathlib as _pathlib
 import sys
 import unicodedata
 from collections.abc import Mapping
@@ -48,9 +50,11 @@ BASE_DIR = Path(__file__).parent.parent
 CONFIG_DIR = BASE_DIR / "config"
 DATA_DIR = BASE_DIR / "data" / "processed"
 DATA_PATH = DATA_DIR / "kilns_prioritised.parquet"
-ADMIN_AREAS_PATH = CONFIG_DIR / "bd_admin_areas.json"
-with ADMIN_AREAS_PATH.open(encoding="utf-8") as admin_areas_file:
-    BD_ADMIN_AREAS = json.load(admin_areas_file)
+_ADMIN_AREAS_PATH = _pathlib.Path(__file__).parent.parent / "config" / "bd_admin_areas.json"
+try:
+    BD_ADMIN_AREAS: dict = _json.loads(_ADMIN_AREAS_PATH.read_text(encoding="utf-8"))
+except Exception:
+    BD_ADMIN_AREAS = {}
 _priority_candidate_list = components.declare_component(
     "dhoa_priority_candidate_list",
     path=str(_ROOT / "app" / "components" / "priority_candidate_list"),
@@ -716,6 +720,16 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
     priority, and optional OSM place fields. Output schema: a
     district/upazila filters, adjustable centroid-radius results, map, and table.
     """
+    _qp = st.query_params
+    if "_geo_lat" in _qp and "_geo_lon" in _qp:
+        try:
+            _glat = float(_qp["_geo_lat"])
+            _glon = float(_qp["_geo_lon"])
+            st.session_state["community_search_point"] = (_glat, _glon)
+            st.session_state["community_search_name"] = _ui_text("\u0986\u09ae\u09be\u09b0 \u0985\u09ac\u09b8\u09cd\u09a5\u09be\u09a8", "My location")
+            st.query_params.clear()
+        except Exception:
+            pass
     st.markdown(f"<div class='dhoa-section-title'>{_ui_text('\u0986\u09aa\u09a8\u09be\u09b0 \u098f\u09b2\u09be\u0995\u09be\u09b0 \u0995\u09be\u099b\u09be\u099b\u09bf \u0996\u09c1\u0981\u099c\u09c1\u09a8', 'Find kilns near your area')}</div>", unsafe_allow_html=True)
     with st.container(border=True):
         st.markdown(_ui_text("\U0001f50a \u09ac\u09cd\u09af\u09ac\u09b9\u09be\u09b0 \u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6\u09bf\u0995\u09be \u09b6\u09c1\u09a8\u09c1\u09a8", "\U0001f50a Listen to usage guide"))
@@ -749,26 +763,51 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
             upazila_source = upazila_source[
                 upazila_source["district"].astype(str).eq(str(community_district))
             ]
-        upazila_values = (
-            sorted(BD_ADMIN_AREAS[community_district])
-            if community_district in BD_ADMIN_AREAS
-            else sorted(upazila_source["upazila"].dropna().astype(str).unique().tolist())
+        _data_upazilas = (
+            sorted(upazila_source["upazila"].dropna().astype(str).unique().tolist())
             if "upazila" in upazila_source.columns else []
         )
+        _known_upazilas = BD_ADMIN_AREAS.get(community_district, [])
+        upazila_values = sorted(set(_known_upazilas) | set(_data_upazilas))
         upazila_options = [all_areas, *upazila_values]
         if st.session_state.get("community_filter_upazila") not in upazila_options:
             st.session_state["community_filter_upazila"] = all_areas
         st.selectbox(
-            _ui_text("\u098f\u09b2\u09be\u0995\u09be (\u0989\u09aa\u099c\u09c7\u09b2\u09be)", "Area (Upazila)"),
+            _ui_text("\u098f\u09b2\u09be\u0995\u09be (\u0989\u09aa\u099c\u09c7\u09b2\u09be)", "Area / Thana"),
             upazila_options,
             format_func=lambda value: _ui_text(all_areas, "All areas") if value == all_areas else value,
             key="community_filter_upazila",
             disabled=not district_selected,
         )
         with st.form("community_search_form", border=False):
+            st.markdown(_ui_text("**\u0985\u09a5\u09ac\u09be \u0986\u09aa\u09a8\u09be\u09b0 \u09ac\u09b0\u09cd\u09a4\u09ae\u09be\u09a8 \u0985\u09ac\u09b8\u09cd\u09a5\u09be\u09a8 \u09ac\u09cd\u09af\u09ac\u09b9\u09be\u09b0 \u0995\u09b0\u09c1\u09a8:**", "**Or use your current location:**"))
+            _geo_html = """
+    <script>
+    function getLocation() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(function(pos) {
+                var lat = pos.coords.latitude.toFixed(6);
+                var lon = pos.coords.longitude.toFixed(6);
+                var url = new URL(window.location.href);
+                url.searchParams.set('_geo_lat', lat);
+                url.searchParams.set('_geo_lon', lon);
+                window.location.href = url.toString();
+            }, function(err) {
+                alert('Location access denied or unavailable.');
+            });
+        } else {
+            alert('Geolocation is not supported by this browser.');
+        }
+    }
+    </script>
+    <button onclick="getLocation()" style="padding:8px 16px;background:#2563eb;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px;">
+        📍 """ + _ui_text("\u0986\u09ae\u09be\u09b0 \u0985\u09ac\u09b8\u09cd\u09a5\u09be\u09a8 \u09ac\u09cd\u09af\u09ac\u09b9\u09be\u09b0 \u0995\u09b0\u09c1\u09a8", "Use my location") + """
+    </button>
+    """
+            st.components.v1.html(_geo_html, height=50)
             location_query = st.text_input(
-                _ui_text("\u09a8\u09be\u09ae \u09b2\u09bf\u0996\u09c1\u09a8", "Area name"),
-                placeholder=_ui_text("\u09af\u09c7\u09ae\u09a8: \u09b8\u09cd\u0995\u09c1\u09b2 \u09ac\u09be \u09ac\u09be\u099c\u09be\u09b0", "e.g. a school or market"),
+                _ui_text("\u09a8\u09be\u09ae \u09b2\u09bf\u0996\u09c1\u09a8", "Search location"),
+                placeholder=_ui_text("\u09af\u09c7\u09ae\u09a8: \u0986\u09b6\u09c1\u09b2\u09bf", "e.g. Ashulia"),
                 key="community_location_name",
                 disabled=not district_selected,
             )
@@ -784,41 +823,72 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
             location_query = location_query.strip()
             if location_query:
                 try:
-                    from geopy.geocoders import Photon
-
-                    geocoder = Photon(user_agent="dhoa-bd-v2", timeout=15)
-                    selected_upazila = st.session_state.get("community_filter_upazila", all_areas)
-                    query_prefix = [location_query]
-                    if selected_upazila != all_areas:
-                        query_prefix = [f"{location_query}, {selected_upazila}, {community_district}, Bangladesh"]
-                    queries = [
-                        *query_prefix,
-                        f"{location_query}, {community_district}, Bangladesh",
-                        f"{location_query}, Bangladesh",
-                        location_query,
-                    ]
-                    location = None
-                    for query in dict.fromkeys(queries):
-                        try:
-                            location = geocoder.geocode(query)
-                        except Exception:
-                            continue
-                        if location is not None:
-                            break
+                    loc = None
+                    _queries = [f"{location_query}, Bangladesh", f"{location_query}, Dhaka", location_query]
+                    # Try Photon first (no rate limit on shared IPs)
+                    try:
+                        from geopy.geocoders import Photon as _Photon
+                        _geo = _Photon(user_agent="dhoa-bd-v2", timeout=15)
+                        for _q in _queries:
+                            try:
+                                loc = _geo.geocode(_q)
+                                if loc is not None:
+                                    break
+                            except Exception:
+                                continue
+                    except Exception:
+                        pass
+                    # Fall back to Nominatim if Photon returned nothing
+                    if loc is None:
+                        from geopy.geocoders import Nominatim as _Nominatim
+                        _geo2 = _Nominatim(user_agent="dhoa-bd-v3", timeout=15)
+                        for _q in _queries:
+                            try:
+                                loc = _geo2.geocode(_q, country_codes="BD")
+                                if loc is not None:
+                                    break
+                            except Exception:
+                                continue
                 except Exception:  # noqa: BLE001 - geocoding/import are an external service boundary
                     st.warning(_ui_text(
-                        "\u26a0\ufe0f \u09a8\u09be\u09ae\u09c7\u09b0 \u0996\u09cb\u0981\u099c\u09be\u09af\u09bc \u09ac\u09cd\u09af\u09b0\u09cd\u09a5\u0964",
-                        "\u26a0\ufe0f Search failed. Check spelling or include the area name.",
+                        "\u26a0\ufe0f \u09a8\u09be\u09ae\u09c7\u09b0 \u0996\u09cb\u0981\u099c\u09be\u09af\u09bc \u09ac\u09cd\u09af\u09b0\u09cd\u09a5\u0964 \u09ac\u09be\u09a8\u09be\u09a8 \u09b2\u09bf\u0996\u09c1\u09a8 \u0985\u09a5\u09ac\u09be \u099c\u09c7\u09b2\u09be\u09b0 \u09a8\u09be\u09ae \u09af\u09cb\u0997 \u0995\u09b0\u09c1\u09a8\u0964",
+                        "\u26a0\ufe0f Search failed. Check spelling or add a district name.",
                     ))
                     return
-                if location is None:
+                if loc is None:
                     st.warning(_ui_text(
-                        "\u26a0\ufe0f \u098f\u0987 \u09a8\u09be\u09ae\u09c7 \u0995\u09cb\u09a8\u09cb \u09b8\u09cd\u09a5\u09be\u09a8 \u09aa\u09be\u0993\u09af\u09bc\u09be \u09af\u09be\u09af\u09bc\u09a8\u09bf\u0964",
-                        "\u26a0\ufe0f Location not found. Try another spelling or include a nearby upazila.",
+                        "\u26a0\ufe0f \u09b8\u09cd\u09a5\u09be\u09a8\u09c7\u09b0 \u09a8\u09be\u09ae \u09aa\u09be\u0993\u09af\u09bc\u09be \u09af\u09be\u09af\u09bc\u09a8\u09bf\u0964 \u0985\u09a8\u09cd\u09af \u09ac\u09be\u09a8\u09be\u09a8 \u09ac\u09be 'Ashulia, Savar' \u09b2\u09bf\u0996\u09c7 \u0986\u09ac\u09be\u09b0 \u099a\u09c7\u09b7\u09cd\u099f\u09be \u0995\u09b0\u09c1\u09a8\u0964",
+                        "\u26a0\ufe0f Location not found. Try a different spelling or 'Ashulia, Savar'.",
                     ))
                     return
-                st.session_state["community_search_point"] = (float(location.latitude), float(location.longitude))
+                st.session_state["community_search_point"] = (float(loc.latitude), float(loc.longitude))
                 st.session_state["community_search_name"] = location_query
+                _sel_district = community_district
+                _all_districts_label = all_districts
+                if _sel_district and _sel_district != _all_districts_label:
+                    try:
+                        from shapely.geometry import Point as _ShapelyPoint
+
+                        _pt = _ShapelyPoint(float(loc.longitude), float(loc.latitude))
+                        _hits = gdf[gdf.geometry.contains(_pt)]["district"].values
+                        _geocoded_district = _hits[0] if len(_hits) > 0 else None
+                        if _geocoded_district and _geocoded_district != _sel_district:
+                            st.warning(_ui_text(
+                                f"'{location_query}' {_sel_district}-এ নেই — {_geocoded_district}-এ পাওয়া গেছে। ওখানে খুঁজবেন?",
+                                f"'{location_query}' is not in {_sel_district} — found in {_geocoded_district}. Search there instead?",
+                            ))
+                            if st.button(_ui_text("হ্যাঁ, ওখানে খুঁজুন", "Yes, search there"), key="geo_mismatch_confirm"):
+                                st.session_state["community_filter_district"] = _all_districts_label
+                                st.rerun()
+                            else:
+                                return
+                    except Exception:
+                        pass  # mismatch check is advisory — never crash on this
+            else:
+                st.warning(_ui_text(
+                    "\u26a0\ufe0f \u0996\u09cb\u0981\u099c\u09be\u09b0 \u099c\u09a8\u09cd\u09af \u098f\u0995\u099f\u09bf \u098f\u09b2\u09be\u0995\u09be\u09b0 \u09a8\u09be\u09ae \u09b2\u09bf\u0996\u09c1\u09a8\u0964",
+                    "\u26a0\ufe0f Please enter a location name to search.",
+                ))
         st.button(
             _ui_text("\U0001f504 \u09ab\u09bf\u09b2\u09cd\u099f\u09be\u09b0 \u09b0\u09bf\u09b8\u09c7\u099f \u0995\u09b0\u09c1\u09a8", "\U0001f504 Reset location filters"),
             key="reset_community_location_filters",
@@ -838,6 +908,13 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
     nearby = get_filtered_gdf(gdf)
     if not district_selected:
         st.info(_ui_text("\u09ad\u09be\u099f\u09be \u09a6\u09c7\u0996\u09a4\u09c7 \u098f\u0995\u099f\u09bf \u099c\u09c7\u09b2\u09be \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09a8 \u0995\u09b0\u09c1\u09a8\u0964", "Select a district to view kiln candidates."))
+        return
+    selected_upazila = st.session_state.get("community_filter_upazila", all_areas)
+    if selected_upazila != all_areas and nearby.empty:
+        st.info(_ui_text(
+            f"'{selected_upazila}' \u098f\u09b2\u09be\u0995\u09be\u09af\u09bc \u0995\u09cb\u09a8\u09cb \u09ad\u09be\u099f\u09be\u09b0 \u09a4\u09a5\u09cd\u09af \u09aa\u09be\u0993\u09af\u09bc\u09be \u09af\u09be\u09af\u09bc\u09a8\u09bf\u0964",
+            f"No kiln data found for '{selected_upazila}'.",
+        ))
         return
     if "community_centroid" not in st.session_state:
         st.info(_ui_text(
@@ -1626,17 +1703,17 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
                 upazila_source = upazila_source[
                     upazila_source["district"].astype(str).eq(str(filters["district"]))
                 ]
-            upazila_values = (
-                sorted(BD_ADMIN_AREAS[filters["district"]])
-                if filters["district"] in BD_ADMIN_AREAS
-                else sorted(upazila_source["upazila"].dropna().astype(str).unique().tolist())
+            _data_upazilas = (
+                sorted(upazila_source["upazila"].dropna().astype(str).unique().tolist())
                 if "upazila" in upazila_source else []
             )
+            _known_upazilas = BD_ADMIN_AREAS.get(filters["district"], [])
+            upazila_values = sorted(set(_known_upazilas) | set(_data_upazilas))
             upazila_options = ["\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be", *upazila_values]
             if st.session_state.get("filter_upazila") not in upazila_options:
                 st.session_state["filter_upazila"] = "\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be"
             filters["upazila"] = st.selectbox(
-                _ui_text("\u098f\u09b2\u09be\u0995\u09be (\u0989\u09aa\u099c\u09c7\u09b2\u09be)", "Area (Upazila)"),
+                _ui_text("\u098f\u09b2\u09be\u0995\u09be (\u0989\u09aa\u099c\u09c7\u09b2\u09be)", "Area / Thana"),
                 upazila_options,
                 format_func=lambda value: _ui_text("\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be", "All areas") if value == "\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be" else value,
                 key="filter_upazila",
@@ -1828,18 +1905,13 @@ def render_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> None:
     an interactive Folium map plus the selected candidate's detail/report panel.
     """
     visible = get_filtered_gdf(gdf)
-    selected_district = st.session_state.get("filter_district", "\u09b8\u09ac \u099c\u09c7\u09b2\u09be")
     selected_upazila = st.session_state.get("filter_upazila", "\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be")
-    if selected_upazila != "\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be":
-        area_rows = gdf
-        if selected_district != "\u09b8\u09ac \u099c\u09c7\u09b2\u09be" and "district" in area_rows:
-            area_rows = area_rows[area_rows["district"].astype(str).eq(str(selected_district))]
-        if "upazila" not in area_rows or not area_rows["upazila"].astype(str).eq(str(selected_upazila)).any():
-            st.info(_ui_text(
-                "\u098f\u0987 \u098f\u09b2\u09be\u0995\u09be\u09af\u09bc \u0995\u09cb\u09a8\u09cb \u09ad\u09be\u099f\u09be\u09b0 \u09a4\u09a5\u09cd\u09af \u09aa\u09be\u0993\u09af\u09bc\u09be \u09af\u09be\u09af\u09bc\u09a8\u09bf\u0964",
-                "No kiln data found for this area.",
-            ))
-            return
+    if selected_upazila != "\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be" and visible.empty:
+        st.info(_ui_text(
+            f"'{selected_upazila}' \u098f\u09b2\u09be\u0995\u09be\u09af\u09bc \u0995\u09cb\u09a8\u09cb \u09ad\u09be\u099f\u09be\u09b0 \u09a4\u09a5\u09cd\u09af \u09aa\u09be\u0993\u09af\u09bc\u09be \u09af\u09be\u09af\u09bc\u09a8\u09bf\u0964",
+            f"No kiln data found for '{selected_upazila}'.",
+        ))
+        return
     selected_id = st.session_state.get("selected_kiln_id")
     if selected_id is not None and (
         "kiln_id" not in visible.columns
