@@ -82,9 +82,7 @@ INSPECTOR_CSV_COLUMNS = [
     ("nearest_place", "\u09a8\u09bf\u0995\u099f\u09a4\u09ae \u09b8\u09cd\u09a5\u09be\u09a8"),
     ("nearest_place_dist_m", "\u09a6\u09c2\u09b0\u09a4\u09cd\u09ac (\u09ae\u09bf)"),
     ("priority_band", "\u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0"),
-    ("confidence", "\u09a8\u09bf\u09b6\u09cd\u099a\u09bf\u09a4\u09a4\u09be"),
     ("breach_count", "\u09b2\u0999\u09cd\u0998\u09a8 \u09b8\u0982\u0996\u09cd\u09af\u09be"),
-    ("verified", "\u09af\u09be\u099a\u09be\u0987 \u0985\u09ac\u09b8\u09cd\u09a5\u09be"),
 ]
 COMMUNITY_CSV_COLUMNS = [
     ("kiln_id", "\u09ad\u09be\u099f\u09be ID"),
@@ -95,7 +93,6 @@ COMMUNITY_CSV_COLUMNS = [
     ("nearest_place", "\u09a8\u09bf\u0995\u099f\u09a4\u09ae \u09b8\u09cd\u09a5\u09be\u09a8"),
     ("nearest_place_dist_m", "\u09a6\u09c2\u09b0\u09a4\u09cd\u09ac (\u09ae\u09bf)"),
     ("priority_band", "\u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0"),
-    ("verified", "\u09af\u09be\u099a\u09be\u0987 \u0985\u09ac\u09b8\u09cd\u09a5\u09be"),
 ]
 METRIC_LABELS = {
     "total_kilns": "\u09ae\u09cb\u099f \u09ad\u09be\u099f\u09be",
