@@ -707,8 +707,8 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
                     _export_filename(
                         district=None,
                         area=location_name,
-                        kiln_type=None,
-                        rule_signals=_exported_rule_signals(nearby),
+                        kiln_type="all",
+                        rule_signals=["all"],
                         radius_m=radius_m,
                         extension="pdf",
                     ), "application/pdf",
@@ -744,8 +744,8 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
                 _export_filename(
                     district=None,
                     area=location_name,
-                    kiln_type=None,
-                    rule_signals=_exported_rule_signals(nearby),
+                    kiln_type="all",
+                    rule_signals=["all"],
                     radius_m=radius_m,
                     extension="csv",
                 ),
@@ -1181,11 +1181,6 @@ def _export_filename(
     )
 
 
-def _exported_rule_signals(frame: pd.DataFrame) -> list[str]:
-    """Return sorted rule signal IDs present in the exported candidate rows."""
-    return sorted({signal for _, row in frame.iterrows() for signal in _signals(row)})
-
-
 def _flagged_count(frame: pd.DataFrame, rules: Mapping[str, Any]) -> int:
     """Count rows with signals or distances inside configured thresholds.
 
@@ -1468,8 +1463,8 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
             export_filename = _export_filename(
                 district=None if filters["district"] == all_districts else filters["district"],
                 area=None if filters["upazila"] == all_areas else filters["upazila"],
-                kiln_type=None if filters["kiln_type"] == ALL_KILN_TYPES else filters["kiln_type"],
-                rule_signals=_exported_rule_signals(visible),
+                kiln_type="all" if filters["kiln_type"] == ALL_KILN_TYPES else filters["kiln_type"],
+                rule_signals=["all"],
                 radius_m=filters["radius_m"] if filters["upazila"] != all_areas else None,
                 extension="csv",
             )
