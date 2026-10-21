@@ -1026,7 +1026,12 @@ function sendLocation() {
                     color=color, fill=True, fill_color=color, fill_opacity=0.88,
                     popup=popup,
                 ).add_to(map_view)
-            st_folium(map_view, height=580, width="100%", key="dhoa_community_map")
+            st_folium(
+                map_view,
+                height=580,
+                width="100%",
+                key=f"dhoa_community_map_{_ui_text('bn', 'en')}",
+            )
             # Mobile users should rotate their device for a wider map.
 
 
@@ -1912,7 +1917,7 @@ def render_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> None:
             with st.container(key="dhoa_map_frame"):
                 map_result = st_folium(
                     _m,
-                    key=f"main_map_{st.session_state.get('filter_district', '')}_{st.session_state.get('filter_upazila', '')}",
+                    key=f"main_map_{st.session_state.get('filter_district', '')}_{st.session_state.get('filter_upazila', '')}_{_ui_text('bn', 'en')}",
                     height=580,
                     width="100%",
                     returned_objects=["last_object_clicked"],
