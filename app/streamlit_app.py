@@ -637,6 +637,9 @@ def get_filtered_gdf(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         "\u09a8\u09bf\u09ae\u09cd\u09a8": "Low",
     }
     selected_priorities = {priority_values[value] for value in priorities if value in priority_values}
+    if not selected_priorities:
+        # Fallback: session state was completely stale — show all priorities.
+        selected_priorities = {"High", "Medium", "Low"}
     if "priority_band" not in result.columns:
         # Source data has no priority columns at all — show everything rather
         # than filtering to zero rows.
@@ -1626,7 +1629,7 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
                 _ui_text("\u0985\u09a8\u09c1\u09b8\u09a8\u09cd\u09a7\u09be\u09a8 \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7", "Search radius"),
                 min_value=250,
                 max_value=5000,
-                value=1000,
+                value=st.session_state.get("filter_radius_m", 1000),
                 step=250,
                 key="filter_radius_m",
                 disabled=not has_selected_upazila,
