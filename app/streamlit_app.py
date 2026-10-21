@@ -535,7 +535,11 @@ def get_filtered_gdf(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         if result.empty:
             result["distance_m"] = pd.Series(dtype="float64", index=result.index)
             return result
-        search_lat, search_lon = _community_area_centroid(result)
+        search_point = st.session_state.get("community_search_point")
+        if search_point is None:
+            search_lat, search_lon = _community_area_centroid(result)
+        else:
+            search_lat, search_lon = map(float, search_point)
         st.session_state["community_centroid"] = (search_lat, search_lon)
         radius_m = int(st.session_state.get("community_radius_m", 1000))
         distances = community_distances(result, search_lat, search_lon)
@@ -709,6 +713,60 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
             key="community_filter_upazila",
             disabled=not district_selected,
         )
+        with st.form("community_search_form", border=False):
+            location_query = st.text_input(
+                _ui_text("\u09a8\u09be\u09ae \u09b2\u09bf\u0996\u09c1\u09a8", "Area name"),
+                placeholder=_ui_text("\u09af\u09c7\u09ae\u09a8: \u0986\u09b6\u09c1\u09b2\u09bf", "e.g. Ashulia"),
+                key="community_location_name",
+                disabled=not district_selected,
+            )
+            search_submitted = st.form_submit_button(
+                _ui_text("\U0001f50d \u0985\u09a8\u09c1\u09b8\u09a8\u09cd\u09a7\u09be\u09a8 \u0995\u09b0\u09c1\u09a8", "\U0001f50d Search"),
+                width="stretch",
+                disabled=not district_selected,
+            )
+        if search_submitted:
+            st.session_state.pop("community_search_point", None)
+            st.session_state.pop("community_search_name", None)
+            st.session_state.pop("community_report", None)
+            location_query = location_query.strip()
+            if location_query:
+                try:
+                    from geopy.geocoders import Photon
+
+                    geocoder = Photon(user_agent="dhoa-bd-v2", timeout=15)
+                    selected_upazila = st.session_state.get("community_filter_upazila", all_areas)
+                    query_prefix = [location_query]
+                    if selected_upazila != all_areas:
+                        query_prefix = [f"{location_query}, {selected_upazila}, {community_district}, Bangladesh"]
+                    queries = [
+                        *query_prefix,
+                        f"{location_query}, {community_district}, Bangladesh",
+                        f"{location_query}, Bangladesh",
+                        location_query,
+                    ]
+                    location = None
+                    for query in dict.fromkeys(queries):
+                        try:
+                            location = geocoder.geocode(query)
+                        except Exception:
+                            continue
+                        if location is not None:
+                            break
+                except Exception:  # noqa: BLE001 - geocoding/import are an external service boundary
+                    st.warning(_ui_text(
+                        "\u26a0\ufe0f \u09a8\u09be\u09ae\u09c7\u09b0 \u0996\u09cb\u0981\u099c\u09be\u09af\u09bc \u09ac\u09cd\u09af\u09b0\u09cd\u09a5\u0964",
+                        "\u26a0\ufe0f Search failed. Check spelling or include the area name.",
+                    ))
+                    return
+                if location is None:
+                    st.warning(_ui_text(
+                        "\u26a0\ufe0f \u098f\u0987 \u09a8\u09be\u09ae\u09c7 \u0995\u09cb\u09a8\u09cb \u09b8\u09cd\u09a5\u09be\u09a8 \u09aa\u09be\u0993\u09af\u09bc\u09be \u09af\u09be\u09af\u09bc\u09a8\u09bf\u0964",
+                        "\u26a0\ufe0f Location not found. Try another spelling or include a nearby upazila.",
+                    ))
+                    return
+                st.session_state["community_search_point"] = (float(location.latitude), float(location.longitude))
+                st.session_state["community_search_name"] = location_query
         st.button(
             _ui_text("\U0001f504 \u09ab\u09bf\u09b2\u09cd\u099f\u09be\u09b0 \u09b0\u09bf\u09b8\u09c7\u099f \u0995\u09b0\u09c1\u09a8", "\U0001f504 Reset location filters"),
             key="reset_community_location_filters",
@@ -734,9 +792,16 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
     search_lat, search_lon = st.session_state["community_centroid"]
     selected_district = st.session_state.get("community_filter_district", all_districts)
     selected_upazila = st.session_state.get("community_filter_upazila", all_areas)
-    location_name = selected_upazila if selected_upazila != all_areas else selected_district
+    selected_location_name = st.session_state.get("community_search_name", "")
+    location_name = selected_location_name or (
+        selected_upazila if selected_upazila != all_areas else selected_district
+    )
     area_name = location_name
-    export_area = location_name
+    export_area = (
+        f"{selected_location_name}_{selected_upazila}"
+        if selected_location_name and selected_upazila != all_areas
+        else location_name
+    )
     nearby["directions_url"] = [
         f"https://www.google.com/maps/dir/?api=1&destination={float(row['lat']):.6f}%2C{float(row['lon']):.6f}"
         for _, row in nearby.iterrows()
@@ -880,9 +945,24 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
                 ))
     with map_column:
         st.subheader(_ui_text("\u098f\u09b2\u09be\u0995\u09be\u09b0 \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0", "Area map"))
+        center_label_bn = (
+            "\u0996\u09cb\u0981\u099c\u09be\u09b0 \u09b8\u09cd\u09a5\u09be\u09a8"
+            if selected_location_name
+            else "\u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09bf\u09a4 \u098f\u09b2\u09be\u0995\u09be\u09b0 \u0995\u09c7\u09a8\u09cd\u09a6\u09cd\u09b0\u09ac\u09bf\u09a8\u09cd\u09a6\u09c1"
+        )
+        center_description_bn = (
+            location_name
+            if selected_location_name
+            else f"\u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09bf\u09a4 \u098f\u09b2\u09be\u0995\u09be {location_name} \u0995\u09c7\u09a8\u09cd\u09a6\u09cd\u09b0\u09ac\u09bf\u09a8\u09cd\u09a6\u09c1"
+        )
+        center_description_en = (
+            location_name
+            if selected_location_name
+            else f"the centroid of {location_name}"
+        )
         st.markdown(
             "<div style='display:flex;flex-wrap:wrap;gap:.5rem;margin:.4rem 0'>"
-            f"<span style='background:#1e2329;padding:.35rem .6rem;border-radius:999px'><b style='color:{DESIGN_COLORS['new']}'>&#9679;</b> {_ui_text('\u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09bf\u09a4 \u098f\u09b2\u09be\u0995\u09be\u09b0 \u0995\u09c7\u09a8\u09cd\u09a6\u09cd\u09b0\u09ac\u09bf\u09a8\u09cd\u09a6\u09c1', 'Selected area centroid')}</span>"
+            f"<span style='background:#1e2329;padding:.35rem .6rem;border-radius:999px'><b style='color:{DESIGN_COLORS['new']}'>&#9679;</b> {_ui_text(center_label_bn, 'Search point' if selected_location_name else 'Selected area centroid')}</span>"
             f"<span style='background:#1e2329;padding:.35rem .6rem;border-radius:999px'><b style='color:{PRIORITY_COLORS['High']}'>&#9679;</b> {_ui_text('\u0989\u099a\u09cd\u099a \u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0', 'High priority')}</span>"
             f"<span style='background:#1e2329;padding:.35rem .6rem;border-radius:999px'><b style='color:{PRIORITY_COLORS['Medium']}'>&#9679;</b> {_ui_text('\u09ae\u09be\u099d\u09be\u09b0\u09bf', 'Medium')}</span>"
             f"<span style='background:#1e2329;padding:.35rem .6rem;border-radius:999px'><b style='color:{PRIORITY_COLORS['Low']}'>&#9679;</b> {_ui_text('\u09a8\u09bf\u09ae\u09cd\u09a8', 'Low')}</span>"
@@ -890,8 +970,8 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
             unsafe_allow_html=True,
         )
         st.caption(_ui_text(
-            f"\u09a8\u09c0\u09b2 \u09ac\u09c3\u09a4\u09cd\u09a4\u09c7\u09b0 \u09b8\u09c0\u09ae\u09be\u09a8\u09be \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09bf\u09a4 \u098f\u09b2\u09be\u0995\u09be\u09b0 \u0995\u09c7\u09a8\u09cd\u09a6\u09cd\u09b0\u09ac\u09bf\u09a8\u09cd\u09a6\u09c1 \u09a5\u09c7\u0995\u09c7 {radius_m / 1000:g} \u0995\u09bf\u09ae\u09bf \u09a6\u09c2\u09b0\u09a4\u09cd\u09ac \u09a6\u09c7\u0996\u09be\u09df\u0964 \u09b2\u09be\u09b2, \u0995\u09ae\u09b2\u09be \u0993 \u09b8\u09ac\u09c1\u099c \u09ac\u09bf\u09a8\u09cd\u09a6\u09c1 \u09ad\u09be\u099f\u09be\u09b0 \u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0 \u09a6\u09c7\u0996\u09be\u09df; \u09ac\u09bf\u09a8\u09cd\u09a6\u09c1\u09a4\u09c7 \u099a\u09be\u09aa\u09b2\u09c7 \u09ac\u09bf\u09b8\u09cd\u09a4\u09be\u09b0\u09bf\u09a4 \u09a6\u09c7\u0996\u09c1\u09a8\u0964",
-            f"The blue circle shows {radius_m / 1000:g} km from the centroid of {location_name}. Red, orange and green dots show kiln priority; tap a dot for details.",
+            f"\u09a8\u09c0\u09b2 \u09ac\u09c3\u09a4\u09cd\u09a4\u09c7\u09b0 \u09b8\u09c0\u09ae\u09be\u09a8\u09be {center_description_bn} \u09a5\u09c7\u0995\u09c7 {radius_m / 1000:g} \u0995\u09bf\u09ae\u09bf \u09a6\u09c2\u09b0\u09a4\u09cd\u09ac \u09a6\u09c7\u0996\u09be\u09df\u0964 \u09b2\u09be\u09b2, \u0995\u09ae\u09b2\u09be \u0993 \u09b8\u09ac\u09c1\u099c \u09ac\u09bf\u09a8\u09cd\u09a6\u09c1 \u09ad\u09be\u099f\u09be\u09b0 \u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0 \u09a6\u09c7\u0996\u09be\u09df; \u09ac\u09bf\u09a8\u09cd\u09a6\u09c1\u09a4\u09c7 \u099a\u09be\u09aa\u09b2\u09c7 \u09ac\u09bf\u09b8\u09cd\u09a4\u09be\u09b0\u09bf\u09a4 \u09a6\u09c7\u0996\u09c1\u09a8\u0964",
+            f"The blue circle shows {radius_m / 1000:g} km from {center_description_en}. Red, orange and green dots show kiln priority; tap a dot for details.",
         ))
         with st.container(border=True):
             map_view = folium.Map(location=[search_lat, search_lon], zoom_start=13, control_scale=True, tiles=None)
@@ -1413,6 +1493,9 @@ def _reset_community_location_filters() -> None:
     """Restore Community district and area filters to their defaults."""
     st.session_state["community_filter_district"] = "\u09b8\u09ac \u099c\u09c7\u09b2\u09be"
     st.session_state["community_filter_upazila"] = "\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be"
+    st.session_state["community_location_name"] = ""
+    st.session_state.pop("community_search_point", None)
+    st.session_state.pop("community_search_name", None)
 
 
 def _sync_map_tile(widget_key: str) -> None:
