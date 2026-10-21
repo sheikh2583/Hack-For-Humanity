@@ -1851,12 +1851,14 @@ def render_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> None:
                     else None
                 ),
                 height=640,
-                key=f"dhoa_high_priority_list_{_ui_text('bn', 'en')}",
+                key=f"dhoa_priority_list_{_ui_text('bn', 'en')}",
                 default=None,
             )
             if isinstance(list_choice, dict):
                 click_token = list_choice.get("selection_token")
-                if click_token and click_token != st.session_state.get("dhoa_list_selection_token"):
+                _lang_key = _ui_text("bn", "en")
+                _token_key = f"dhoa_list_selection_token_{_lang_key}"
+                if click_token and click_token != st.session_state.get(_token_key):
                     chosen_id = list_choice.get("kiln_id")
                     chosen_rows = visible[visible["kiln_id"].astype(str).eq(str(chosen_id))] if chosen_id else visible.iloc[0:0]
                     if not chosen_rows.empty:
@@ -1867,7 +1869,7 @@ def render_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> None:
                         st.session_state["selected_lng"] = chosen_lng
                         st.session_state["map_center"] = (chosen_lat, chosen_lng)
                         st.session_state["map_zoom"] = max(15, int(st.session_state.get("map_zoom", 15)))
-                    st.session_state["dhoa_list_selection_token"] = click_token
+                    st.session_state[_token_key] = click_token
     with map_panel:
         st.caption(_ui_text(
             "চিহ্নের রং অগ্রাধিকার বোঝায়; গাঢ় সীমানা নির্বাচিত প্রার্থীকে দেখায়।",
