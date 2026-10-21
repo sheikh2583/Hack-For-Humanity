@@ -730,254 +730,227 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
             st.query_params.clear()
         except Exception:
             pass
-    st.markdown(f"<div class='dhoa-section-title'>{_ui_text('\u0986\u09aa\u09a8\u09be\u09b0 \u098f\u09b2\u09be\u0995\u09be\u09b0 \u0995\u09be\u099b\u09be\u099b\u09bf \u0996\u09c1\u0981\u099c\u09c1\u09a8', 'Find kilns near your area')}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='dhoa-section-title'>{_ui_text('\u0986\u09aa\u09a8\u09be\u09b0 \u098f\u09b2\u09be\u0995\u09be\u09b0 \u0995\u09be\u099b\u09be\u099b\u09bf \u0996\u09c1\u0981\u099c\u09c1\u09a8', 'Find kilns near you')}</div>", unsafe_allow_html=True)
+
+    # Audio guide
     with st.container(border=True):
-        st.markdown(_ui_text("\U0001f50a \u09ac\u09cd\u09af\u09ac\u09b9\u09be\u09b0 \u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6\u09bf\u0995\u09be \u09b6\u09c1\u09a8\u09c1\u09a8", "\U0001f50a Listen to usage guide"))
+        st.markdown(_ui_text("\U0001f50a \u09ac\u09cd\u09af\u09ac\u09b9\u09be\u09b0 \u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6\u09bf\u0995\u09be \u09b6\u09c1\u09a8\u09c1\u09a8", "\U0001f50a Listen to the guide"))
         community_guide = _ROOT / "app" / "static" / "community_guide.mp3"
         if community_guide.is_file():
             st.audio(str(community_guide))
         else:
             st.info(_ui_text("\U0001f50a \u0985\u09a1\u09bf\u0993 \u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6\u09bf\u0995\u09be \u09b6\u09c0\u0998\u09cd\u09b0\u0987 \u0986\u09b8\u099b\u09c7", "\U0001f50a Audio guide coming soon"))
-        all_districts = "\u09b8\u09ac \u099c\u09c7\u09b2\u09be"
-        all_areas = "\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be"
-        district_values = (
-            sorted(gdf["district"].dropna().astype(str).unique().tolist())
-            if "district" in gdf.columns else []
-        )
-        district_options = [all_districts, *district_values]
-        if st.session_state.get("community_filter_district") not in district_options:
-            st.session_state["community_filter_district"] = all_districts
-        community_district = st.selectbox(
-            _ui_text("\u099c\u09c7\u09b2\u09be", "District"),
-            district_options,
-            format_func=lambda value: (
-                _ui_text(all_districts, "All districts")
-                if value == all_districts else _district_label(value)
-            ),
-            key="community_filter_district",
-            on_change=_reset_community_upazila_filter,
-        )
-        district_selected = community_district != all_districts
-        upazila_source = gdf if district_selected else gdf.iloc[0:0]
-        if district_selected and "district" in upazila_source.columns:
-            upazila_source = upazila_source[
-                upazila_source["district"].astype(str).eq(str(community_district))
-            ]
-        _data_upazilas = (
-            sorted(upazila_source["upazila"].dropna().astype(str).unique().tolist())
-            if "upazila" in upazila_source.columns else []
-        )
-        _known_upazilas = BD_ADMIN_AREAS.get(community_district, [])
-        upazila_values = sorted(set(_known_upazilas) | set(_data_upazilas))
-        upazila_options = [all_areas, *upazila_values]
-        if st.session_state.get("community_filter_upazila") not in upazila_options:
-            st.session_state["community_filter_upazila"] = all_areas
-        st.selectbox(
-            _ui_text("\u098f\u09b2\u09be\u0995\u09be (\u0989\u09aa\u099c\u09c7\u09b2\u09be)", "Area / Thana"),
-            upazila_options,
-            format_func=lambda value: _ui_text(all_areas, "All areas") if value == all_areas else value,
-            key="community_filter_upazila",
-            disabled=not district_selected,
-        )
-        with st.form("community_search_form", border=False):
-            st.markdown(_ui_text("**\u0985\u09a5\u09ac\u09be \u0986\u09aa\u09a8\u09be\u09b0 \u09ac\u09b0\u09cd\u09a4\u09ae\u09be\u09a8 \u0985\u09ac\u09b8\u09cd\u09a5\u09be\u09a8 \u09ac\u09cd\u09af\u09ac\u09b9\u09be\u09b0 \u0995\u09b0\u09c1\u09a8:**", "**Or use your current location:**"))
-            _geo_html = """
-    <script>
-    function getLocation() {
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(function(pos) {
-                var lat = pos.coords.latitude.toFixed(6);
-                var lon = pos.coords.longitude.toFixed(6);
-                var url = new URL(window.location.href);
-                url.searchParams.set('_geo_lat', lat);
-                url.searchParams.set('_geo_lon', lon);
-                window.location.href = url.toString();
-            }, function(err) {
-                alert('Location access denied or unavailable.');
-            });
-        } else {
-            alert('Geolocation is not supported by this browser.');
-        }
-    }
-    </script>
-    <button onclick="getLocation()" style="padding:8px 16px;background:#2563eb;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px;">
-        📍 """ + _ui_text("\u0986\u09ae\u09be\u09b0 \u0985\u09ac\u09b8\u09cd\u09a5\u09be\u09a8 \u09ac\u09cd\u09af\u09ac\u09b9\u09be\u09b0 \u0995\u09b0\u09c1\u09a8", "Use my location") + """
-    </button>
-    """
-            st.components.v1.html(_geo_html, height=50)
-            location_query = st.text_input(
-                _ui_text("\u09a8\u09be\u09ae \u09b2\u09bf\u0996\u09c1\u09a8", "Search location"),
-                placeholder=_ui_text("\u09af\u09c7\u09ae\u09a8: \u0986\u09b6\u09c1\u09b2\u09bf", "e.g. Ashulia"),
-                key="community_location_name",
-                disabled=not district_selected,
-            )
-            search_submitted = st.form_submit_button(
-                _ui_text("\U0001f50d \u0985\u09a8\u09c1\u09b8\u09a8\u09cd\u09a7\u09be\u09a8 \u0995\u09b0\u09c1\u09a8", "\U0001f50d Search"),
-                width="stretch",
-                disabled=not district_selected,
-            )
-        if search_submitted:
-            st.session_state.pop("community_search_point", None)
-            st.session_state.pop("community_search_name", None)
-            st.session_state.pop("community_report", None)
-            location_query = location_query.strip()
-            if location_query:
-                try:
-                    loc = None
-                    _queries = [f"{location_query}, Bangladesh", f"{location_query}, Dhaka", location_query]
-                    # Try Photon first (no rate limit on shared IPs)
-                    try:
-                        from geopy.geocoders import Photon as _Photon
-                        _geo = _Photon(user_agent="dhoa-bd-v2", timeout=15)
-                        for _q in _queries:
-                            try:
-                                loc = _geo.geocode(_q)
-                                if loc is not None:
-                                    break
-                            except Exception:
-                                continue
-                    except Exception:
-                        pass
-                    # Fall back to Nominatim if Photon returned nothing
-                    if loc is None:
-                        from geopy.geocoders import Nominatim as _Nominatim
-                        _geo2 = _Nominatim(user_agent="dhoa-bd-v3", timeout=15)
-                        for _q in _queries:
-                            try:
-                                loc = _geo2.geocode(_q, country_codes="BD")
-                                if loc is not None:
-                                    break
-                            except Exception:
-                                continue
-                except Exception:  # noqa: BLE001 - geocoding/import are an external service boundary
-                    st.warning(_ui_text(
-                        "\u26a0\ufe0f \u09a8\u09be\u09ae\u09c7\u09b0 \u0996\u09cb\u0981\u099c\u09be\u09af\u09bc \u09ac\u09cd\u09af\u09b0\u09cd\u09a5\u0964 \u09ac\u09be\u09a8\u09be\u09a8 \u09b2\u09bf\u0996\u09c1\u09a8 \u0985\u09a5\u09ac\u09be \u099c\u09c7\u09b2\u09be\u09b0 \u09a8\u09be\u09ae \u09af\u09cb\u0997 \u0995\u09b0\u09c1\u09a8\u0964",
-                        "\u26a0\ufe0f Search failed. Check spelling or add a district name.",
-                    ))
-                    return
-                if loc is None:
-                    st.warning(_ui_text(
-                        "\u26a0\ufe0f \u09b8\u09cd\u09a5\u09be\u09a8\u09c7\u09b0 \u09a8\u09be\u09ae \u09aa\u09be\u0993\u09af\u09bc\u09be \u09af\u09be\u09af\u09bc\u09a8\u09bf\u0964 \u0985\u09a8\u09cd\u09af \u09ac\u09be\u09a8\u09be\u09a8 \u09ac\u09be 'Ashulia, Savar' \u09b2\u09bf\u0996\u09c7 \u0986\u09ac\u09be\u09b0 \u099a\u09c7\u09b7\u09cd\u099f\u09be \u0995\u09b0\u09c1\u09a8\u0964",
-                        "\u26a0\ufe0f Location not found. Try a different spelling or 'Ashulia, Savar'.",
-                    ))
-                    return
-                st.session_state["community_search_point"] = (float(loc.latitude), float(loc.longitude))
-                st.session_state["community_search_name"] = location_query
-                _sel_district = community_district
-                _all_districts_label = all_districts
-                if _sel_district and _sel_district != _all_districts_label:
-                    try:
-                        from shapely.geometry import Point as _ShapelyPoint
 
-                        _pt = _ShapelyPoint(float(loc.longitude), float(loc.latitude))
-                        _hits = gdf[gdf.geometry.contains(_pt)]["district"].values
-                        _geocoded_district = _hits[0] if len(_hits) > 0 else None
-                        if _geocoded_district and _geocoded_district != _sel_district:
-                            st.warning(_ui_text(
-                                f"'{location_query}' {_sel_district}-এ নেই — {_geocoded_district}-এ পাওয়া গেছে। ওখানে খুঁজবেন?",
-                                f"'{location_query}' is not in {_sel_district} — found in {_geocoded_district}. Search there instead?",
-                            ))
-                            if st.button(_ui_text("হ্যাঁ, ওখানে খুঁজুন", "Yes, search there"), key="geo_mismatch_confirm"):
-                                st.session_state["community_filter_district"] = _all_districts_label
-                                st.rerun()
-                            else:
-                                return
-                    except Exception:
-                        pass  # mismatch check is advisory — never crash on this
-            else:
-                st.warning(_ui_text(
-                    "\u26a0\ufe0f \u0996\u09cb\u0981\u099c\u09be\u09b0 \u099c\u09a8\u09cd\u09af \u098f\u0995\u099f\u09bf \u098f\u09b2\u09be\u0995\u09be\u09b0 \u09a8\u09be\u09ae \u09b2\u09bf\u0996\u09c1\u09a8\u0964",
-                    "\u26a0\ufe0f Please enter a location name to search.",
-                ))
-        st.button(
-            _ui_text("\U0001f504 \u09ab\u09bf\u09b2\u09cd\u099f\u09be\u09b0 \u09b0\u09bf\u09b8\u09c7\u099f \u0995\u09b0\u09c1\u09a8", "\U0001f504 Reset location filters"),
-            key="reset_community_location_filters",
-            on_click=_reset_community_location_filters,
-            width="content",
-        )
-        radius_m = int(st.slider(
-            _ui_text("\u0985\u09a8\u09c1\u09b8\u09a8\u09cd\u09a7\u09be\u09a8\u09c7\u09b0 \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7 (\u09ae\u09bf\u099f\u09be\u09b0)", "Search radius (metres)"),
-            min_value=250,
-            max_value=5000,
-            value=1000,
-            step=250,
-            key="community_radius_m",
+    # District and upazila filters
+    all_districts = "\u09b8\u09ac \u099c\u09c7\u09b2\u09be"
+    all_areas = "\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be"
+    district_values = (
+        sorted(gdf["district"].dropna().astype(str).unique().tolist())
+        if "district" in gdf.columns else []
+    )
+    district_options = [all_districts, *district_values]
+    if st.session_state.get("community_filter_district") not in district_options:
+        st.session_state["community_filter_district"] = all_districts
+    sel_district = st.selectbox(
+        _ui_text("\u099c\u09c7\u09b2\u09be", "District"),
+        district_options,
+        format_func=lambda value: _ui_text(all_districts, "All districts") if value == all_districts else _district_label(value),
+        key="community_filter_district",
+        on_change=_reset_community_upazila_filter,
+    )
+    district_selected = sel_district != all_districts
+    upazila_source = gdf if district_selected else gdf.iloc[0:0]
+    if district_selected and "district" in upazila_source.columns:
+        upazila_source = upazila_source[upazila_source["district"].astype(str).eq(str(sel_district))]
+    data_upazilas = (
+        sorted(upazila_source["upazila"].dropna().astype(str).unique().tolist())
+        if "upazila" in upazila_source.columns else []
+    )
+    known_upazilas = BD_ADMIN_AREAS.get(sel_district, [])
+    upazila_values = sorted(set(known_upazilas) | set(data_upazilas))
+    upazila_options = [all_areas, *upazila_values]
+    if st.session_state.get("community_filter_upazila") not in upazila_options:
+        st.session_state["community_filter_upazila"] = all_areas
+    sel_upazila = st.selectbox(
+        _ui_text("\u098f\u09b2\u09be\u0995\u09be (\u0989\u09aa\u099c\u09c7\u09b2\u09be)", "Area / Thana"),
+        upazila_options,
+        format_func=lambda value: _ui_text(all_areas, "All areas") if value == all_areas else value,
+        key="community_filter_upazila",
+        disabled=not district_selected,
+    )
+
+    # Radius slider (always visible)
+    radius_m = int(st.slider(
+        _ui_text("\u0985\u09a8\u09c1\u09b8\u09a8\u09cd\u09a7\u09be\u09a8\u09c7\u09b0 \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7 (\u09ae\u09bf\u099f\u09be\u09b0)", "Search radius (metres)"),
+        min_value=250,
+        max_value=5000,
+        value=st.session_state.get("community_radius_m", 1000),
+        step=250,
+        key="community_radius_m",
+    ))
+
+    st.divider()
+
+    # Option A: type a place name
+    with st.form("community_search_form", border=False):
+        name = st.text_input(
+            _ui_text("\u09a8\u09be\u09ae \u09b2\u09bf\u0996\u09c1\u09a8", "Search by name"),
+            placeholder=_ui_text("\u09af\u09c7\u09ae\u09a8: \u0986\u09b6\u09c1\u09b2\u09bf", "e.g. Ashulia"),
+            key="community_location_name",
             disabled=not district_selected,
-        ))
-        _render_map_type_filter()
-    nearby = get_filtered_gdf(gdf)
-    if not district_selected:
-        st.info(_ui_text("\u09ad\u09be\u099f\u09be \u09a6\u09c7\u0996\u09a4\u09c7 \u098f\u0995\u099f\u09bf \u099c\u09c7\u09b2\u09be \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09a8 \u0995\u09b0\u09c1\u09a8\u0964", "Select a district to view kiln candidates."))
-        return
-    selected_upazila = st.session_state.get("community_filter_upazila", all_areas)
-    if selected_upazila != all_areas and nearby.empty:
-        st.info(_ui_text(
-            f"'{selected_upazila}' \u098f\u09b2\u09be\u0995\u09be\u09af\u09bc \u0995\u09cb\u09a8\u09cb \u09ad\u09be\u099f\u09be\u09b0 \u09a4\u09a5\u09cd\u09af \u09aa\u09be\u0993\u09af\u09bc\u09be \u09af\u09be\u09af\u09bc\u09a8\u09bf\u0964",
-            f"No kiln data found for '{selected_upazila}'.",
-        ))
-        return
-    if "community_centroid" not in st.session_state:
-        st.info(_ui_text(
-            "\u098f\u0987 \u098f\u09b2\u09be\u0995\u09be\u09af\u09bc \u0995\u09cb\u09a8\u09cb \u09ad\u09be\u099f\u09be\u09b0 \u09a4\u09a5\u09cd\u09af \u09aa\u09be\u0993\u09af\u09bc\u09be \u09af\u09be\u09af\u09bc\u09a8\u09bf\u0964",
-            "No kiln data found for this area.",
-        ))
-        return
-    search_lat, search_lon = st.session_state["community_centroid"]
-    selected_district = st.session_state.get("community_filter_district", all_districts)
-    selected_upazila = st.session_state.get("community_filter_upazila", all_areas)
+        )
+        submitted = st.form_submit_button(
+            _ui_text("\U0001f50d \u0985\u09a8\u09c1\u09b8\u09a8\u09cd\u09a7\u09be\u09a8 \u0995\u09b0\u09c1\u09a8", "\U0001f50d Search"),
+            width="stretch",
+            disabled=not district_selected,
+        )
+
+    st.divider()
+
+    # Option B: use GPS location
+    st.markdown(_ui_text("**\u0985\u09a5\u09ac\u09be \u0986\u09aa\u09a8\u09be\u09b0 \u09ac\u09b0\u09cd\u09a4\u09ae\u09be\u09a8 \u0985\u09ac\u09b8\u09cd\u09a5\u09be\u09a8 \u09ac\u09cd\u09af\u09ac\u09b9\u09be\u09b0 \u0995\u09b0\u09c1\u09a8:**", "**Or use your current location:**"))
+    gps_js = """
+<script>
+function sendLocation() {
+    if (!navigator.geolocation) {
+        window.parent.postMessage({type:'streamlit:setComponentValue',value:{error:'unsupported'}}, '*');
+        return;
+    }
+    navigator.geolocation.getCurrentPosition(
+        function(pos) {
+            var params = new URLSearchParams(window.parent.location.search);
+            params.set('gps_lat', pos.coords.latitude.toFixed(6));
+            params.set('gps_lon', pos.coords.longitude.toFixed(6));
+            window.parent.location.search = params.toString();
+        },
+        function(err) {
+            alert('Location access denied. Please allow location access and try again.');
+        },
+        {enableHighAccuracy: true, timeout: 10000}
+    );
+}
+</script>
+<button onclick="sendLocation()" style="
+    background:#3b82f6;color:white;border:none;padding:.5rem 1.2rem;
+    border-radius:.4rem;font-size:1rem;cursor:pointer;width:100%
+">\U0001f4cd """ + _ui_text("\u0986\u09ae\u09be\u09b0 \u0985\u09ac\u09b8\u09cd\u09a5\u09be\u09a8 \u09ac\u09cd\u09af\u09ac\u09b9\u09be\u09b0 \u0995\u09b0\u09c1\u09a8", "Use my location") + """</button>
+"""
+    components.html(gps_js, height=60)
+
+    # Handle GPS query parameters
+    gps_params = st.query_params
+    gps_lat_str = gps_params.get("gps_lat")
+    gps_lon_str = gps_params.get("gps_lon")
+    if gps_lat_str and gps_lon_str:
+        try:
+            search_point = (float(gps_lat_str), float(gps_lon_str))
+            st.session_state["community_search_point"] = search_point
+            st.session_state["community_search_name"] = _ui_text("\u0986\u09aa\u09a8\u09be\u09b0 \u0985\u09ac\u09b8\u09cd\u09a5\u09be\u09a8", "Your location")
+            st.query_params.clear()
+        except ValueError:
+            pass
+
+    # Handle name-search submit
+    if submitted:
+        st.session_state.pop("community_search_point", None)
+        st.session_state.pop("community_search_name", None)
+        st.session_state.pop("community_report", None)
+        location_name = name.strip()
+        if not location_name:
+            st.warning(_ui_text("\u26a0\ufe0f \u0996\u09cb\u0981\u099c\u09be\u09b0 \u099c\u09a8\u09cd\u09af \u098f\u0995\u099f\u09bf \u098f\u09b2\u09be\u0995\u09be\u09b0 \u09a8\u09be\u09ae \u09b2\u09bf\u0996\u09c1\u09a8\u0964", "\u26a0\ufe0f Please enter a location name."))
+            return
+        with st.spinner(_ui_text("\u0996\u09cb\u0981\u099c\u09be \u09b9\u099a\u09cd\u099b\u09c7\u2026", "Searching\u2026")):
+            loc = None
+            queries = [f"{location_name}, Bangladesh", f"{location_name}, Dhaka", location_name]
+            try:
+                from geopy.geocoders import Photon as _Photon
+                _geo = _Photon(user_agent="dhoa-bd-v2", timeout=15)
+                for query in queries:
+                    try:
+                        loc = _geo.geocode(query)
+                        if loc is not None:
+                            break
+                    except Exception:
+                        continue
+            except Exception:
+                pass
+            if loc is None:
+                try:
+                    from geopy.geocoders import Nominatim as _Nominatim
+                    _geo2 = _Nominatim(user_agent="dhoa-bd-v3", timeout=15)
+                    for query in queries:
+                        try:
+                            loc = _geo2.geocode(query, country_codes="BD")
+                            if loc is not None:
+                                break
+                        except Exception:
+                            continue
+                except Exception:
+                    pass
+        if loc is None:
+            st.warning(_ui_text(
+                "\u26a0\ufe0f \u09b8\u09cd\u09a5\u09be\u09a8\u09c7\u09b0 \u09a8\u09be\u09ae \u09aa\u09be\u0993\u09af\u09bc\u09be \u09af\u09be\u09af\u09bc\u09a8\u09bf\u0964 \u0985\u09a8\u09cd\u09af \u09ac\u09be\u09a8\u09be\u09a8 \u09ac\u09be 'Ashulia, Savar' \u098f\u09b0 \u09ae\u09a4\u09cb \u09b2\u09bf\u0996\u09c1\u09a8\u0964",
+                "\u26a0\ufe0f Location not found. Try a different spelling or add the district, e.g. 'Ashulia, Savar'.",
+            ))
+            return
+        search_point = (float(loc.latitude), float(loc.longitude))
+        st.session_state["community_search_point"] = search_point
+        st.session_state["community_search_name"] = location_name
+
+    # No search yet
+    search_point = st.session_state.get("community_search_point")
     selected_location_name = st.session_state.get("community_search_name", "")
-    location_name = selected_location_name or (
-        selected_upazila if selected_upazila != all_areas else selected_district
-    )
+    if search_point is None:
+        st.info(_ui_text("\u09ad\u09be\u099f\u09be \u09a6\u09c7\u0996\u09a4\u09c7 \u098f\u0995\u099f\u09bf \u099c\u09c7\u09b2\u09be \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09a8 \u0995\u09b0\u09c1\u09a8\u0964", "Select a district and search for a place or use GPS to view kilns."))
+        return
+    if not district_selected:
+        st.info(_ui_text("\u09ad\u09be\u099f\u09be \u09a6\u09c7\u0996\u09a4\u09c7 \u098f\u0995\u099f\u09bf \u099c\u09c7\u09b2\u09be \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09a8 \u0995\u09b0\u09c1\u09a8\u0964", "Select a district to view kilns."))
+        return
+
+    st.session_state["community_filter_district"] = sel_district
+    st.session_state["community_filter_upazila"] = sel_upazila
+    search_lat, search_lon = search_point
+    location_name = selected_location_name or sel_upazila if sel_upazila != all_areas else selected_location_name or sel_district
     area_name = location_name
-    export_area = (
-        f"{selected_location_name}_{selected_upazila}"
-        if selected_location_name and selected_upazila != all_areas
-        else location_name
-    )
-    nearby["directions_url"] = [
-        f"https://www.google.com/maps/dir/?api=1&destination={float(row['lat']):.6f}%2C{float(row['lon']):.6f}"
-        for _, row in nearby.iterrows()
-    ]
+    nearby = get_filtered_gdf(gdf)
+
     result_column, map_column = st.columns([2, 3], gap="medium")
     with result_column:
         st.subheader(_ui_text("\u0995\u09be\u099b\u09be\u0995\u09be\u099b\u09bf\u09b0 \u0987\u099f\u09ad\u09be\u099f\u09be\u09b0 \u09aa\u09cd\u09b0\u09be\u09b0\u09cd\u09a5\u09c0", "Nearby kiln candidates"))
         with st.container(border=True):
-            st.metric(
-                _ui_text(
-                    f"{radius_m / 1000:g} \u0995\u09bf\u09ae\u09bf \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7\u09c7\u09b0 \u09ae\u09a7\u09cd\u09af\u09c7 \u09ad\u09be\u099f\u09be",
-                    f"Kilns within {radius_m / 1000:g} km",
-                ),
-                f"{len(nearby):,}",
-            )
+            if nearby.empty:
+                st.success(_ui_text(
+                    f"\u2705 {radius_m / 1000:g} \u0995\u09bf\u09ae\u09bf \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7\u09c7 \u0995\u09cb\u09a8\u09cb \u09ad\u09be\u099f\u09be \u09aa\u09be\u0993\u09af\u09bc\u09be \u09af\u09be\u09af\u09bc\u09a8\u09bf\u0964",
+                    f"\u2705 No kilns found within {radius_m / 1000:g} km."
+                ))
+            else:
+                st.metric(
+                    _ui_text(f"{radius_m / 1000:g} \u0995\u09bf\u09ae\u09bf \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7\u09c7\u09b0 \u09ae\u09a7\u09cd\u09af\u09c7 \u09ad\u09be\u099f\u09be", f"Kilns within {radius_m / 1000:g} km"),
+                    f"{len(nearby):,}",
+                )
             try:
                 report = community_alert_pdf(area_name, nearby, radius_m)
                 st.session_state["community_report"] = report
                 st.download_button(
                     _ui_text("\u09aa\u09cd\u09b0\u09a4\u09bf\u09ac\u09c7\u09a6\u09a8 \u09a1\u09be\u0989\u09a8\u09b2\u09cb\u09a1 \u0995\u09b0\u09c1\u09a8", "Download report"), report,
-                    _export_filename(
-                        district=None if selected_district == all_districts else selected_district,
-                        area=export_area,
-                        kiln_type="all",
-                        rule_signals=["all"],
-                        radius_m=radius_m,
-                        extension="pdf",
-                    ), "application/pdf",
+                    "dhoa_community_report.pdf", "application/pdf",
                     width="stretch", key="community_alert_download",
                 )
-            except Exception as _exc:  # noqa: BLE001
+            except Exception:
                 logging.exception("Community PDF generation failed")
-                st.error(_ui_text('প্রতিবেদন তৈরি করা যায়নি।', "Could not generate the report."))
-            if nearby.empty:
-                st.success(_ui_text(f"{radius_m / 1000:g} \u0995\u09bf\u09ae\u09bf \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7\u09c7 \u0995\u09cb\u09a8\u09cb \u09ad\u09be\u099f\u09be \u09aa\u09be\u0993\u09af\u09bc\u09be \u09af\u09be\u09af\u09bc\u09a8\u09bf\u0964", f"No kilns found within {radius_m / 1000:g} km."))
-            else:
+                st.error(_ui_text("\u09aa\u09cd\u09b0\u09a4\u09bf\u09ac\u09c7\u09a6\u09a8 \u09a4\u09c8\u09b0\u09bf \u0995\u09b0\u09be \u09af\u09be\u09df\u09a8\u09bf\u0964 \u0986\u09ac\u09be\u09b0 \u099a\u09c7\u09b7\u09cd\u099f\u09be \u0995\u09b0\u09c1\u09a8\u0964", "Report generation failed. Please try again."))
+            if not nearby.empty:
                 distance_header = _ui_text("\u09a6\u09c2\u09b0\u09a4\u09cd\u09ac (\u09ae\u09bf\u099f\u09be\u09b0)", "Distance (m)")
                 area_header = _ui_text("\u098f\u09b2\u09be\u0995\u09be", "Area")
                 type_header = _ui_text("\u09ad\u09be\u099f\u09be\u09b0 \u09a7\u09b0\u09a8", "Kiln type")
                 priority_header = _ui_text("\u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0", "Priority")
                 directions_header = _ui_text("\u09a6\u09bf\u0995\u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6\u09a8\u09be", "Directions")
+                nearby["directions_url"] = [
+                    f"https://www.google.com/maps/dir/?api=1&destination={float(row['lat']):.6f}%2C{float(row['lon']):.6f}"
+                    for _, row in nearby.iterrows()
+                ]
                 table = pd.DataFrame({
-                    distance_header: nearby["distance_m"].round(0).astype("Int64").astype("string").fillna("\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987").to_numpy(),
+                    distance_header: nearby["distance_m"].round(0).astype("Int64").astype("string").fillna(_ui_text("\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987", "N/A")).to_numpy(),
                     area_header: [_area_display_name(row) for _, row in nearby.iterrows()],
                     type_header: [_type_label(row.get("class")) for _, row in nearby.iterrows()],
                     priority_header: [_priority_label(row.get("priority_band")) for _, row in nearby.iterrows()],
@@ -990,90 +963,10 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
             st.download_button(
                 _ui_text("\u0995\u09ae\u09bf\u0989\u09a8\u09bf\u099f\u09bf \u09a4\u09be\u09b2\u09bf\u0995\u09be \u09a1\u09be\u0989\u09a8\u09b2\u09cb\u09a1 \u0995\u09b0\u09c1\u09a8", "Download community CSV"),
                 make_download_csv(nearby, COMMUNITY_CSV_COLUMNS),
-                _export_filename(
-                    district=None if selected_district == all_districts else selected_district,
-                    area=export_area,
-                    kiln_type="all",
-                    rule_signals=["all"],
-                    radius_m=radius_m,
-                    extension="csv",
-                ),
-                "text/csv",
-                width="stretch",
-                key="community_candidates_csv_download",
+                "dhoa_community_candidates.csv", "text/csv",
+                width="stretch", key="community_candidates_csv_download",
             )
-            if not nearby.empty:
-                st.subheader(_ui_text("\u09ad\u09be\u099f\u09be \u09b0\u09bf\u09aa\u09cb\u09b0\u09cd\u099f \u0995\u09b0\u09c1\u09a8", "Prepare kiln report"))
-            if not nearby.empty:
-                kiln_ids = nearby["kiln_id"].astype(str).tolist()
-                current_id = st.session_state.get("community_report_kiln_id")
-                if current_id not in kiln_ids:
-                    inspector_selection = st.session_state.get("selected_kiln_id")
-                    current_id = str(inspector_selection) if inspector_selection is not None and str(inspector_selection) in kiln_ids else None
-                    st.session_state["community_report_kiln_id"] = current_id
-                with st.expander(
-                    _ui_text("\u26a0\ufe0f \u098f\u0987 \u09ad\u09be\u099f\u09be\u099f\u09bf \u09b0\u09bf\u09aa\u09cb\u09b0\u09cd\u099f \u0995\u09b0\u09c1\u09a8", "\u26a0\ufe0f Report this kiln"),
-                    expanded=current_id is not None,
-                ):
-                    selected_kiln_id = st.selectbox(
-                        _ui_text("\u09ad\u09be\u099f\u09be \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09a8 \u0995\u09b0\u09c1\u09a8", "Select kiln"),
-                        kiln_ids,
-                        index=kiln_ids.index(current_id) if current_id in kiln_ids else None,
-                        placeholder=_ui_text("\u098f\u0995\u099f\u09bf \u09ad\u09be\u099f\u09be \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09a8 \u0995\u09b0\u09c1\u09a8", "Select a kiln"),
-                        key="community_report_kiln_id",
-                        format_func=lambda kiln_id: f"#{kiln_id} \u00b7 {_area_display_name(nearby.loc[nearby['kiln_id'].astype(str).eq(kiln_id)].iloc[0])}",
-                    )
-                    selected_report = nearby[nearby["kiln_id"].astype(str).eq(str(selected_kiln_id))] if selected_kiln_id is not None else nearby.iloc[0:0]
-                    report_text = ""
-                    if not selected_report.empty:
-                        kiln = selected_report.iloc[0]
-                        missing_value = "\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987"
-                        display_value = lambda value: missing_value if pd.isna(value) or not str(value).strip() else str(value)
-                        district = display_value(kiln.get("district"))
-                        upazila = display_value(kiln.get("upazila"))
-                        nearest_place = display_value(kiln.get("nearest_place"))
-                        nearest_dist = pd.to_numeric(pd.Series([kiln.get("nearest_place_dist_m")]), errors="coerce").iloc[0]
-                        nearest_dist_text = f"{nearest_dist:g}" if pd.notna(nearest_dist) else "\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987"
-                        latitude = pd.to_numeric(pd.Series([kiln.get("lat")]), errors="coerce").iloc[0]
-                        longitude = pd.to_numeric(pd.Series([kiln.get("lon")]), errors="coerce").iloc[0]
-                        location = f"{latitude:.4f}\u00b0N, {longitude:.4f}\u00b0E" if pd.notna(latitude) and pd.notna(longitude) else "\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987"
-                        priority = _priority_label(kiln.get("priority_band"))
-                        breach_count = display_value(kiln.get("breach_count"))
-                        rule_names = _signals(kiln)
-                        breached_rules_formatted = (
-                            "\n".join(f"  \u2022 {rule}" for rule in rule_names)
-                            if rule_names else "\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987"
-                        )
-                        report_text = (
-                            f"{_ui_text('\u0985\u09ad\u09bf\u09af\u09cb\u0997 \u09ac\u09bf\u09b7\u09af\u09bc: \u09b8\u09ae\u09cd\u09ad\u09be\u09ac\u09cd\u09af \u0985\u09ac\u09c8\u09a7 \u0987\u099f\u09ad\u09be\u099f\u09be', 'Complaint subject: Suspected illegal brick kiln')}\n"
-                            f"{_ui_text('\u099c\u09c7\u09b2\u09be', 'District')}: {district}\n"
-                            f"{_ui_text('\u0989\u09aa\u099c\u09c7\u09b2\u09be', 'Upazila')}: {upazila}\n"
-                            f"{_ui_text('\u09a8\u09bf\u0995\u099f\u09a4\u09ae \u09b8\u09cd\u09a5\u09be\u09a8', 'Nearest place')}: {nearest_place} ({nearest_dist_text} {_ui_text('\u09ae\u09bf', 'm')})\n"
-                            f"{_ui_text('\u0986\u09a8\u09c1\u09ae\u09be\u09a8\u09bf\u0995 \u0985\u09ac\u09b8\u09cd\u09a5\u09be\u09a8', 'Approximate location')}: {location}\n"
-                            f"{_ui_text('\u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0', 'Priority')}: {priority}\n"
-                            f"{_ui_text('\u09b2\u0999\u09cd\u0998\u09bf\u09a4 \u09a8\u09bf\u09af\u09bc\u09ae', 'Rules flagged')}: {breached_rules_formatted}\n"
-                            f"{_ui_text('\u09b2\u0999\u09cd\u0998\u09a8 \u09b8\u0982\u0996\u09cd\u09af\u09be', 'Number of flags')}: {breach_count}\n"
-                            f"{_ui_text('\u09a4\u09a5\u09cd\u09af\u09b8\u09c2\u09a4\u09cd\u09b0', 'Source')}: {_ui_text('\u09a7\u09cb\u0981\u09af\u09bc\u09be \u09b8\u09cd\u09af\u09be\u099f\u09c7\u09b2\u09be\u0987\u099f \u09aa\u09b0\u09cd\u09af\u09ac\u09c7\u0995\u09cd\u09b7\u09a3 \u09a1\u09cd\u09af\u09be\u09b6\u09ac\u09cb\u09b0\u09cd\u09a1', 'Dhoa satellite monitoring dashboard')}"
-                        )
-                    st.markdown(_ui_text(
-                        "সরকারি পরিবেশ অভিযোগ হেল্পলাইনে রিপোর্ট করতে:\n\n📞 333 নম্বরে কল করুন → 4 চাপুন\n\nআপনার অভিযোগ সরাসরি পরিবেশ কর্মকর্তার ড্যাশবোর্ডে যাবে এবং SMS-এ আপডেট পাবেন।",
-                        "Report environmental concerns to the Department of Environment hotline:\n\n📞 Call 333, then press 4.\n\nYour report will be sent to the relevant officer's dashboard, and you will receive SMS updates.",
-                    ))
-                    st.text_area(
-                        _ui_text("\u09b0\u09bf\u09aa\u09cb\u09b0\u09cd\u099f \u099f\u09c7\u0995\u09b8\u099f", "Report text"),
-                        value=report_text,
-                        placeholder=_ui_text("\u098f\u0995\u099f\u09bf \u09ad\u09be\u099f\u09be \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09a8 \u0995\u09b0\u09c1\u09a8", "Select a kiln"),
-                        height=230,
-                        disabled=True,
-                        key="community_report_text_preview",
-                    )
-                    if st.button(_ui_text("\U0001f4cb \u09b0\u09bf\u09aa\u09cb\u09b0\u09cd\u099f \u099f\u09c7\u0995\u09b8\u099f \u0995\u09aa\u09bf \u0995\u09b0\u09c1\u09a8", "\U0001f4cb Copy report text"), key="community_report_copy_text") and report_text:
-                        st.code(report_text, language=None)
-            if not nearby.empty:
-                st.info(_ui_text(
-                    "\u09b8\u09b0\u0995\u09be\u09b0\u09bf \u09aa\u09b0\u09bf\u09ac\u09c7\u09b6 \u09b9\u09c7\u09b2\u09cd\u09aa\u09b2\u09be\u0987\u09a8: \U0001f4de 333 \u2192 4 \u099a\u09be\u09aa\u09c1\u09a8 | \u09aa\u09b0\u09bf\u09ac\u09c7\u09b6 \u09ae\u09a8\u09cd\u09a4\u09cd\u09b0\u09a3\u09be\u09b2\u09af\u09bc, \u09ac\u09be\u0982\u09b2\u09be\u09a6\u09c7\u09b6",
-                    "Department of Environment hotline: \U0001f4de 333, then press 4 | Bangladesh",
-                ))
+
     with map_column:
         st.subheader(_ui_text("\u098f\u09b2\u09be\u0995\u09be\u09b0 \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0", "Area map"))
         center_label_bn = (
@@ -1353,9 +1246,9 @@ def _format_distance_cell(row: pd.Series, rule: Mapping[str, Any]) -> str:
     if pd.isna(value):
         return "\u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987"
     rendered = (
-        f"{value / 1000:.1f} \u0995\u09bf\u09ae\u09bf"
+        _ui_text(f"{value / 1000:.1f} \u0995\u09bf\u09ae\u09bf", f"{value / 1000:.1f} km")
         if value >= 1000
-        else f"{value:,.0f} \u09ae\u09bf"
+        else _ui_text(f"{value:,.0f} \u09ae\u09bf", f"{value:,.0f} m")
     )
     threshold = pd.to_numeric(
         pd.Series([rule.get("buffer_m")]), errors="coerce"
@@ -1387,9 +1280,10 @@ def _kiln_list_frame(gdf: gpd.GeoDataFrame) -> pd.DataFrame:
     columns = [select_label, location_label, priority_label]
     columns.extend(
         (
-            f"{feature_labels.get(str(rule.get('feature')), str(rule.get('feature')))} \u09a5\u09c7\u0995\u09c7 \u09a6\u09c2\u09b0\u09a4\u09cd\u09ac"
-            if not _english_ui()
-            else f"Distance from {str(rule.get('feature')).replace('_', ' ')}"
+            _ui_text(
+                f"{feature_labels.get(str(rule.get('feature')), str(rule.get('feature')))} \u09a5\u09c7\u0995\u09c7 \u09a6\u09c2\u09b0\u09a4\u09cd\u09ac",
+                f"Distance from {str(rule.get('feature')).replace('_', ' ')}",
+            )
         )
         for rule in rules
     )
@@ -1735,12 +1629,23 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
                 ),
             )
             st.markdown(f"### {_ui_text('\u09ab\u09bf\u09b2\u09cd\u099f\u09be\u09b0', 'Filters')}")
-            priority_options = ["\u0989\u099a\u09cd\u099a", "\u09ae\u09be\u099d\u09be\u09b0\u09bf", "\u09a8\u09bf\u09ae\u09cd\u09a8"]
+            # Priority options are always stored as Bengali keys (get_filtered_gdf maps them).
+            # format_func translates display label based on current language.
+            _priority_opts_bn = ["উচ্চ", "মাঝারি", "নিম্ন"]
+            _priority_display = {
+                "উচ্চ": _ui_text("উচ্চ", "High"),
+                "মাঝারি": _ui_text("মাঝারি", "Medium"),
+                "নিম্ন": _ui_text("নিম্ন", "Low"),
+            }
+            # Reset stored selection if it contains stale language-specific values
+            _stored = st.session_state.get("filter_priority", _priority_opts_bn)
+            if _stored and not any(v in _priority_opts_bn for v in _stored):
+                st.session_state["filter_priority"] = _priority_opts_bn
             filters["priorities"] = st.multiselect(
                 _ui_text("\u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0", "Priority"),
-                priority_options,
-                default=priority_options,
-                format_func=_priority_label,
+                _priority_opts_bn,
+                default=_priority_opts_bn,
+                format_func=lambda v: _priority_display.get(v, v),
                 key="filter_priority",
             )
             type_column = "class" if "class" in gdf.columns else "class_name"
@@ -1946,7 +1851,7 @@ def render_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> None:
                     else None
                 ),
                 height=640,
-                key="dhoa_high_priority_list",
+                key=f"dhoa_high_priority_list_{_ui_text('bn', 'en')}",
                 default=None,
             )
             if isinstance(list_choice, dict):
@@ -1965,8 +1870,8 @@ def render_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> None:
                     st.session_state["dhoa_list_selection_token"] = click_token
     with map_panel:
         st.caption(_ui_text(
-            "\u09b2\u09be\u09b2, \u0995\u09ae\u09b2\u09be \u0993 \u09b8\u09ac\u09c1\u099c \u09ac\u09bf\u09a8\u09cd\u09a6\u09c1 \u09ad\u09be\u099f\u09be\u09b0 \u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0 \u09a6\u09c7\u0996\u09be\u09df; \u09ac\u09bf\u09a8\u09cd\u09a6\u09c1\u09a4\u09c7 \u099a\u09be\u09aa\u09b2\u09c7 \u09ac\u09bf\u09b8\u09cd\u09a4\u09be\u09b0\u09bf\u09a4 \u09a6\u09c7\u0996\u09c1\u09a8\u0964",
-            "Red, orange and green dots show kiln priority; tap a dot for details.",
+            "চিহ্নের রং অগ্রাধিকার বোঝায়; গাঢ় সীমানা নির্বাচিত প্রার্থীকে দেখায়।",
+            "Marker colour shows priority; bold border shows the selected candidate.",
         ))
         selected_id_for_report = st.session_state.get("selected_kiln_id")
         selected_for_report = (
