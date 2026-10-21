@@ -505,6 +505,16 @@ def get_filtered_gdf(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         radius_m = int(st.session_state.get("community_radius_m", 1000))
         distances = community_distances(gdf, float(search_lat), float(search_lon))
         result = gdf.loc[distances.le(radius_m)].copy()
+        district = st.session_state.get("community_filter_district", "\u09b8\u09ac \u099c\u09c7\u09b2\u09be")
+        upazila = st.session_state.get("community_filter_upazila", "\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be")
+        if district != "\u09b8\u09ac \u099c\u09c7\u09b2\u09be":
+            if "district" not in result.columns:
+                return result.iloc[0:0].copy()
+            result = result[result["district"].astype(str).eq(str(district))].copy()
+        if upazila != "\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be":
+            if "upazila" not in result.columns:
+                return result.iloc[0:0].copy()
+            result = result[result["upazila"].astype(str).eq(str(upazila))].copy()
         result["distance_m"] = distances.loc[result.index]
         return result.sort_values("distance_m", ascending=True)
 
@@ -687,6 +697,13 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
         for _, row in nearby.iterrows()
     ]
     area_name = format_area_name(nearby.iloc[0]) if not nearby.empty else "\u0985\u099c\u09be\u09a8\u09be \u098f\u09b2\u09be\u0995\u09be"
+    all_districts = "\u09b8\u09ac \u099c\u09c7\u09b2\u09be"
+    all_areas = "\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be"
+    selected_district = st.session_state.get("community_filter_district", all_districts)
+    selected_upazila = st.session_state.get("community_filter_upazila", all_areas)
+    export_area = location_name
+    if selected_upazila != all_areas:
+        export_area = f"{location_name}_{selected_upazila}"
 
     result_column, map_column = st.columns([2, 3], gap="medium")
     with result_column:
@@ -705,8 +722,8 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
                 st.download_button(
                     _ui_text("\u09aa\u09cd\u09b0\u09a4\u09bf\u09ac\u09c7\u09a6\u09a8 \u09a1\u09be\u0989\u09a8\u09b2\u09cb\u09a1 \u0995\u09b0\u09c1\u09a8", "Download report"), report,
                     _export_filename(
-                        district=None,
-                        area=location_name,
+                        district=None if selected_district == all_districts else selected_district,
+                        area=export_area,
                         kiln_type="all",
                         rule_signals=["all"],
                         radius_m=radius_m,
@@ -742,8 +759,8 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
                 _ui_text("\u0995\u09ae\u09bf\u0989\u09a8\u09bf\u099f\u09bf \u09a4\u09be\u09b2\u09bf\u0995\u09be \u09a1\u09be\u0989\u09a8\u09b2\u09cb\u09a1 \u0995\u09b0\u09c1\u09a8", "Download community CSV"),
                 make_download_csv(nearby, COMMUNITY_CSV_COLUMNS),
                 _export_filename(
-                    district=None,
-                    area=location_name,
+                    district=None if selected_district == all_districts else selected_district,
+                    area=export_area,
                     kiln_type="all",
                     rule_signals=["all"],
                     radius_m=radius_m,
@@ -1351,6 +1368,17 @@ def _reset_upazila_filter() -> None:
     st.session_state["filter_upazila"] = "\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be"
 
 
+def _reset_community_upazila_filter() -> None:
+    """Reset the Community area when its selected district changes."""
+    st.session_state["community_filter_upazila"] = "\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be"
+
+
+def _reset_community_location_filters() -> None:
+    """Restore Community district and area filters to their defaults."""
+    st.session_state["community_filter_district"] = "\u09b8\u09ac \u099c\u09c7\u09b2\u09be"
+    st.session_state["community_filter_upazila"] = "\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be"
+
+
 def _sync_map_tile(widget_key: str) -> None:
     """Keep the selected basemap in canonical session state."""
     st.session_state["map_tile"] = st.session_state.get(widget_key, "street")
@@ -1476,6 +1504,47 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
                 width="stretch",
                 key="sidebar_export_list",
             )
+        elif mode == "community":
+            st.markdown(f"### {_ui_text('\u09ab\u09bf\u09b2\u09cd\u099f\u09be\u09b0', 'Filters')}")
+            all_districts = "\u09b8\u09ac \u099c\u09c7\u09b2\u09be"
+            all_areas = "\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be"
+            district_values = (
+                sorted(gdf["district"].dropna().astype(str).unique().tolist())
+                if "district" in gdf.columns else []
+            )
+            district_options = [all_districts, *district_values]
+            if st.session_state.get("community_filter_district") not in district_options:
+                st.session_state["community_filter_district"] = all_districts
+            filters["district"] = st.selectbox(
+                _ui_text("\u099c\u09c7\u09b2\u09be", "District"),
+                district_options,
+                format_func=lambda value: (
+                    _ui_text(all_districts, "All districts")
+                    if value == all_districts else _district_label(value)
+                ),
+                key="community_filter_district",
+                on_change=_reset_community_upazila_filter,
+            )
+            district_selected = filters["district"] != all_districts
+            upazila_source = gdf if district_selected else gdf.iloc[0:0]
+            if district_selected and "district" in upazila_source.columns:
+                upazila_source = upazila_source[
+                    upazila_source["district"].astype(str).eq(str(filters["district"]))
+                ]
+            upazila_values = (
+                sorted(upazila_source["upazila"].dropna().astype(str).unique().tolist())
+                if "upazila" in upazila_source.columns else []
+            )
+            upazila_options = [all_areas, *upazila_values]
+            if st.session_state.get("community_filter_upazila") not in upazila_options:
+                st.session_state["community_filter_upazila"] = all_areas
+            filters["upazila"] = st.selectbox(
+                _ui_text("\u098f\u09b2\u09be\u0995\u09be (\u0989\u09aa\u099c\u09c7\u09b2\u09be)", "Area (Upazila)"),
+                upazila_options,
+                format_func=lambda value: _ui_text(all_areas, "All areas") if value == all_areas else value,
+                key="community_filter_upazila",
+                disabled=not district_selected,
+            )
         if st.session_state.get("map_tile") not in {"street", "satellite"}:
             st.session_state["map_tile"] = "street"
         map_tile_widget_key = f"map_tile_{'en' if _english_ui() else 'bn'}"
@@ -1500,6 +1569,13 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
                 _ui_text("\U0001f504 \u09ab\u09bf\u09b2\u09cd\u099f\u09be\u09b0 \u09b0\u09bf\u09b8\u09c7\u099f \u0995\u09b0\u09c1\u09a8", "\U0001f504 Reset filters"),
                 key="reset_inspector_filters",
                 on_click=_reset_inspector_filters,
+                width="stretch",
+            )
+        elif mode == "community":
+            st.button(
+                _ui_text("\U0001f504 \u09ab\u09bf\u09b2\u09cd\u099f\u09be\u09b0 \u09b0\u09bf\u09b8\u09c7\u099f \u0995\u09b0\u09c1\u09a8", "\U0001f504 Reset filters"),
+                key="reset_community_location_filters",
+                on_click=_reset_community_location_filters,
                 width="stretch",
             )
     return filters
