@@ -1839,6 +1839,7 @@ def render_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> None:
             st.info(_ui_text("এই ফিল্টারে কোনো প্রার্থী নেই।", "No candidates match these filters."))
         else:
             list_frame = _kiln_list_frame(list_candidates)
+            st.session_state["_list_lang"] = _ui_text("bn", "en")
             list_choice = _priority_candidate_list(
                 columns=list_frame.columns.tolist(),
                 rows=list_frame.astype(str).values.tolist(),
@@ -1848,6 +1849,7 @@ def render_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> None:
                 selected_id=(
                     str(st.session_state.get("selected_kiln_id"))
                     if st.session_state.get("selected_kiln_id") is not None
+                    and st.session_state.get("_list_lang") == _ui_text("bn", "en")
                     else None
                 ),
                 height=640,
@@ -1870,6 +1872,7 @@ def render_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> None:
                         st.session_state["map_center"] = (chosen_lat, chosen_lng)
                         st.session_state["map_zoom"] = max(15, int(st.session_state.get("map_zoom", 15)))
                     st.session_state[_token_key] = click_token
+                    st.session_state["_list_lang"] = _ui_text("bn", "en")
     with map_panel:
         st.caption(_ui_text(
             "চিহ্নের রং অগ্রাধিকার বোঝায়; গাঢ় সীমানা নির্বাচিত প্রার্থীকে দেখায়।",
