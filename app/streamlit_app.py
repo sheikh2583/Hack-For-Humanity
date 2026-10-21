@@ -1920,8 +1920,20 @@ def render_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> None:
                     key=f"main_map_{st.session_state.get('filter_district', '')}_{st.session_state.get('filter_upazila', '')}_{_ui_text('bn', 'en')}",
                     height=580,
                     width="100%",
-                    returned_objects=["last_object_clicked"],
+                    returned_objects=["last_object_clicked", "zoom", "bounds"],
                 )
+                if isinstance(map_result, dict):
+                    try:
+                        _bounds = map_result["bounds"]
+                        _southwest = _bounds["_southWest"]
+                        _northeast = _bounds["_northEast"]
+                        st.session_state["map_zoom"] = int(map_result["zoom"])
+                        st.session_state["map_center"] = (
+                            (float(_southwest["lat"]) + float(_northeast["lat"])) / 2,
+                            (float(_southwest["lng"]) + float(_northeast["lng"])) / 2,
+                        )
+                    except (KeyError, TypeError, ValueError):
+                        pass
         else:
             map_result = {}
     clicked = map_result.get("last_object_clicked") if isinstance(map_result, dict) else None
