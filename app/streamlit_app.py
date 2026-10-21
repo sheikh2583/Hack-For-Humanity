@@ -645,6 +645,51 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
             st.audio(str(community_guide))
         else:
             st.info(_ui_text("\U0001f50a \u0985\u09a1\u09bf\u0993 \u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6\u09bf\u0995\u09be \u09b6\u09c0\u0998\u09cd\u09b0\u0987 \u0986\u09b8\u099b\u09c7", "\U0001f50a Audio guide coming soon"))
+        all_districts = "\u09b8\u09ac \u099c\u09c7\u09b2\u09be"
+        all_areas = "\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be"
+        district_values = (
+            sorted(gdf["district"].dropna().astype(str).unique().tolist())
+            if "district" in gdf.columns else []
+        )
+        district_options = [all_districts, *district_values]
+        if st.session_state.get("community_filter_district") not in district_options:
+            st.session_state["community_filter_district"] = all_districts
+        community_district = st.selectbox(
+            _ui_text("\u099c\u09c7\u09b2\u09be", "District"),
+            district_options,
+            format_func=lambda value: (
+                _ui_text(all_districts, "All districts")
+                if value == all_districts else _district_label(value)
+            ),
+            key="community_filter_district",
+            on_change=_reset_community_upazila_filter,
+        )
+        district_selected = community_district != all_districts
+        upazila_source = gdf if district_selected else gdf.iloc[0:0]
+        if district_selected and "district" in upazila_source.columns:
+            upazila_source = upazila_source[
+                upazila_source["district"].astype(str).eq(str(community_district))
+            ]
+        upazila_values = (
+            sorted(upazila_source["upazila"].dropna().astype(str).unique().tolist())
+            if "upazila" in upazila_source.columns else []
+        )
+        upazila_options = [all_areas, *upazila_values]
+        if st.session_state.get("community_filter_upazila") not in upazila_options:
+            st.session_state["community_filter_upazila"] = all_areas
+        st.selectbox(
+            _ui_text("\u098f\u09b2\u09be\u0995\u09be (\u0989\u09aa\u099c\u09c7\u09b2\u09be)", "Area (Upazila)"),
+            upazila_options,
+            format_func=lambda value: _ui_text(all_areas, "All areas") if value == all_areas else value,
+            key="community_filter_upazila",
+            disabled=not district_selected,
+        )
+        st.button(
+            _ui_text("\U0001f504 \u09ab\u09bf\u09b2\u09cd\u099f\u09be\u09b0 \u09b0\u09bf\u09b8\u09c7\u099f \u0995\u09b0\u09c1\u09a8", "\U0001f504 Reset location filters"),
+            key="reset_community_location_filters",
+            on_click=_reset_community_location_filters,
+            width="content",
+        )
         with st.form("community_search_form", border=False):
             name = st.text_input(_ui_text("\u09a8\u09be\u09ae \u09b2\u09bf\u0996\u09c1\u09a8", "Search location"), placeholder=_ui_text("\u09af\u09c7\u09ae\u09a8: \u0986\u09b6\u09c1\u09b2\u09bf", "e.g. Ashulia"))
             submitted = st.form_submit_button(_ui_text("\U0001f50d \u0985\u09a8\u09c1\u09b8\u09a8\u09cd\u09a7\u09be\u09a8 \u0995\u09b0\u09c1\u09a8", "\U0001f50d Search"), width="stretch")
@@ -1504,47 +1549,6 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
                 width="stretch",
                 key="sidebar_export_list",
             )
-        elif mode == "community":
-            st.markdown(f"### {_ui_text('\u09ab\u09bf\u09b2\u09cd\u099f\u09be\u09b0', 'Filters')}")
-            all_districts = "\u09b8\u09ac \u099c\u09c7\u09b2\u09be"
-            all_areas = "\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be"
-            district_values = (
-                sorted(gdf["district"].dropna().astype(str).unique().tolist())
-                if "district" in gdf.columns else []
-            )
-            district_options = [all_districts, *district_values]
-            if st.session_state.get("community_filter_district") not in district_options:
-                st.session_state["community_filter_district"] = all_districts
-            filters["district"] = st.selectbox(
-                _ui_text("\u099c\u09c7\u09b2\u09be", "District"),
-                district_options,
-                format_func=lambda value: (
-                    _ui_text(all_districts, "All districts")
-                    if value == all_districts else _district_label(value)
-                ),
-                key="community_filter_district",
-                on_change=_reset_community_upazila_filter,
-            )
-            district_selected = filters["district"] != all_districts
-            upazila_source = gdf if district_selected else gdf.iloc[0:0]
-            if district_selected and "district" in upazila_source.columns:
-                upazila_source = upazila_source[
-                    upazila_source["district"].astype(str).eq(str(filters["district"]))
-                ]
-            upazila_values = (
-                sorted(upazila_source["upazila"].dropna().astype(str).unique().tolist())
-                if "upazila" in upazila_source.columns else []
-            )
-            upazila_options = [all_areas, *upazila_values]
-            if st.session_state.get("community_filter_upazila") not in upazila_options:
-                st.session_state["community_filter_upazila"] = all_areas
-            filters["upazila"] = st.selectbox(
-                _ui_text("\u098f\u09b2\u09be\u0995\u09be (\u0989\u09aa\u099c\u09c7\u09b2\u09be)", "Area (Upazila)"),
-                upazila_options,
-                format_func=lambda value: _ui_text(all_areas, "All areas") if value == all_areas else value,
-                key="community_filter_upazila",
-                disabled=not district_selected,
-            )
         if st.session_state.get("map_tile") not in {"street", "satellite"}:
             st.session_state["map_tile"] = "street"
         map_tile_widget_key = f"map_tile_{'en' if _english_ui() else 'bn'}"
@@ -1569,13 +1573,6 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
                 _ui_text("\U0001f504 \u09ab\u09bf\u09b2\u09cd\u099f\u09be\u09b0 \u09b0\u09bf\u09b8\u09c7\u099f \u0995\u09b0\u09c1\u09a8", "\U0001f504 Reset filters"),
                 key="reset_inspector_filters",
                 on_click=_reset_inspector_filters,
-                width="stretch",
-            )
-        elif mode == "community":
-            st.button(
-                _ui_text("\U0001f504 \u09ab\u09bf\u09b2\u09cd\u099f\u09be\u09b0 \u09b0\u09bf\u09b8\u09c7\u099f \u0995\u09b0\u09c1\u09a8", "\U0001f504 Reset filters"),
-                key="reset_community_location_filters",
-                on_click=_reset_community_location_filters,
                 width="stretch",
             )
     return filters
