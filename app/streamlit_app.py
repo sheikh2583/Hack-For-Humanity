@@ -604,9 +604,17 @@ def get_filtered_gdf(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     district = st.session_state.get("filter_district", "\u09b8\u09ac \u099c\u09c7\u09b2\u09be")
     upazila = st.session_state.get("filter_upazila", "\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be")
     kiln_type = st.session_state.get("filter_kiln_type", ALL_KILN_TYPES)
-    priorities = st.session_state.get(
-        "filter_priority", ["\u0989\u099a\u09cd\u099a", "\u09ae\u09be\u099d\u09be\u09b0\u09bf", "\u09a8\u09bf\u09ae\u09cd\u09a8"]
-    )
+    _default_priorities = ["\u0989\u099a\u09cd\u099a", "\u09ae\u09be\u099d\u09be\u09b0\u09bf", "\u09a8\u09bf\u09ae\u09cd\u09a8"]
+    priorities = st.session_state.get("filter_priority") or _default_priorities
+    # Guard: remap any English labels that slipped into session state.
+    _en_to_bn = {
+        "High": "\u0989\u099a\u09cd\u099a",
+        "Medium": "\u09ae\u09be\u099d\u09be\u09b0\u09bf",
+        "Low": "\u09a8\u09bf\u09ae\u09cd\u09a8",
+    }
+    priorities = [_en_to_bn.get(p, p) for p in priorities]
+    if not priorities:
+        priorities = _default_priorities
 
     if district != "\u09b8\u09ac \u099c\u09c7\u09b2\u09be":
         if "district" not in result:
@@ -1631,20 +1639,20 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
             st.markdown(f"### {_ui_text('\u09ab\u09bf\u09b2\u09cd\u099f\u09be\u09b0', 'Filters')}")
             # Priority options are always stored as Bengali keys (get_filtered_gdf maps them).
             # format_func translates display label based on current language.
-            _priority_opts_bn = ["উচ্চ", "মাঝারি", "নিম্ন"]
+            _priority_opts = ["\u0989\u099a\u09cd\u099a", "\u09ae\u09be\u099d\u09be\u09b0\u09bf", "\u09a8\u09bf\u09ae\u09cd\u09a8"]
             _priority_display = {
-                "উচ্চ": _ui_text("উচ্চ", "High"),
-                "মাঝারি": _ui_text("মাঝারি", "Medium"),
-                "নিম্ন": _ui_text("নিম্ন", "Low"),
+                "\u0989\u099a\u09cd\u099a": _ui_text("\u0989\u099a\u09cd\u099a", "High"),
+                "\u09ae\u09be\u099d\u09be\u09b0\u09bf": _ui_text("\u09ae\u09be\u099d\u09be\u09b0\u09bf", "Medium"),
+                "\u09a8\u09bf\u09ae\u09cd\u09a8": _ui_text("\u09a8\u09bf\u09ae\u09cd\u09a8", "Low"),
             }
-            # Reset stored selection if it contains stale language-specific values
-            _stored = st.session_state.get("filter_priority", _priority_opts_bn)
-            if _stored and not any(v in _priority_opts_bn for v in _stored):
-                st.session_state["filter_priority"] = _priority_opts_bn
+            # Sanitise stored value: clear English labels or an empty selection.
+            _stored_p = st.session_state.get("filter_priority", _priority_opts)
+            if not _stored_p or any(v in ("High", "Medium", "Low") for v in _stored_p):
+                st.session_state["filter_priority"] = _priority_opts
             filters["priorities"] = st.multiselect(
                 _ui_text("\u0985\u0997\u09cd\u09b0\u09be\u09a7\u09bf\u0995\u09be\u09b0", "Priority"),
-                _priority_opts_bn,
-                default=_priority_opts_bn,
+                _priority_opts,
+                default=_priority_opts,
                 format_func=lambda v: _priority_display.get(v, v),
                 key="filter_priority",
             )
