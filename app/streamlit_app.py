@@ -704,7 +704,14 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
                 st.session_state["community_report"] = report
                 st.download_button(
                     _ui_text("\u09aa\u09cd\u09b0\u09a4\u09bf\u09ac\u09c7\u09a6\u09a8 \u09a1\u09be\u0989\u09a8\u09b2\u09cb\u09a1 \u0995\u09b0\u09c1\u09a8", "Download report"), report,
-                    "dhoa_community_report.pdf", "application/pdf",
+                    _export_filename(
+                        district=None,
+                        area=location_name,
+                        kiln_type=None,
+                        rule_signals=_exported_rule_signals(nearby),
+                        radius_m=radius_m,
+                        extension="pdf",
+                    ), "application/pdf",
                     width="stretch", key="community_alert_download",
                 )
             except Exception as _exc:  # noqa: BLE001
@@ -734,7 +741,14 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
             st.download_button(
                 _ui_text("\u0995\u09ae\u09bf\u0989\u09a8\u09bf\u099f\u09bf \u09a4\u09be\u09b2\u09bf\u0995\u09be \u09a1\u09be\u0989\u09a8\u09b2\u09cb\u09a1 \u0995\u09b0\u09c1\u09a8", "Download community CSV"),
                 make_download_csv(nearby, COMMUNITY_CSV_COLUMNS),
-                "dhoa_community_candidates.csv",
+                _export_filename(
+                    district=None,
+                    area=location_name,
+                    kiln_type=None,
+                    rule_signals=_exported_rule_signals(nearby),
+                    radius_m=radius_m,
+                    extension="csv",
+                ),
                 "text/csv",
                 width="stretch",
                 key="community_candidates_csv_download",
@@ -1138,6 +1152,40 @@ def make_download_csv(
     return buffer.getvalue()
 
 
+def _export_filename(
+    *,
+    district: object,
+    area: object,
+    kiln_type: object,
+    rule_signals: list[str],
+    radius_m: object,
+    extension: str,
+) -> str:
+    """Build a stable filename from the export's active filters and signals.
+
+    Input schema: district, area, kiln type, rule signal IDs, radius, and file
+    extension. Output: a filesystem-safe Dhoa export filename.
+    """
+    def token(value: object) -> str:
+        text = unicodedata.normalize("NFKC", str(value)).strip().casefold()
+        safe = "".join(char if char.isalnum() else "_" for char in text)
+        return "_".join(part for part in safe.split("_") if part) or "none"
+
+    signal_part = "_".join(sorted({token(signal) for signal in rule_signals})) or "none"
+    radius_part = f"{token(radius_m)}m" if radius_m is not None else "none"
+    suffix = token(extension).lstrip("_")
+    return (
+        f"dhoa_district_{token(district)}_area_{token(area)}_"
+        f"kiln_type_{token(kiln_type)}_rule_signals_{signal_part}_"
+        f"radius_{radius_part}_{datetime.now(UTC):%Y%m%d}.{suffix}"
+    )
+
+
+def _exported_rule_signals(frame: pd.DataFrame) -> list[str]:
+    """Return sorted rule signal IDs present in the exported candidate rows."""
+    return sorted({signal for _, row in frame.iterrows() for signal in _signals(row)})
+
+
 def _flagged_count(frame: pd.DataFrame, rules: Mapping[str, Any]) -> int:
     """Count rows with signals or distances inside configured thresholds.
 
@@ -1415,11 +1463,20 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
             )
 
             visible = get_filtered_gdf(gdf)
-            slug = str(filters["district"]).lower().replace(" ", "_")
+            all_districts = "\u09b8\u09ac \u099c\u09c7\u09b2\u09be"
+            all_areas = "\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be"
+            export_filename = _export_filename(
+                district=None if filters["district"] == all_districts else filters["district"],
+                area=None if filters["upazila"] == all_areas else filters["upazila"],
+                kiln_type=None if filters["kiln_type"] == ALL_KILN_TYPES else filters["kiln_type"],
+                rule_signals=_exported_rule_signals(visible),
+                radius_m=filters["radius_m"] if filters["upazila"] != all_areas else None,
+                extension="csv",
+            )
             st.download_button(
                 _ui_text("\u2b07 \u09ac\u09be\u099b\u09be\u0987\u0995\u09c3\u09a4 \u09a4\u09be\u09b2\u09bf\u0995\u09be \u09b8\u09bf\u098f\u09b8\u09ad\u09bf \u09a1\u09be\u0989\u09a8\u09b2\u09cb\u09a1", "\u2b07 Download filtered CSV"),
                 make_download_csv(visible, INSPECTOR_CSV_COLUMNS),
-                f"dhoa_{slug}_{datetime.now(UTC):%Y%m%d}.csv",
+                export_filename,
                 "text/csv",
                 width="stretch",
                 key="sidebar_export_list",
