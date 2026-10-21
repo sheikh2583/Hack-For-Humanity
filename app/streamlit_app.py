@@ -48,6 +48,9 @@ BASE_DIR = Path(__file__).parent.parent
 CONFIG_DIR = BASE_DIR / "config"
 DATA_DIR = BASE_DIR / "data" / "processed"
 DATA_PATH = DATA_DIR / "kilns_prioritised.parquet"
+ADMIN_AREAS_PATH = CONFIG_DIR / "bd_admin_areas.json"
+with ADMIN_AREAS_PATH.open(encoding="utf-8") as admin_areas_file:
+    BD_ADMIN_AREAS = json.load(admin_areas_file)
 _priority_candidate_list = components.declare_component(
     "dhoa_priority_candidate_list",
     path=str(_ROOT / "app" / "components" / "priority_candidate_list"),
@@ -747,7 +750,9 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
                 upazila_source["district"].astype(str).eq(str(community_district))
             ]
         upazila_values = (
-            sorted(upazila_source["upazila"].dropna().astype(str).unique().tolist())
+            sorted(BD_ADMIN_AREAS[community_district])
+            if community_district in BD_ADMIN_AREAS
+            else sorted(upazila_source["upazila"].dropna().astype(str).unique().tolist())
             if "upazila" in upazila_source.columns else []
         )
         upazila_options = [all_areas, *upazila_values]
@@ -763,7 +768,7 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
         with st.form("community_search_form", border=False):
             location_query = st.text_input(
                 _ui_text("\u09a8\u09be\u09ae \u09b2\u09bf\u0996\u09c1\u09a8", "Area name"),
-                placeholder=_ui_text("\u09af\u09c7\u09ae\u09a8: \u0986\u09b6\u09c1\u09b2\u09bf\u09af\u09bc\u09be", "e.g. Ashulia"),
+                placeholder=_ui_text("\u09af\u09c7\u09ae\u09a8: \u09b8\u09cd\u0995\u09c1\u09b2 \u09ac\u09be \u09ac\u09be\u099c\u09be\u09b0", "e.g. a school or market"),
                 key="community_location_name",
                 disabled=not district_selected,
             )
@@ -835,7 +840,10 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
         st.info(_ui_text("\u09ad\u09be\u099f\u09be \u09a6\u09c7\u0996\u09a4\u09c7 \u098f\u0995\u099f\u09bf \u099c\u09c7\u09b2\u09be \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09a8 \u0995\u09b0\u09c1\u09a8\u0964", "Select a district to view kiln candidates."))
         return
     if "community_centroid" not in st.session_state:
-        st.info(_ui_text("\u098f\u0987 \u098f\u09b2\u09be\u0995\u09be\u09af\u09bc \u0995\u09cb\u09a8\u09cb \u09ad\u09be\u099f\u09be\u09b0 \u09a4\u09a5\u09cd\u09af \u09a8\u09c7\u0987\u0964", "No kiln data is available for this area."))
+        st.info(_ui_text(
+            "\u098f\u0987 \u098f\u09b2\u09be\u0995\u09be\u09af\u09bc \u0995\u09cb\u09a8\u09cb \u09ad\u09be\u099f\u09be\u09b0 \u09a4\u09a5\u09cd\u09af \u09aa\u09be\u0993\u09af\u09bc\u09be \u09af\u09be\u09af\u09bc\u09a8\u09bf\u0964",
+            "No kiln data found for this area.",
+        ))
         return
     search_lat, search_lon = st.session_state["community_centroid"]
     selected_district = st.session_state.get("community_filter_district", all_districts)
@@ -1436,7 +1444,7 @@ def render_header(gdf: gpd.GeoDataFrame) -> str:
         if _english_ui():
             st.markdown(
                 "**Community view**\n\n"
-                "1. Choose a district and, optionally, an upazila. Enter an area name such as Ashulia and submit; leave it blank to use the selected area's centroid.\n"
+                "1. Choose a district and, optionally, an upazila. You may enter a place name; leave it blank to use the selected area's centroid.\n"
                 "2. Adjust the radius around the named place or selected area's centroid to update the results, list, and map.\n"
                 "3. Select a kiln to review its details and download the report.\n\n"
                 "**Inspector view**\n\n"
@@ -1448,7 +1456,7 @@ def render_header(gdf: gpd.GeoDataFrame) -> str:
             st.markdown("""
 **\u0995\u09ae\u09bf\u0989\u09a8\u09bf\u099f\u09bf \u09ad\u09bf\u0989 \u09ac\u09cd\u09af\u09ac\u09b9\u09be\u09b0**
 
-1. **\u099c\u09c7\u09b2\u09be** \u09ac\u09be\u099b\u09c1\u09a8, \u099a\u09be\u0987\u09b2\u09c7 **\u098f\u09b2\u09be\u0995\u09be (\u0989\u09aa\u099c\u09c7\u09b2\u09be)** \u09ac\u09be\u099b\u09c1\u09a8, \u098f\u09ac\u0982 \u09a8\u09be\u09ae\u09c7\u09b0 \u0998\u09b0\u09c7 \u0986\u09b6\u09c1\u09b2\u09bf\u09b0 \u09ae\u09a4\u09cb \u098f\u0995\u099f\u09bf \u098f\u09b2\u09be\u0995\u09be\u09b0 \u09a8\u09be\u09ae \u09b2\u09bf\u0996\u09c1\u09a8. \u09a8\u09be\u09ae \u09a8\u09be \u09a6\u09bf\u09b2\u09c7 \u09ac\u09be\u099b\u09be \u098f\u09b2\u09be\u0995\u09be\u09b0 \u0995\u09c7\u09a8\u09cd\u09a6\u09cd\u09b0\u09ac\u09bf\u09a8\u09cd\u09a6\u09c1 \u0995\u09c7\u09a8\u09cd\u09a6\u09cd\u09b0 \u0995\u09b0\u09c7 \u09ab\u09b2\u09be\u09ab\u09b2 \u09a6\u09c7\u0996\u09be\u09ac\u09c7.
+1. **\u099c\u09c7\u09b2\u09be** \u09ac\u09be\u099b\u09c1\u09a8, \u099a\u09be\u0987\u09b2\u09c7 **\u098f\u09b2\u09be\u0995\u09be (\u0989\u09aa\u099c\u09c7\u09b2\u09be)** \u09ac\u09be\u099b\u09c1\u09a8. \u099a\u09be\u0987\u09b2\u09c7 \u09a8\u09be\u09ae\u09c7\u09b0 \u0998\u09b0\u09c7 \u098f\u0995\u099f\u09bf \u09b8\u09cd\u09a5\u09be\u09a8\u09c7\u09b0 \u09a8\u09be\u09ae \u09b2\u09bf\u0996\u09c1\u09a8, \u0985\u09a5\u09ac\u09be \u09ab\u09be\u0981\u0995\u09be \u09b0\u09c7\u0996\u09c7 \u09ac\u09be\u099b\u09be \u098f\u09b2\u09be\u0995\u09be\u09b0 \u0995\u09c7\u09a8\u09cd\u09a6\u09cd\u09b0\u09ac\u09bf\u09a8\u09cd\u09a6\u09c1 \u09a5\u09c7\u0995\u09c7 \u09ab\u09b2\u09be\u09ab\u09b2 \u09a6\u09c7\u0996\u09c1\u09a8.
 2. \u09a8\u09be\u09ae \u09a6\u09bf\u09df\u09c7 \u0996\u09c1\u0981\u099c\u09b2\u09c7 \u0996\u09cb\u0981\u099c\u09be \u09b8\u09cd\u09a5\u09be\u09a8 \u09a5\u09c7\u0995\u09c7, \u0985\u09a8\u09cd\u09af\u09a5\u09be \u098f\u09b2\u09be\u0995\u09be\u09b0 \u0995\u09c7\u09a8\u09cd\u09a6\u09cd\u09b0\u09ac\u09bf\u09a8\u09cd\u09a6\u09c1 \u09a5\u09c7\u0995\u09c7 \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09bf\u09a4 \u09ac\u09cd\u09af\u09be\u09b8\u09be\u09b0\u09cd\u09a7\u09c7\u09b0 \u09ad\u09bf\u09a4\u09b0\u09c7 \u09ad\u09be\u099f\u09be\u0997\u09c1\u09b2\u09cb \u09a6\u09c7\u0996\u09c1\u09a8.
 3. \u09ab\u09b2\u09be\u09ab\u09b2, \u09a4\u09be\u09b2\u09bf\u0995\u09be \u0993 \u09ae\u09be\u09a8\u099a\u09bf\u09a4\u09cd\u09b0 \u09a5\u09c7\u0995\u09c7 \u09ad\u09be\u099f\u09be \u09ac\u09be\u099b\u09c1\u09a8 \u098f\u09ac\u0982 \u09aa\u09cd\u09b0\u09a4\u09bf\u09ac\u09c7\u09a6\u09a8 \u09a1\u09be\u0989\u09a8\u09b2\u09cb\u09a1 \u0995\u09b0\u09c1\u09a8.
 """)
@@ -1464,8 +1472,8 @@ def render_header(gdf: gpd.GeoDataFrame) -> str:
 """)
     if is_community:
         st.caption(_ui_text(
-            'জেলা ও চাইলে এলাকা (উপজেলা) বাছুন, এরপর চাইলে একটি এলাকার নাম লিখুন? নাম না দিলে বাছা এলাকার কেন্দ্রবিন্দু কেন্দ্র করে ফলাফল দেখেন?',
-            "Choose a district and upazila, then optionally enter an area name. Leave the name blank to search around the selected area's centroid.",
+            "\u099c\u09c7\u09b2\u09be \u0993 \u099a\u09be\u0987\u09b2\u09c7 \u098f\u09b2\u09be\u0995\u09be (\u0989\u09aa\u099c\u09c7\u09b2\u09be) \u09ac\u09be\u099b\u09c1\u09a8\u0964 \u099a\u09be\u0987\u09b2\u09c7 \u0995\u09cb\u09a8\u09cb \u09b8\u09cd\u09a5\u09be\u09a8\u09c7\u09b0 \u09a8\u09be\u09ae \u09b2\u09bf\u0996\u09c1\u09a8; \u09a8\u09be \u09b2\u09bf\u0996\u09b2\u09c7 \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09bf\u09a4 \u098f\u09b2\u09be\u0995\u09be\u09b0 \u0995\u09c7\u09a8\u09cd\u09a6\u09cd\u09b0\u09ac\u09bf\u09a8\u09cd\u09a6\u09c1\u0995\u09c7 \u0995\u09c7\u09a8\u09cd\u09a6\u09cd\u09b0 \u0995\u09b0\u09c7 \u09ab\u09b2\u09be\u09ab\u09b2 \u09a6\u09c7\u0996\u09c1\u09a8\u0964",
+            "Choose a district and upazila. You may enter a place name, or leave it blank to search around the selected area's centroid.",
         ))
         selected_mode = "community"
     else:
@@ -1619,7 +1627,9 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
                     upazila_source["district"].astype(str).eq(str(filters["district"]))
                 ]
             upazila_values = (
-                sorted(upazila_source["upazila"].dropna().astype(str).unique().tolist())
+                sorted(BD_ADMIN_AREAS[filters["district"]])
+                if filters["district"] in BD_ADMIN_AREAS
+                else sorted(upazila_source["upazila"].dropna().astype(str).unique().tolist())
                 if "upazila" in upazila_source else []
             )
             upazila_options = ["\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be", *upazila_values]
@@ -1668,6 +1678,7 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
                 format_func=lambda value: _ui_text("\u09b8\u09ac \u09a7\u09b0\u09a8", "All types") if value == ALL_KILN_TYPES else _type_label(value),
                 key="filter_kiln_type",
             )
+            filters["map_tile"] = _render_map_type_filter()
 
             visible = get_filtered_gdf(gdf)
             all_districts = "\u09b8\u09ac \u099c\u09c7\u09b2\u09be"
@@ -1688,7 +1699,6 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
                 width="stretch",
                 key="sidebar_export_list",
             )
-            filters["map_tile"] = _render_map_type_filter()
         st.divider()
         st.markdown(_ui_text("\u09aa\u09b0\u09bf\u09ac\u09c7\u09b6 \u0985\u09a7\u09bf\u09a6\u09aa\u09cd\u09a4\u09b0\u09c7\u09b0 \u09b9\u099f\u09b2\u09be\u0987\u09a8: \u09e7\u09ec\u09e7\u09e9\u09e7 | [doe.gov.bd](https://doe.gov.bd)", "Department of Environment hotline: 16131 | [doe.gov.bd](https://doe.gov.bd)"))
         if mode == "inspector":
@@ -1818,6 +1828,18 @@ def render_map(gdf: gpd.GeoDataFrame, filters: Mapping[str, Any]) -> None:
     an interactive Folium map plus the selected candidate's detail/report panel.
     """
     visible = get_filtered_gdf(gdf)
+    selected_district = st.session_state.get("filter_district", "\u09b8\u09ac \u099c\u09c7\u09b2\u09be")
+    selected_upazila = st.session_state.get("filter_upazila", "\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be")
+    if selected_upazila != "\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be":
+        area_rows = gdf
+        if selected_district != "\u09b8\u09ac \u099c\u09c7\u09b2\u09be" and "district" in area_rows:
+            area_rows = area_rows[area_rows["district"].astype(str).eq(str(selected_district))]
+        if "upazila" not in area_rows or not area_rows["upazila"].astype(str).eq(str(selected_upazila)).any():
+            st.info(_ui_text(
+                "\u098f\u0987 \u098f\u09b2\u09be\u0995\u09be\u09af\u09bc \u0995\u09cb\u09a8\u09cb \u09ad\u09be\u099f\u09be\u09b0 \u09a4\u09a5\u09cd\u09af \u09aa\u09be\u0993\u09af\u09bc\u09be \u09af\u09be\u09af\u09bc\u09a8\u09bf\u0964",
+                "No kiln data found for this area.",
+            ))
+            return
     selected_id = st.session_state.get("selected_kiln_id")
     if selected_id is not None and (
         "kiln_id" not in visible.columns
