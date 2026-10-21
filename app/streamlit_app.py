@@ -1688,6 +1688,7 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
                 width="stretch",
                 key="sidebar_export_list",
             )
+            filters["map_tile"] = _render_map_type_filter()
         st.divider()
         st.markdown(_ui_text("\u09aa\u09b0\u09bf\u09ac\u09c7\u09b6 \u0985\u09a7\u09bf\u09a6\u09aa\u09cd\u09a4\u09b0\u09c7\u09b0 \u09b9\u099f\u09b2\u09be\u0987\u09a8: \u09e7\u09ec\u09e7\u09e9\u09e7 | [doe.gov.bd](https://doe.gov.bd)", "Department of Environment hotline: 16131 | [doe.gov.bd](https://doe.gov.bd)"))
         if mode == "inspector":
@@ -1987,9 +1988,6 @@ def main() -> None:
         if "detection_status" not in gdf.columns:
             gdf["detection_status"] = "Known"
         mode = render_header(gdf)
-        if mode == "inspector":
-            with st.container(border=True):
-                _render_map_type_filter()
         with st.expander(_ui_text(
             "\u2696\ufe0f \u09aa\u09cd\u09b0\u09be\u09b8\u0999\u09cd\u0997\u09bf\u0995 \u0986\u0987\u09a8 \u2014 \u0987\u099f \u09aa\u09cd\u09b0\u09b8\u09cd\u09a4\u09c1\u09a4 \u0993 \u09ad\u09be\u099f\u09be \u09b8\u09cd\u09a5\u09be\u09aa\u09a8 (\u09a8\u09bf\u09af\u09bc\u09a8\u09cd\u09a4\u09cd\u09b0\u09a3) \u0986\u0987\u09a8, \u09e8\u09e6\u09e7\u09e9",
             "\u2696\ufe0f Relevant law \u2014 Brick Manufacturing and Kiln Establishment (Control) Act, 2013",
