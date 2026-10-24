@@ -2010,15 +2010,23 @@ def main() -> None:
     """
     st.markdown(responsive_css(), unsafe_allow_html=True)
     try:
-        load_config()
-        gdf = load_data()
+        with st.spinner(_ui_text(
+            "ডেটা লোড হচ্ছে। কয়েক সেকেন্ড সময় লাগতে পারে…",
+            "Loading kiln data. This may take a few seconds…",
+        )):
+            load_config()
+            gdf = load_data()
     except Exception:
         logging.getLogger(__name__).exception("Dashboard data/configuration load failed")
         st.error(_ui_text("\u274c \u09a4\u09a5\u09cd\u09af \u09ac\u09be \u09a1\u09cd\u09af\u09be\u09b6\u09ac\u09cb\u09b0\u09cd\u09a1 \u09b2\u09cb\u09a1 \u0995\u09b0\u09be \u09af\u09be\u09df\u09a8\u09bf\u0964 \u09a6\u09df\u09be \u0995\u09b0\u09c7 \u09aa\u09b0\u09c7 \u099a\u09c7\u09b7\u09cd\u099f\u09be \u0995\u09b0\u09c1\u09a8\u0964", "Could not load dashboard data. Please try again later."))
+        if st.button(_ui_text("আবার চেষ্টা করুন", "Retry loading data"), key="dhoa_retry_data_load"):
+            st.rerun()
         return
     if gdf is None:
         st.error(_ui_text("\u274c \u09a1\u09cd\u09af\u09be\u09b6\u09ac\u09cb\u09b0\u09cd\u09a1\u09c7\u09b0 \u09a4\u09a5\u09cd\u09af \u09aa\u09be\u0993\u09df\u09be \u09af\u09be\u099a\u09cd\u099b\u09c7 \u09a8\u09be\u0964 \u09aa\u09cd\u09b0\u09a5\u09ae\u09c7 \u09a1\u09c7\u099f\u09be \u09aa\u09cd\u09b0\u09b8\u09c7\u09b8 \u0995\u09b0\u09c7 \u09a8\u09bf\u09a8\u0964", "Dashboard data is unavailable."))
 
+        if st.button(_ui_text("আবার চেষ্টা করুন", "Retry loading data"), key="dhoa_retry_missing_data"):
+            st.rerun()
         return
     from src.geo.crs import get_projected_crs
 
