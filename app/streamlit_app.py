@@ -1661,11 +1661,16 @@ def _current_tile() -> str:
 
 
 def _marker_callback_js(payload: Mapping[str, Any], radius: int = 8) -> str:
-    """Return the JS factory that turns one compact row into a tooltip circle marker.
+    """Return the JS factory that turns one compact row into a circle marker.
 
     Input: ``kiln_data.marker_payload`` output. Output: a JS function expression
-    for ``FastMarkerCluster``; labels are looked up from small arrays so each
-    kiln costs ~40 bytes on the wire. Label strings arrive HTML-escaped.
+    for ``FastMarkerCluster``. Each marker gets a hover tooltip and, on click, a
+    light details popup (priority, type, area, coordinates and Google Maps
+    directions / map / Earth links) that is built *in the browser* from the
+    row's own coordinates, so nothing per-kiln is embedded in the page. Labels
+    come from small arrays (~40 bytes per kiln on the wire) and arrive
+    HTML-escaped; the popup is opened with ``L.popup().openOn`` rather than
+    ``bindPopup`` so no popup content is attached to the 2,000+ markers.
     """
     lookups = json.dumps(
         {
@@ -1676,15 +1681,37 @@ def _marker_callback_js(payload: Mapping[str, Any], radius: int = 8) -> str:
             "bands": payload["bands"],
             "types": payload["types"],
             "areas": payload["areas"],
+            "labels": {
+                "kiln": html.escape(T.KILN_CANDIDATE),
+                "area": html.escape(T.AREA),
+                "directions": html.escape(T.DIRECTIONS),
+                "map": html.escape(T.MAP),
+            },
         },
         ensure_ascii=False,
+    )
+    popup_js = (
+        "var la=row[0],lo=row[1],q=la.toFixed(6)+','+lo.toFixed(6),"
+        "g='https://www.google.com/maps',"
+        "h=\"<div class='dhoa-popup'><div class='badges'><span class='badge'>\"+D.types[row[3]]+\"</span>\""
+        "+\"<span class='badge priority-badge'>\"+D.bands[row[2]]+\"</span></div>\""
+        "+\"<strong>\"+D.labels.kiln+\" · \"+D.areas[row[4]]+\"</strong><hr>\""
+        "+\"📍 \"+D.labels.area+\": \"+D.areas[row[4]]+\"<br>\"+la.toFixed(5)+\", \"+lo.toFixed(5)+\"<hr>\""
+        "+\"<div class='popup-actions'>\""
+        "+\"<a href='\"+g+\"/dir/?api=1&destination=\"+q+\"&travelmode=driving' target='_blank' rel='noopener'>🗺️ \"+D.labels.directions+\"</a>\""
+        "+\"<a href='\"+g+\"?q=\"+q+\"' target='_blank' rel='noopener'>📍 \"+D.labels.map+\"</a>\""
+        "+\"<a href='https://earth.google.com/web/@\"+la.toFixed(6)+\",\"+lo.toFixed(6)+\",500a,500d,35y' target='_blank' rel='noopener'>🌍 Google Earth</a>\""
+        "+\"</div></div>\";"
     )
     return (
         "(function(){var D=" + lookups + ";"
         "return function(row){var c=D.colors[row[2]];"
         f"var m=L.circleMarker([row[0],row[1]],{{radius:{int(radius)},color:c,weight:2,"
         "fill:true,fillColor:c,fillOpacity:0.85});"
-        'm.bindTooltip(D.bands[row[2]]+" | "+D.types[row[3]]+" | "+D.areas[row[4]],{sticky:true});'
+        'm.bindTooltip(D.bands[row[2]]+\" | \"+D.types[row[3]]+\" | \"+D.areas[row[4]],{sticky:true});'
+        + popup_js +
+        "m.on('click',function(e){var mp=e.target._map;if(!mp){return;}"
+        "L.popup({maxWidth:300,autoPan:true}).setLatLng(e.target.getLatLng()).setContent(h).openOn(mp);});"
         "return m;};})()"
     )
 
