@@ -599,6 +599,77 @@ def prepare_display_frame(
 
 
 # --------------------------------------------------------------------------
+# Compact map payload (M3)
+# --------------------------------------------------------------------------
+BAND_INDEX = {"High": 0, "Medium": 1, "Low": 2}
+OTHER_BAND_INDEX = 3
+
+
+def marker_payload(frame: pd.DataFrame, rules: Sequence[Mapping[str, Any]] = ()) -> dict[str, Any]:
+    """Pack kilns into a small JSON-ready structure for the map layer.
+
+    Input: kiln frame (display columns are computed when missing, using
+    ``rules``). Output: ``{"rows": [[lat, lon, band, type, area], ...],
+    "bands": [...], "types": [...], "areas": [...]}`` where band/type/area are
+    indexes into the label lists. Labels are HTML-escaped because Leaflet
+    renders tooltip strings as HTML. Rows without finite coordinates are
+    dropped. Roughly 40 bytes per kiln instead of ~1 KB for a folium marker.
+    """
+    frame = with_display_columns(frame, rules)
+    lat = numeric_column(frame, ("lat",))
+    lon = numeric_column(frame, ("lon",))
+    valid = np.isfinite(lat) & np.isfinite(lon)
+    bands_raw = frame["priority_band"].astype(str).tolist() if "priority_band" in frame.columns else [""] * len(frame)
+    band_idx = [BAND_INDEX.get(band, OTHER_BAND_INDEX) for band in bands_raw]
+    types, areas = [], []
+    type_pos: dict[str, int] = {}
+    area_pos: dict[str, int] = {}
+    rows: list[list[Any]] = []
+    for ok, la, lo, band, kind, area in zip(
+        valid.tolist(), lat.tolist(), lon.tolist(), band_idx,
+        frame["ui_type"].tolist(), frame["ui_area"].tolist(),
+    ):
+        if not ok:
+            continue
+        kind_i = type_pos.setdefault(kind, len(type_pos))
+        if kind_i == len(types):
+            types.append(html.escape(kind))
+        area_i = area_pos.setdefault(area, len(area_pos))
+        if area_i == len(areas):
+            areas.append(html.escape(area))
+        rows.append([round(la, 5), round(lo, 5), band, kind_i, area_i])
+    return {
+        "rows": rows,
+        "bands": [T.HIGH + " " + T.PRIORITY, T.MEDIUM + " " + T.PRIORITY,
+                  T.LOW + " " + T.PRIORITY, T.UNCLASSIFIED + " " + T.PRIORITY],
+        "types": types,
+        "areas": areas,
+    }
+
+
+def bounds_of(frame: pd.DataFrame) -> list[list[float]] | None:
+    """Return ``[[south, west], [north, east]]`` of finite points, or None."""
+    lat = numeric_column(frame, ("lat",))
+    lon = numeric_column(frame, ("lon",))
+    valid = np.isfinite(lat) & np.isfinite(lon)
+    if not valid.any():
+        return None
+    return [[float(lat[valid].min()), float(lon[valid].min())],
+            [float(lat[valid].max()), float(lon[valid].max())]]
+
+
+def radius_bounds(latitude: float, longitude: float, radius_m: float) -> list[list[float]]:
+    """Approximate lat/lon box around a point, used only to fit the map view.
+
+    Display geometry only (a degree is ~110.6 km north-south and ~111.3 km x
+    cos(lat) east-west); distances for filtering use the projected CRS.
+    """
+    d_lat = radius_m / 110_574.0
+    d_lon = radius_m / (111_320.0 * max(math.cos(math.radians(latitude)), 0.01))
+    return [[latitude - d_lat, longitude - d_lon], [latitude + d_lat, longitude + d_lon]]
+
+
+# --------------------------------------------------------------------------
 # Geometry (projected CRS, vectorised)
 # --------------------------------------------------------------------------
 @lru_cache(maxsize=2)
