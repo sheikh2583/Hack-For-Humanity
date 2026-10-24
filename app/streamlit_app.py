@@ -575,20 +575,29 @@ def get_filtered_gdf(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         result = gdf.copy()
         district = st.session_state.get("community_filter_district", "\u09b8\u09ac \u099c\u09c7\u09b2\u09be")
         upazila = st.session_state.get("community_filter_upazila", "\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be")
-        if district == "\u09b8\u09ac \u099c\u09c7\u09b2\u09be":
-            return result.iloc[0:0].copy()
-        if district != "\u09b8\u09ac \u099c\u09c7\u09b2\u09be":
+        district_selected = district != "\u09b8\u09ac \u099c\u09c7\u09b2\u09be"
+        search_point = st.session_state.get("community_search_point")
+        # When no district AND no search point, we cannot determine a location.
+        if not district_selected and search_point is None:
+            result = result.iloc[0:0].copy()
+            result["distance_m"] = pd.Series(dtype="float64", index=result.index)
+            return result
+        # Apply district filter only when selected.
+        if district_selected:
             if "district" not in result.columns:
-                return result.iloc[0:0].copy()
+                result = result.iloc[0:0].copy()
+                result["distance_m"] = pd.Series(dtype="float64", index=result.index)
+                return result
             result = result[result["district"].astype(str).eq(str(district))].copy()
         if upazila != "\u09b8\u09ac \u098f\u09b2\u09be\u0995\u09be":
             if "upazila" not in result.columns:
-                return result.iloc[0:0].copy()
+                result = result.iloc[0:0].copy()
+                result["distance_m"] = pd.Series(dtype="float64", index=result.index)
+                return result
             result = result[result["upazila"].astype(str).eq(str(upazila))].copy()
         if result.empty:
             result["distance_m"] = pd.Series(dtype="float64", index=result.index)
             return result
-        search_point = st.session_state.get("community_search_point")
         if search_point is None:
             search_lat, search_lon = _community_area_centroid(result)
         else:
