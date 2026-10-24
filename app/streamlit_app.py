@@ -751,15 +751,6 @@ def _community_report(location: str, rows: pd.DataFrame, radius_m: int) -> bytes
     )
 
 
-@st.cache_resource(show_spinner=False, max_entries=8)
-def _cached_community_map(
-    version: str, key: tuple, tile: str, _frame: pd.DataFrame
-) -> folium.Map:
-    """Cache the Community base map per (data version, search, radius, area, basemap)."""
-    latitude, longitude, radius_m = key[2], key[3], key[4]
-    return _marker_map(_frame, tile, kd.radius_bounds(latitude, longitude, radius_m), radius=7)
-
-
 def _render_community_map(
     nearby: pd.DataFrame,
     source: pd.DataFrame,
@@ -786,7 +777,10 @@ def _render_community_map(
     if version is None:
         map_view = _marker_map(nearby, tile, kd.radius_bounds(search_lat, search_lon, radius_m), radius=7)
     else:
-        map_view = _cached_community_map(version, fingerprint, tile, nearby)
+        payload = _cached_marker_payload(version, ("community", *fingerprint), nearby)
+        map_view = _marker_map(
+            nearby, tile, kd.radius_bounds(search_lat, search_lon, radius_m), radius=7, payload=payload
+        )
     overlay = folium.FeatureGroup(name="dhoa_search")
     folium.CircleMarker(
         [search_lat, search_lon], radius=8, color=DESIGN_COLORS["new"],
@@ -875,7 +869,7 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
     sel_district = st.selectbox(
         T.DISTRICT,
         district_options,
-        format_func=lambda value: all_districts if value == all_districts else _district_label(value),
+        format_func=lambda value: T.ALL_DISTRICTS if value == all_districts else _district_label(value),
         key="community_filter_district",
         on_change=_reset_community_upazila_filter,
     )
@@ -895,7 +889,7 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
     sel_upazila = st.selectbox(
         T.AREA_THANA,
         upazila_options,
-        format_func=lambda value: all_areas if value == all_areas else value,
+        format_func=lambda value: T.ALL_AREAS if value == all_areas else value,
         key="community_filter_upazila",
         disabled=not district_selected,
     )
@@ -1025,8 +1019,8 @@ function sendLocation() {
         st.info(T.SELECT_A_DISTRICT_AND_SEARCH_FOR_A_PLACE)
         return
 
-    st.session_state["community_filter_district"] = sel_district
-    st.session_state["community_filter_upazila"] = sel_upazila
+    # The selectboxes above own these session keys; re-assigning them here raises
+    # StreamlitAPIException in Streamlit >= 1.4x, so they are only read.
     search_lat, search_lon = search_point
     location_name = (
         selected_location_name or sel_upazila
@@ -1711,11 +1705,32 @@ def _new_map(tile: str, bounds: list[list[float]] | None) -> folium.Map:
     return map_view
 
 
+@st.cache_data(show_spinner=False, max_entries=32)
+def _cached_marker_payload(version: str, key: tuple, _frame: pd.DataFrame) -> dict[str, Any]:
+    """Cache the compact marker rows per (dataset version, filter/search key).
+
+    Only plain lists/dicts are cached. A ``folium.Map`` must never be cached and
+    reused: ``st_folium`` rewrites element ids while rendering, so a second
+    render of the same object emits a script that references undefined
+    variables and the map iframe collapses to height 0 (the map "disappears").
+    """
+    return kd.marker_payload(_frame, _siting_rules())
+
+
 def _marker_map(
-    frame: pd.DataFrame, tile: str, bounds: list[list[float]] | None, radius: int = 8
+    frame: pd.DataFrame,
+    tile: str,
+    bounds: list[list[float]] | None,
+    radius: int = 8,
+    payload: dict[str, Any] | None = None,
 ) -> folium.Map:
-    """Build a base map with one lightweight clustered marker layer for ``frame``."""
-    payload = kd.marker_payload(frame, _siting_rules())
+    """Build a *fresh* base map with one clustered marker layer for ``frame``.
+
+    ``payload`` is the cached ``kd.marker_payload`` output; a new ``folium.Map``
+    is created on every call because ``st_folium`` mutates the object it renders.
+    """
+    if payload is None:
+        payload = kd.marker_payload(frame, _siting_rules())
     map_view = _new_map(tile, bounds if bounds is not None else kd.bounds_of(frame))
     if payload["rows"]:
         FastMarkerCluster(
@@ -1723,12 +1738,6 @@ def _marker_map(
             options=dict(_MARKER_OPTIONS),
         ).add_to(map_view)
     return map_view
-
-
-@st.cache_resource(show_spinner=False, max_entries=8)
-def _cached_inspector_map(version: str, key: tuple, tile: str, _frame: pd.DataFrame) -> folium.Map:
-    """Cache the Inspector base map per (dataset version, filter key, basemap)."""
-    return _marker_map(_frame, tile, None)
 
 
 def build_map(
@@ -1751,7 +1760,8 @@ def build_map(
     version = _data_version(gdf)
     if version is None:
         return _marker_map(filtered, tile, None)
-    return _cached_inspector_map(version, tuple(_inspector_filter_key()), tile, filtered)
+    payload = _cached_marker_payload(version, ("inspector", *tuple(_inspector_filter_key())), filtered)
+    return _marker_map(filtered, tile, None, payload=payload)
 
 
 def _map_key(prefix: str, *parts: object) -> str:

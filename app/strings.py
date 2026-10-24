@@ -297,9 +297,7 @@ DEPARTMENT_OF_ENVIRONMENT_HOTLINE_16131_ = 'পরিবেশ অধিদপ�
 
 # 🔄 Reset filters
 RESET_FILTERS = '🔄 ফিল্টার রিসেট করুন'
-
-# Apply filters (button of the inspector filter form; native-speaker review needed)
-APPLY_FILTERS = 'ফিল্টার প্রয়োগ করুন'
+APPLY_FILTERS = 'ফিল্টার প্রয়োগ করুন'  # Apply filters (needs native-speaker review)
 
 # Distance from government forest
 DISTANCE_FROM_GOVERNMENT_FOREST = 'সরকারি বন থেকে দূরত্ব'
