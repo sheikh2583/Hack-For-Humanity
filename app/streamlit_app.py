@@ -9,6 +9,7 @@ import json
 import json as _json
 import logging
 import math
+import os
 import pathlib as _pathlib
 import sys
 import unicodedata
@@ -44,6 +45,9 @@ from folium.plugins import FastMarkerCluster
 from streamlit_folium import st_folium
 
 # isort: off
+import community as cm
+import design_tokens as tokens
+import styles
 import kiln_data as kd
 from dashboard_filters import (
     add_priority_bands,
@@ -55,7 +59,7 @@ from src.rules.engine import _ensure_class_column
 
 BASE_DIR = Path(__file__).parent.parent
 CONFIG_DIR = BASE_DIR / "config"
-DATA_DIR = BASE_DIR / "data" / "processed"
+DATA_DIR = Path(os.environ.get("DHOA_DATA_DIR") or BASE_DIR / "data" / "processed")  # env override: hermetic tests
 DATA_PATH = DATA_DIR / "kilns_prioritised.parquet"
 _ADMIN_AREAS_PATH = _pathlib.Path(__file__).parent.parent / "config" / "bd_admin_areas.json"
 try:
@@ -66,15 +70,13 @@ _priority_candidate_list = components.declare_component(
     "dhoa_priority_candidate_list",
     path=str(_ROOT / "app" / "components" / "priority_candidate_list"),
 )
+_geolocate = components.declare_component(
+    "dhoa_geolocate",
+    path=str(_ROOT / "app" / "components" / "geolocate"),
+)
 DESIGN_COLORS = {
-    "high": "#e53e3e",
-    "medium": "#dd6b20",
-    "low": "#38a169",
-    "new": "#3182ce",
-    "advisory": "#d69e2e",
-    "background": "#0e1117",
-    "card": "#1e2329",
-    "text": "#fafafa",
+    key: tokens.COLORS[key]
+    for key in ("high", "medium", "low", "new", "advisory", "background", "card", "text")
 }
 PRIORITY_COLORS = {
     "High": DESIGN_COLORS["high"],
@@ -133,177 +135,12 @@ DISTRICT_CENTERS = {
 }
 
 
-_RESPONSIVE_CSS = """
-<style>
-/* Self-hosted Noto Sans Bengali (SIL OFL), served from app/static/fonts by Streamlit static serving. */
-@font-face { font-family: "Noto Sans Bengali"; font-style: normal; font-display: swap; font-weight: 400;
-  src: url("/app/static/fonts/noto-sans-bengali-bengali-400-normal.woff2") format("woff2");
-  unicode-range: U+0951-0952,U+0964-0965,U+0980-09FE,U+1CD0,U+1CD2,U+1CD5-1CD6,U+1CD8,U+1CE1,U+1CEA,U+1CED,U+1CF2,U+1CF5-1CF7,U+200C-200D,U+20B9,U+25CC,U+A8F1; }
-@font-face { font-family: "Noto Sans Bengali"; font-style: normal; font-display: swap; font-weight: 400;
-  src: url("/app/static/fonts/noto-sans-bengali-latin-400-normal.woff2") format("woff2");
-  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
-@font-face { font-family: "Noto Sans Bengali"; font-style: normal; font-display: swap; font-weight: 500;
-  src: url("/app/static/fonts/noto-sans-bengali-bengali-500-normal.woff2") format("woff2");
-  unicode-range: U+0951-0952,U+0964-0965,U+0980-09FE,U+1CD0,U+1CD2,U+1CD5-1CD6,U+1CD8,U+1CE1,U+1CEA,U+1CED,U+1CF2,U+1CF5-1CF7,U+200C-200D,U+20B9,U+25CC,U+A8F1; }
-@font-face { font-family: "Noto Sans Bengali"; font-style: normal; font-display: swap; font-weight: 500;
-  src: url("/app/static/fonts/noto-sans-bengali-latin-500-normal.woff2") format("woff2");
-  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
-@font-face { font-family: "Noto Sans Bengali"; font-style: normal; font-display: swap; font-weight: 600;
-  src: url("/app/static/fonts/noto-sans-bengali-bengali-600-normal.woff2") format("woff2");
-  unicode-range: U+0951-0952,U+0964-0965,U+0980-09FE,U+1CD0,U+1CD2,U+1CD5-1CD6,U+1CD8,U+1CE1,U+1CEA,U+1CED,U+1CF2,U+1CF5-1CF7,U+200C-200D,U+20B9,U+25CC,U+A8F1; }
-@font-face { font-family: "Noto Sans Bengali"; font-style: normal; font-display: swap; font-weight: 600;
-  src: url("/app/static/fonts/noto-sans-bengali-latin-600-normal.woff2") format("woff2");
-  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
-@font-face { font-family: "Noto Sans Bengali"; font-style: normal; font-display: swap; font-weight: 700;
-  src: url("/app/static/fonts/noto-sans-bengali-bengali-700-normal.woff2") format("woff2");
-  unicode-range: U+0951-0952,U+0964-0965,U+0980-09FE,U+1CD0,U+1CD2,U+1CD5-1CD6,U+1CD8,U+1CE1,U+1CEA,U+1CED,U+1CF2,U+1CF5-1CF7,U+200C-200D,U+20B9,U+25CC,U+A8F1; }
-@font-face { font-family: "Noto Sans Bengali"; font-style: normal; font-display: swap; font-weight: 700;
-  src: url("/app/static/fonts/noto-sans-bengali-latin-700-normal.woff2") format("woff2");
-  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
-html, body, [data-testid="stAppViewContainer"] { overflow-x: hidden; }
-[data-testid="stAppViewContainer"] .main .block-container {
-    max-width: 100%; padding: 0.75rem 1.25rem 1.5rem;
-}
-[data-testid="stMainBlockContainer"] {
-    max-width: 100% !important;
-    padding-top: 0.75rem !important;
-}
-/* Hide heading permalinks only; keep map, navigation, and export links usable. */
-[data-testid="stHeaderActionElements"],
-h1 a, h2 a, h3 a, h4 a,
-[role="heading"] a, [role="heading"] button,
-h1 [data-testid="stHeaderActionElements"],
-h2 [data-testid="stHeaderActionElements"],
-h3 [data-testid="stHeaderActionElements"],
-h4 [data-testid="stHeaderActionElements"],
-[role="heading"] [data-testid="stHeaderActionElements"] { display: none !important; }
-[data-testid="stAppViewContainer"] .main [data-testid="stCaptionContainer"] { margin-top: 0.2rem; }
-[data-testid="stMetric"] { min-width: 0; }
-/* Replace Streamlit's developer-oriented status icon with a Bengali loading cue. */
-[data-testid="stStatusWidget"],
-[data-testid^="stStatusWidget"],
-[data-testid="stStatusWidgetRunningIcon"] {
-    width: auto !important;
-    height: auto !important;
-    min-width: 0;
-    margin-right: 0.4rem !important;
-    overflow: visible !important;
-}
-[data-testid="stStatusWidget"] > *,
-[data-testid^="stStatusWidget"] > *,
-[data-testid="stStatusWidgetRunningIcon"] svg,
-[data-testid="stStatusWidgetRunningIcon"] img { display: none !important; }
-[data-testid="stStatusWidget"]::after,
-[data-testid^="stStatusWidget"]::after,
-[data-testid="stStatusWidgetRunningIcon"]::after {
-    content: "__PAGE_LOADING__";
-    display: block;
-    max-width: 220px;
-    color: #dbe3ec;
-    font-family: "Noto Sans Bengali", "Nirmala UI", "Vrinda", sans-serif;
-    font-size: 0.82rem;
-    font-weight: 500;
-    line-height: 1.35;
-    white-space: nowrap;
-}
-.dhoa-metrics {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: clamp(0.5rem, 1.2vw, 1rem);
-    width: 100%;
-    margin: 0.5rem 0 1rem;
-}
-.dhoa-metrics.dhoa-summary { grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0.25rem 0 0.5rem; }
-.dhoa-pin { background: none; border: 0; }
-.dhoa-pin svg { display: block; filter: drop-shadow(0 0 1px rgba(0,0,0,.7)); }
-.dhoa-metric { min-width: 0; padding: 0.35rem 0.65rem; border-left: 2px solid #475569; }
-.dhoa-metric strong { display: block; font-size: 1.15rem; line-height: 1.3; }
-.dhoa-metric span { display: block; color: #aab4c0; font-size: 0.82rem; line-height: 1.35; }
-[data-testid="stDownloadButton"] button,
-[data-testid="stButton"] button,
-[data-baseweb="select"] > div,
-[data-testid="stSlider"] [role="slider"] { min-height: 44px; }
-.dhoa-mobile-map-hint {
-    display: none;
-    margin: 0.25rem 0 0.65rem;
-    color: #cbd5e1;
-    font-size: 0.9rem;
-}
-@media (max-width: 768px) {
-    [data-testid="stAppViewContainer"] .main .block-container {
-        padding: 0.65rem 0.75rem 1.5rem;
-    }
-    [data-testid="stMainBlockContainer"] { padding-top: 1.35rem !important; }
-    [data-testid="stHorizontalBlock"] { flex-direction: column; gap: 0.75rem; }
-    [data-testid="stMetricContainer"] { min-width: 0; }
-    [data-testid="stStatusWidgetRunningIcon"]::after {
-        max-width: 115px;
-        font-size: 0.7rem;
-        line-height: 1.3;
-        white-space: normal;
-        text-align: right;
-    }
-    [data-testid="stIFrame"] iframe {
-        width: 100% !important; height: 52vh !important;
-        min-height: 280px !important; max-height: 500px !important;
-    }
-    .st-key-dhoa_map_frame iframe {
-        width: 100% !important;
-        height: 52vh !important;
-        min-height: 300px !important;
-        max-height: 500px !important;
-    }
-    h2 { font-size: 1.35rem !important; }
-    h3 { font-size: 1.15rem !important; }
-    [data-testid="stMetricValue"] { font-size: 1.35rem; }
-    .dhoa-metrics { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem !important; }
-    .dhoa-mobile-map-hint { display: block !important; }
-}
-@media (max-width: 480px) {
-    [data-testid="stAppViewContainer"] .main .block-container {
-        padding-left: 0.5rem; padding-right: 0.5rem;
-    }
-    body, p, label, [data-testid="stCaptionContainer"] { font-size: 14px; }
-}
-[data-testid="stMainBlockContainer"] h1.dhoa-brand-title {
-    display: block !important;
-    box-sizing: border-box !important;
-    width: 100% !important;
-    padding: 0.38em 0 0.12em !important;
-    margin-top: 0.35rem !important;
-    line-height: 1.8 !important;
-    overflow: visible !important;
-    font-family: "Noto Sans Bengali", sans-serif !important;
-    font-feature-settings: "kern", "liga", "mark", "mkmk" !important;
-    font-kerning: normal !important;
-    font-variant-ligatures: contextual common-ligatures !important;
-}
-[data-testid="stMainBlockContainer"] h1.dhoa-brand-title span {
-    font-family: "Noto Sans Bengali", sans-serif !important;
-    font-feature-settings: "kern", "liga", "mark", "mkmk" !important;
-    font-kerning: normal !important;
-    font-variant-ligatures: contextual common-ligatures !important;
-    line-height: inherit !important;
-    overflow: visible !important;
-}
-@media (max-width: 768px) {
-    [data-testid="stMainBlockContainer"] h1.dhoa-brand-title {
-        font-size: 1.9rem !important;
-        line-height: 1.8 !important;
-        padding-top: 0.38em !important;
-        padding-bottom: 0.12em !important;
-    }
-}
-</style>
-"""
-
-
 def responsive_css() -> str:
     """Return responsive CSS for desktop, tablet, and phone layouts.
 
     Input schema: none. Output schema: CSS string for the dashboard page.
     """
-    return _RESPONSIVE_CSS.replace("__PAGE_LOADING__", T.PAGE_LOADING)
+    return styles.page_css(T.PAGE_LOADING)
 
 
 @st.cache_data
@@ -493,26 +330,6 @@ def community_distances(gdf: gpd.GeoDataFrame, latitude: float, longitude: float
     )
 
 
-def _community_area_centroid(gdf: gpd.GeoDataFrame) -> tuple[float, float]:
-    """Return the mean projected position of candidate points as WGS84 lat/lon.
-
-    Input schema: non-empty GeoDataFrame with numeric lat/lon columns in
-    EPSG:4326. Output schema: (latitude, longitude) at the selected area's
-    candidate-point centroid (average of the projected coordinates, which is
-    the centroid of the point set).
-    """
-    from src.geo.crs import get_projected_crs
-
-    lat = pd.to_numeric(gdf["lat"], errors="coerce").to_numpy(dtype="float64", na_value=np.nan)
-    lon = pd.to_numeric(gdf["lon"], errors="coerce").to_numpy(dtype="float64", na_value=np.nan)
-    projected_crs = get_projected_crs(float(np.nanmean(lon)))
-    to_metres = Transformer.from_crs("EPSG:4326", projected_crs, always_xy=True)
-    to_degrees = Transformer.from_crs(projected_crs, "EPSG:4326", always_xy=True)
-    x, y = to_metres.transform(lon, lat)
-    centroid_lon, centroid_lat = to_degrees.transform(np.nanmean(x), np.nanmean(y))
-    return float(centroid_lat), float(centroid_lon)
-
-
 def _add_map_base_layers(
     map_view: folium.Map, *, with_layer_control: bool = True, tile: str | None = None
 ) -> None:
@@ -626,36 +443,8 @@ def get_filtered_gdf(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     """
     active_view = st.session_state.get("dhoa_active_view", "inspector")
     if active_view == "community":
-        st.session_state.pop("community_centroid", None)
-        district = st.session_state.get("community_filter_district", ALL_DISTRICTS)
-        upazila = st.session_state.get("community_filter_upazila", ALL_AREAS)
-        district_selected = district != ALL_DISTRICTS
-        search_point = st.session_state.get("community_search_point")
-        # When no district AND no search point, we cannot determine a location.
-        if not district_selected and search_point is None:
-            return _empty_with_distance(gdf)
-        result = gdf
-        # Apply district filter only when selected.
-        if district_selected:
-            if "district" not in result.columns:
-                return _empty_with_distance(gdf)
-            result = result[result["district"].astype(str).eq(str(district))]
-        if upazila != ALL_AREAS:
-            if "upazila" not in result.columns:
-                return _empty_with_distance(gdf)
-            result = result[result["upazila"].astype(str).eq(str(upazila))]
-        if result.empty:
-            return _empty_with_distance(result)
-        if search_point is None:
-            search_lat, search_lon = _community_area_centroid(result)
-        else:
-            search_lat, search_lon = map(float, search_point)
-        st.session_state["community_centroid"] = (search_lat, search_lon)
-        radius_m = int(st.session_state.get("community_radius_m", 1000))
-        distances = community_distances(result, search_lat, search_lon)
-        result = result.loc[distances.le(radius_m)].copy()
-        result["distance_m"] = distances.loc[result.index]
-        return result.sort_values("distance_m", ascending=True)
+        result = _community_result(gdf)
+        return _empty_with_distance(gdf) if result is None else result.rows
 
     key = _inspector_filter_key()
     version = _data_version(gdf)
@@ -666,7 +455,7 @@ def get_filtered_gdf(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     return kd.take_candidates(gdf, positions)
 
 
-def community_alert_pdf(location: str, rows: pd.DataFrame, radius_m: int) -> bytes:
+def community_alert_pdf(location: str, rows: pd.DataFrame, radius_m: int) -> bytes:  # radius_m == 0: whole area
     """Create a one-page community screening PDF.
 
     Input schema: searched location label and rows with distance_m, class,
@@ -691,9 +480,10 @@ def community_alert_pdf(location: str, rows: pd.DataFrame, radius_m: int) -> byt
     pdf.multi_cell(0, 7, f"Kiln Candidates Near {pdf_location}", new_x="LMARGIN", new_y="NEXT")
     pdf.multi_cell(0, 7, f"Generated: {datetime.now(UTC):%Y-%m-%d}", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(2)
+    scope = f"within {radius_m / 1000:g} km of {pdf_location}" if radius_m else f"in {pdf_location}"
     pdf.multi_cell(
         0, 6,
-        f"{len(rows)} kiln candidates were identified within {radius_m / 1000:g} km of {pdf_location} using satellite imagery analysis of the 2025-26 dry season.",
+        f"{len(rows)} kiln candidates were identified {scope} using satellite imagery analysis of the 2025-26 dry season.",
         new_x="LMARGIN", new_y="NEXT",
     )
     pdf.ln(2)
@@ -706,7 +496,8 @@ def community_alert_pdf(location: str, rows: pd.DataFrame, radius_m: int) -> byt
     pdf.set_font("Helvetica", "", 8)
     for _, row in rows.iterrows():
         values = (
-            f"{row['distance_m']:.0f} m", str(row.get("class", "Unknown")),
+            f"{row['distance_m']:.0f} m" if radius_m and pd.notna(row["distance_m"]) else "-",
+            str(row.get("class", "Unknown")),
             str(row.get("priority_band", "Unknown")), f"{float(row['lat']):.5f}, {float(row['lon']):.5f}",
         )
         for value, width in zip(values, widths):
@@ -759,39 +550,41 @@ def _render_community_map(
     source: pd.DataFrame,
     search_lat: float,
     search_lon: float,
-    radius_m: int,
+    radius_m: int | None,
     area_name: str,
+    place_key: str,
 ) -> None:
     """Render the Community map and the details of a clicked kiln.
 
-    Input: kilns within the radius (with ``distance_m``), the dataset they came
-    from, the search point, radius (metres) and its label. Output: a stable map
-    (fitted to the radius once; pan/zoom do not rerun) whose search point and
-    radius circle are sent via ``feature_group_to_add``, plus a detail card for
-    the clicked kiln. Runs as a fragment, so a click reruns only this block.
+    Input: kilns to show (with ``distance_m``), the dataset they came from, the
+    search point, the radius in metres (``None`` = whole area: no circle, view
+    fitted to the kilns), its label and the place key. Output: a stable map
+    (fitted once; pan/zoom do not rerun) whose search point and radius circle
+    are sent via ``feature_group_to_add``, plus a detail card for the clicked
+    kiln. Runs as a fragment, so a click reruns only this block.
     """
     tile = _current_tile()
-    fingerprint = (
-        str(st.session_state.get("community_filter_district", "")),
-        str(st.session_state.get("community_filter_upazila", "")),
-        round(float(search_lat), 5), round(float(search_lon), 5), int(radius_m),
+    fingerprint = (str(place_key), int(radius_m or 0), round(float(search_lat), 5), round(float(search_lon), 5))
+    bounds = (
+        kd.radius_bounds(search_lat, search_lon, radius_m) if radius_m else kd.bounds_of(nearby)
     )
     version = _data_version(source)
     if version is None:
-        map_view = _marker_map(nearby, tile, kd.radius_bounds(search_lat, search_lon, radius_m), radius=7)
+        map_view = _marker_map(nearby, tile, bounds, radius=7)
     else:
         payload = _cached_marker_payload(version, ("community", *fingerprint), nearby)
-        map_view = _marker_map(
-            nearby, tile, kd.radius_bounds(search_lat, search_lon, radius_m), radius=7, payload=payload
-        )
-    overlay = folium.FeatureGroup(name="dhoa_search")
-    folium.CircleMarker(
-        [search_lat, search_lon], radius=8, color=DESIGN_COLORS["new"],
-        fill=True, fill_color=DESIGN_COLORS["new"], fill_opacity=1, tooltip=html.escape(area_name),
-    ).add_to(overlay)
-    folium.Circle(
-        [search_lat, search_lon], radius=radius_m, color=DESIGN_COLORS["new"], fill=False,
-    ).add_to(overlay)
+        map_view = _marker_map(nearby, tile, bounds, radius=7, payload=payload)
+    groups: list[folium.FeatureGroup] = []
+    if radius_m:
+        overlay = folium.FeatureGroup(name="dhoa_search")
+        folium.CircleMarker(
+            [search_lat, search_lon], radius=8, color=DESIGN_COLORS["new"],
+            fill=True, fill_color=DESIGN_COLORS["new"], fill_opacity=1, tooltip=html.escape(area_name),
+        ).add_to(overlay)
+        folium.Circle(
+            [search_lat, search_lon], radius=radius_m, color=DESIGN_COLORS["new"], fill=False,
+        ).add_to(overlay)
+        groups.append(overlay)
     selected_id = st.session_state.get("community_selected_kiln_id")
     selected = (
         nearby[nearby["kiln_id"].astype(str).eq(str(selected_id))]
@@ -800,7 +593,6 @@ def _render_community_map(
     )
     if selected.empty and selected_id is not None:
         st.session_state["community_selected_kiln_id"] = None
-    groups = [overlay]
     if not selected.empty:
         groups.append(_selected_feature_group(float(selected.iloc[0]["lat"]), float(selected.iloc[0]["lon"])))
     result = st_folium(
@@ -809,7 +601,7 @@ def _render_community_map(
         height=MAP_HEIGHT,
         width="100%",
         returned_objects=["last_object_clicked"],
-        feature_group_to_add=groups,
+        feature_group_to_add=groups or None,
     )
     point = _clicked_point(result)
     if (
@@ -831,288 +623,321 @@ def _render_community_map(
 _render_community_map_fragment = st.fragment(_render_community_map)
 
 
-def render_community_view(gdf: gpd.GeoDataFrame) -> None:
-    """Render the shared community search, result map/table, and alert PDF.
+# --------------------------------------------------------------------------
+# Community view (M5): where -> how far -> results
+# --------------------------------------------------------------------------
+def _community_version_key(frame: pd.DataFrame) -> str:
+    """Cache token for per-dataset community lookups."""
+    return _data_version(frame) or f"rows-{len(frame)}"
 
-    Input schema: prioritized kiln GeoDataFrame with lat/lon, class,
-    priority, and optional OSM place fields. Output schema: a
-    district/upazila filters, adjustable centroid-radius results, map, and table.
+
+@st.cache_data(show_spinner=False, max_entries=4)
+def _cached_places(version: str, _frame: pd.DataFrame) -> list[cm.Place]:
+    """Selectable places (districts, upazilas with data, known place names)."""
+    return cm.build_places(
+        _frame, label_fmt=T.C_PLACE_LABEL_FMT, district_name=kd.district_label
+    )
+
+
+@st.cache_data(ttl=86400, show_spinner=False, max_entries=256)
+def _cached_geocode(query: str) -> tuple[float, float] | None:
+    """Geocode a Bangladesh place name; not-found is cached, outages are not."""
+    return cm.geocode_bangladesh(query)
+
+
+def _community_places(gdf: pd.DataFrame) -> dict[str, cm.Place]:
+    """Return ``{key: Place}`` for the dataset."""
+    return {place.key: place for place in _cached_places(_community_version_key(gdf), gdf)}
+
+
+def _community_place(gdf: pd.DataFrame) -> cm.Place | None:
+    """Resolve the active search origin from session state.
+
+    A geocoded/GPS point (``community_origin``) wins over the picker, because
+    choosing in the picker clears it.
     """
-    _qp = st.query_params
-    if "_geo_lat" in _qp and "_geo_lon" in _qp:
-        try:
-            _glat = float(_qp["_geo_lat"])
-            _glon = float(_qp["_geo_lon"])
-            st.session_state["community_search_point"] = (_glat, _glon)
-            st.session_state["community_search_name"] = T.MY_LOCATION
-            st.query_params.clear()
-        except Exception:
-            pass
-    st.markdown(f"<div class='dhoa-section-title'>{T.FIND_KILNS_NEAR_YOU}</div>", unsafe_allow_html=True)
+    origin = st.session_state.get("community_origin")
+    if isinstance(origin, dict):
+        return cm.point_place(str(origin["name"]), float(origin["lat"]), float(origin["lon"]))
+    return _community_places(gdf).get(st.session_state.get("community_place_key"))
 
-    # Audio guide
-    with st.container(border=True):
-        st.markdown(T.LISTEN_TO_THE_GUIDE)
+
+def _community_result(gdf: pd.DataFrame) -> cm.SearchResult | None:
+    """Search the dataset for the active origin and radius (None if no origin)."""
+    place = _community_place(gdf)
+    if place is None:
+        return None
+    radius = int(st.session_state.get("community_radius_m") or cm.DEFAULT_RADIUS_M)
+    return cm.search(gdf, place, radius)
+
+
+def _on_community_pick() -> None:
+    """A list choice replaces any GPS/geocoded origin and old notices."""
+    st.session_state["community_origin"] = None
+    st.session_state.pop("community_notice", None)
+    st.session_state["community_selected_kiln_id"] = None
+
+
+def _set_community_radius(radius_m: int) -> None:
+    """Button callback: widen the radius to ``radius_m``."""
+    st.session_state["community_radius_m"] = int(radius_m)
+
+
+def _set_community_origin(name: str, lat: float, lon: float) -> None:
+    """Make a point the origin; the picker is cleared on the next run."""
+    st.session_state["community_origin"] = {"name": name, "lat": float(lat), "lon": float(lon)}
+    st.session_state["community_picker_reset"] = True
+    st.session_state["community_selected_kiln_id"] = None
+
+
+_GPS_ERRORS = {
+    "denied": T.C_GPS_DENIED,
+    "unsupported": T.C_GPS_UNSUPPORTED,
+    "insecure": T.C_GPS_INSECURE,
+    "timeout": T.C_GPS_TIMEOUT,
+    "unavailable": T.C_GPS_UNAVAILABLE,
+}
+
+
+def _handle_gps_event(event: object) -> None:
+    """Apply a new GPS component value once (by token); never reloads the page."""
+    if not isinstance(event, dict):
+        return
+    token = event.get("token")
+    if token is None or token == st.session_state.get("community_gps_token"):
+        return
+    st.session_state["community_gps_token"] = token
+    lat, lon = kd.to_float(event.get("lat")), kd.to_float(event.get("lon"))
+    if not (math.isnan(lat) or math.isnan(lon)):
+        _set_community_origin(T.MY_LOCATION, lat, lon)
+        st.session_state["community_notice"] = ("success", T.C_GPS_OK)
+    else:
+        message = _GPS_ERRORS.get(str(event.get("error")), T.C_GPS_UNAVAILABLE)
+        st.session_state["community_notice"] = ("warning", message)
+    st.rerun()
+
+
+def _submit_community_geocode(query: str) -> None:
+    """Run the optional free-text fallback and store the outcome in session state."""
+    text = " ".join(query.split())
+    if not text:
+        st.session_state["community_notice"] = ("warning", T.C_GEO_EMPTY)
+        return
+    try:
+        with st.spinner(T.C_GEO_SEARCHING):
+            hit = _cached_geocode(text.casefold())
+    except cm.GeocodeUnavailable:
+        st.session_state["community_notice"] = ("warning", T.C_GEO_UNAVAILABLE)
+        return
+    except Exception:  # noqa: BLE001 - never break the page on a provider error
+        logging.exception("Community geocoding failed")
+        st.session_state["community_notice"] = ("warning", T.C_GEO_UNAVAILABLE)
+        return
+    if hit is None:
+        st.session_state["community_notice"] = ("warning", T.C_GEO_NOT_FOUND)
+        return
+    st.session_state.pop("community_notice", None)
+    _set_community_origin(text, hit[0], hit[1])
+    st.rerun()
+
+
+def _render_community_inputs(gdf: pd.DataFrame) -> cm.Place | None:
+    """Render steps 1 and 2 and return the chosen origin (or None)."""
+    if st.session_state.pop("community_picker_reset", False):
+        st.session_state["community_place_key"] = None
+    places = _community_places(gdf)
+    st.session_state.setdefault("community_radius_m", cm.DEFAULT_RADIUS_M)
+    if st.session_state.get("community_place_key") not in places:
+        st.session_state["community_place_key"] = None
+
+    with st.container(border=True, key="dhoa_community_step1"):
+        st.markdown(f"**{T.C_STEP1}**")
+        st.selectbox(
+            T.C_PLACE_LABEL,
+            list(places),
+            index=None,
+            format_func=lambda key: places[key].label if key in places else str(key),
+            placeholder=T.C_PLACE_PLACEHOLDER,
+            help=T.C_PLACE_HELP,
+            key="community_place_key",
+            on_change=_on_community_pick,
+        )
+        event = _geolocate(
+            label=T.C_GPS_LABEL, busy_label=T.C_GPS_BUSY, key="community_gps", default=None
+        )
+        with st.expander(T.C_GEO_EXPANDER):
+            with st.form("community_geocode_form", border=False):
+                typed = st.text_input(T.C_GEO_INPUT, help=T.C_GEO_HELP, key="community_geocode_text")
+                submitted = st.form_submit_button(T.C_GEO_BUTTON, width="stretch")
+        _handle_gps_event(event)
+        if submitted:
+            _submit_community_geocode(typed)
+        notice = st.session_state.get("community_notice")
+        if notice:
+            getattr(st, notice[0], st.info)(notice[1])
+
+    place = _community_place(gdf)
+    with st.container(border=True, key="dhoa_community_step2"):
+        st.markdown(f"**{T.C_STEP2}**")
+        whole_area = place is not None and not place.radius_applies
+        st.segmented_control(
+            T.C_RADIUS_LABEL,
+            list(cm.RADIUS_CHOICES_M),
+            format_func=lambda value: T.C_RADIUS_OPTION_FMT.format(value / 1000),
+            help=T.C_RADIUS_HELP,
+            key="community_radius_m",
+            disabled=whole_area,
+            width="stretch",
+        )
+        if whole_area:
+            st.caption(T.C_RADIUS_AREA_NOTE)
+    return place
+
+
+def _render_community_empty(
+    gdf: pd.DataFrame, result: cm.SearchResult, radius_m: int
+) -> None:
+    """Explain an empty radius result and offer the one-click next step."""
+    nearest = cm.nearest_beyond(gdf, result.place.lat, result.place.lon)
+    if nearest is None:
+        st.info(T.C_EMPTY_NONE)
+        return
+    distance_m, row = nearest
+    area = str(row.get("ui_area") or _area_display_name(row))
+    target = cm.radius_to_reach(distance_m)
+    template = T.C_EMPTY_NEAREST_FMT if target is not None else T.C_EMPTY_FAR_FMT
+    st.info(template.format(radius_m / 1000, distance_m / 1000, area))
+    if target is not None and target > radius_m:
+        st.button(
+            T.C_SHOW_WITHIN_FMT.format(target / 1000),
+            key="community_widen",
+            on_click=_set_community_radius,
+            args=(target,),
+            type="primary",
+            width="stretch",
+        )
+
+
+def _render_community_table(nearby: pd.DataFrame, show_distance: bool) -> None:
+    """Render the result list with a directions link per kiln."""
+    directions = [
+        f"https://www.google.com/maps/dir/?api=1&destination={lat:.6f}%2C{lon:.6f}"
+        for lat, lon in zip(nearby["lat"].astype(float), nearby["lon"].astype(float))
+    ]
+    columns: dict[str, Any] = {}
+    if show_distance:
+        columns[T.DISTANCE_M] = (
+            nearby["distance_m"].round(0).astype("Int64").astype("string").fillna(T.NO_DATA).to_numpy()
+        )
+    columns[T.AREA] = nearby["ui_area"].tolist()
+    columns[T.KILN_TYPE] = nearby["ui_type"].tolist()
+    columns[T.PRIORITY] = nearby["ui_priority"].tolist()
+    columns[T.DIRECTIONS] = directions
+    st.dataframe(
+        pd.DataFrame(columns), hide_index=True, width="stretch",
+        column_config={T.DIRECTIONS: st.column_config.LinkColumn(display_text=T.GET_DIRECTIONS)},
+    )
+
+
+def _render_community_summary(result: cm.SearchResult) -> None:
+    """Summary card: how many kilns, and how many are high priority."""
+    counts = result.summary
+    if result.radius_m is None:
+        headline = T.C_SUMMARY_AREA_FMT.format(result.place.name, counts["total"])
+    else:
+        headline = T.C_SUMMARY_RADIUS_FMT.format(
+            result.radius_m / 1000, result.place.name, counts["total"]
+        )
+    glyphs = kd.PRIORITY_GLYPHS
+    with st.container(border=True, key="dhoa_community_summary"):
+        st.markdown(f"#### {headline}")
+        st.markdown(T.C_SUMMARY_HIGH_FMT.format(counts["high"]))
+        st.caption(
+            f"{glyphs['High']} {T.SUMMARY_HIGH}: {counts['high']:,} · "
+            f"{glyphs['Medium']} {T.SUMMARY_MEDIUM}: {counts['medium']:,} · "
+            f"{glyphs['Low']} {T.SUMMARY_LOW}: {counts['low']:,}"
+        )
+
+
+def _render_community_results(gdf: pd.DataFrame, place: cm.Place | None) -> None:
+    """Render step 3: summary, list, map, downloads, or a clear next step."""
+    st.markdown(f"**{T.C_STEP3}**")
+    if place is None:
+        st.info(T.C_PICK_PROMPT)
+        return
+    if place.kind == cm.KIND_POINT and cm.covered_district(gdf, place.lat, place.lon) is None:
+        districts = ", ".join(
+            kd.district_label(name) for name in sorted(gdf["district"].dropna().astype(str).unique())
+        )
+        st.warning(T.C_OUTSIDE_FMT.format(place.name, districts))
+        return
+    result = _community_result(gdf)
+    if result is None:
+        st.info(T.C_PICK_PROMPT)
+        return
+    st.session_state.pop("community_centroid", None)
+    nearby = kd.with_display_columns(result.rows, _siting_rules())
+    radius_m = result.radius_m
+    _render_community_summary(result)
+    if nearby.empty:
+        if radius_m is None:
+            st.info(T.NO_KILNS_IN_AREA_FMT.format(place.name))
+        else:
+            _render_community_empty(gdf, result, radius_m)
+        return
+
+    report_name = place.name
+    list_column, map_column = st.columns([2, 3], gap="medium")
+    with list_column:
+        st.subheader(T.C_LIST_TITLE)
+        _render_community_table(nearby, show_distance=radius_m is not None)
+        try:
+            st.download_button(
+                T.DOWNLOAD_REPORT, _community_report(report_name, nearby, radius_m or 0),
+                "dhoa_community_report.pdf", "application/pdf",
+                width="stretch", key="community_alert_download",
+            )
+        except Exception:
+            logging.exception("Community PDF generation failed")
+            st.error(T.REPORT_GENERATION_FAILED_PLEASE_TRY_AGAI)
+        st.download_button(
+            T.DOWNLOAD_COMMUNITY_CSV,
+            make_download_csv(nearby, COMMUNITY_CSV_COLUMNS),
+            "dhoa_community_candidates.csv", "text/csv",
+            width="stretch", key="community_candidates_csv_download",
+        )
+    with map_column:
+        st.subheader(T.AREA_MAP)
+        st.caption(
+            T.C_MAP_CAPTION_AREA_FMT.format(place.name)
+            if radius_m is None
+            else T.C_MAP_CAPTION_RADIUS_FMT.format(place.name, radius_m / 1000)
+        )
+        with st.container(border=True):
+            _render_community_map_fragment(
+                nearby, gdf, place.lat, place.lon, radius_m, place.name, place.key
+            )
+
+
+def render_community_view(gdf: gpd.GeoDataFrame) -> None:
+    """Render the Community view as three steps on one screen.
+
+    Input schema: prepared kiln frame (lat/lon, district, upazila, class,
+    priority_band, optional nearest_place). Output schema: 1) a searchable
+    place picker built from the data plus "use my location" and an optional
+    geocoder fallback, 2) radius choices 1/2/5/10 km (default 5; whole-area
+    choices list every kiln), 3) a summary, list, map and PDF/CSV downloads,
+    or a clear next step when nothing is found. No page reload anywhere.
+    """
+    st.markdown(f"<div class='dhoa-section-title'>{T.FIND_KILNS_NEAR_YOU}</div>", unsafe_allow_html=True)
+    place = _render_community_inputs(gdf)
+    _render_community_results(gdf, place)
+    with st.expander(T.LISTEN_TO_THE_GUIDE):
         community_guide = _ROOT / "app" / "static" / "community_guide.mp3"
         if community_guide.is_file():
             st.audio(str(community_guide))
         else:
             st.info(T.AUDIO_GUIDE_COMING_SOON)
-
-    # District and upazila filters
-    all_districts = ALL_DISTRICTS
-    all_areas = ALL_AREAS
-    district_values = (
-        sorted(gdf["district"].dropna().astype(str).unique().tolist())
-        if "district" in gdf.columns else []
-    )
-    district_options = [all_districts, *district_values]
-    if st.session_state.get("community_filter_district") not in district_options:
-        st.session_state["community_filter_district"] = all_districts
-    sel_district = st.selectbox(
-        T.DISTRICT,
-        district_options,
-        format_func=lambda value: T.ALL_DISTRICTS if value == all_districts else _district_label(value),
-        key="community_filter_district",
-        on_change=_reset_community_upazila_filter,
-    )
-    district_selected = sel_district != all_districts
-    upazila_source = gdf if district_selected else gdf.iloc[0:0]
-    if district_selected and "district" in upazila_source.columns:
-        upazila_source = upazila_source[upazila_source["district"].astype(str).eq(str(sel_district))]
-    data_upazilas = (
-        sorted(upazila_source["upazila"].dropna().astype(str).unique().tolist())
-        if "upazila" in upazila_source.columns else []
-    )
-    known_upazilas = BD_ADMIN_AREAS.get(sel_district, [])
-    upazila_values = sorted(set(known_upazilas) | set(data_upazilas))
-    upazila_options = [all_areas, *upazila_values]
-    if st.session_state.get("community_filter_upazila") not in upazila_options:
-        st.session_state["community_filter_upazila"] = all_areas
-    sel_upazila = st.selectbox(
-        T.AREA_THANA,
-        upazila_options,
-        format_func=lambda value: T.ALL_AREAS if value == all_areas else value,
-        key="community_filter_upazila",
-        disabled=not district_selected,
-    )
-
-    # Radius slider (always visible)
-    radius_m = int(st.slider(
-        T.SEARCH_RADIUS_METRES,
-        min_value=250,
-        max_value=5000,
-        value=st.session_state.get("community_radius_m", 1000),
-        step=250,
-        key="community_radius_m",
-    ))
-
-    st.divider()
-
-    # Option A: type a place name
-    with st.form("community_search_form", border=False):
-        name = st.text_input(
-            T.SEARCH_BY_NAME,
-            placeholder=T.E_G_ASHULIA,
-            key="community_location_name",
-            disabled=not district_selected,
-        )
-        submitted = st.form_submit_button(
-            T.SEARCH,
-            width="stretch",
-            disabled=not district_selected,
-        )
-
-    st.divider()
-
-    # Option B: use GPS location
-    st.markdown(T.OR_USE_YOUR_CURRENT_LOCATION)
-    gps_js = """
-<script>
-function sendLocation() {
-    if (!navigator.geolocation) {
-        window.parent.postMessage({type:'streamlit:setComponentValue',value:{error:'unsupported'}}, '*');
-        return;
-    }
-    navigator.geolocation.getCurrentPosition(
-        function(pos) {
-            var params = new URLSearchParams(window.parent.location.search);
-            params.set('gps_lat', pos.coords.latitude.toFixed(6));
-            params.set('gps_lon', pos.coords.longitude.toFixed(6));
-            window.parent.location.search = params.toString();
-        },
-        function(err) {
-            alert('Location access denied. Please allow location access and try again.');
-        },
-        {enableHighAccuracy: true, timeout: 10000}
-    );
-}
-</script>
-<button onclick="sendLocation()" style="
-    background:#3b82f6;color:white;border:none;padding:.5rem 1.2rem;
-    border-radius:.4rem;font-size:1rem;cursor:pointer;width:100%
-">📍 """ + T.USE_MY_LOCATION + """</button>
-"""
-    components.html(gps_js, height=60)
-
-    # Handle GPS query parameters
-    gps_params = st.query_params
-    gps_lat_str = gps_params.get("gps_lat")
-    gps_lon_str = gps_params.get("gps_lon")
-    if gps_lat_str and gps_lon_str:
-        try:
-            search_point = (float(gps_lat_str), float(gps_lon_str))
-            st.session_state["community_search_point"] = search_point
-            st.session_state["community_search_name"] = T.YOUR_LOCATION
-            st.query_params.clear()
-        except ValueError:
-            pass
-
-    # Handle name-search submit
-    if submitted:
-        st.session_state.pop("community_search_point", None)
-        st.session_state.pop("community_search_name", None)
-        st.session_state.pop("community_report", None)
-        location_name = name.strip()
-        if not location_name:
-            st.warning(T.PLEASE_ENTER_A_LOCATION_NAME)
-            return
-        with st.spinner(T.SEARCHING):
-            loc = None
-            queries = [f"{location_name}, Bangladesh", f"{location_name}, Dhaka", location_name]
-            try:
-                from geopy.geocoders import Photon as _Photon
-                _geo = _Photon(user_agent="dhoa-bd-v2", timeout=15)
-                for query in queries:
-                    try:
-                        loc = _geo.geocode(query)
-                        if loc is not None:
-                            break
-                    except Exception:
-                        continue
-            except Exception:
-                pass
-            if loc is None:
-                try:
-                    from geopy.geocoders import Nominatim as _Nominatim
-                    _geo2 = _Nominatim(user_agent="dhoa-bd-v3", timeout=15)
-                    for query in queries:
-                        try:
-                            loc = _geo2.geocode(query, country_codes="BD")
-                            if loc is not None:
-                                break
-                        except Exception:
-                            continue
-                except Exception:
-                    pass
-        if loc is None:
-            st.warning(T.LOCATION_NOT_FOUND_TRY_A_DIFFERENT_SPELL)
-            return
-        search_point = (float(loc.latitude), float(loc.longitude))
-        st.session_state["community_search_point"] = search_point
-        st.session_state["community_search_name"] = location_name
-
-    # No search yet
-    search_point = st.session_state.get("community_search_point")
-    selected_location_name = st.session_state.get("community_search_name", "")
-    if search_point is None:
-        st.info(T.SELECT_A_DISTRICT_AND_SEARCH_FOR_A_PLACE)
-        return
-    if not district_selected:
-        st.info(T.SELECT_A_DISTRICT_AND_SEARCH_FOR_A_PLACE)
-        return
-
-    # The selectboxes above own these session keys; re-assigning them here raises
-    # StreamlitAPIException in Streamlit >= 1.4x, so they are only read.
-    search_lat, search_lon = search_point
-    location_name = (
-        selected_location_name or sel_upazila
-        if sel_upazila != all_areas
-        else selected_location_name or _district_label(sel_district)
-    )
-    area_name = location_name
-    # Display columns are precomputed on the prepared dataset; this is a no-op
-    # there and only computes them for a frame that lacks them.
-    nearby = kd.with_display_columns(get_filtered_gdf(gdf), _siting_rules())
-
-    result_column, map_column = st.columns([2, 3], gap="medium")
-    with result_column:
-        st.subheader(T.NEARBY_KILN_CANDIDATES)
-        with st.container(border=True):
-            if nearby.empty:
-                st.success(T.NO_KILNS_IN_RADIUS_FMT.format(radius_m / 1000))
-            else:
-                st.metric(
-                    T.KILNS_WITHIN_RADIUS_FMT.format(radius_m / 1000),
-                    f"{len(nearby):,}",
-                )
-            try:
-                report = _community_report(area_name, nearby, radius_m)
-                st.session_state["community_report"] = report
-                st.download_button(
-                    T.DOWNLOAD_REPORT, report,
-                    "dhoa_community_report.pdf", "application/pdf",
-                    width="stretch", key="community_alert_download",
-                )
-            except Exception:
-                logging.exception("Community PDF generation failed")
-                st.error(T.REPORT_GENERATION_FAILED_PLEASE_TRY_AGAI)
-            if not nearby.empty:
-                distance_header = T.DISTANCE_M
-                area_header = T.AREA
-                type_header = T.KILN_TYPE
-                priority_header = T.PRIORITY
-                directions_header = T.DIRECTIONS
-                nearby["directions_url"] = [
-                    f"https://www.google.com/maps/dir/?api=1&destination={lat:.6f}%2C{lon:.6f}"
-                    for lat, lon in zip(
-                        nearby["lat"].astype(float).tolist(),
-                        nearby["lon"].astype(float).tolist(),
-                    )
-                ]
-                table = pd.DataFrame({
-                    distance_header: nearby["distance_m"].round(0).astype("Int64").astype("string").fillna(T.NO_DATA).to_numpy(),
-                    area_header: nearby["ui_area"].tolist(),
-                    type_header: nearby["ui_type"].tolist(),
-                    priority_header: nearby["ui_priority"].tolist(),
-                    directions_header: nearby["directions_url"].tolist(),
-                })
-                st.dataframe(
-                    table, hide_index=True, width="stretch",
-                    column_config={directions_header: st.column_config.LinkColumn(display_text=T.GET_DIRECTIONS)},
-                )
-            st.download_button(
-                T.DOWNLOAD_COMMUNITY_CSV,
-                make_download_csv(nearby, COMMUNITY_CSV_COLUMNS),
-                "dhoa_community_candidates.csv", "text/csv",
-                width="stretch", key="community_candidates_csv_download",
-            )
-
-    with map_column:
-        st.subheader(T.AREA_MAP)
-        center_label_bn = (
-            T.SEARCH_POINT_LABEL
-            if selected_location_name
-            else T.AREA_CENTROID_LABEL
-        )
-        center_description_bn = (
-            location_name
-            if selected_location_name
-            else T.CENTROID_OF_AREA_FMT.format(location_name)
-        )
-        st.markdown(
-            "<div style='display:flex;flex-wrap:wrap;gap:.5rem;margin:.4rem 0'>"
-            f"<span style='background:#1e2329;padding:.35rem .6rem;border-radius:999px'><b style='color:{DESIGN_COLORS['new']}'>&#9679;</b> {center_label_bn}</span>"
-            f"<span style='background:#1e2329;padding:.35rem .6rem;border-radius:999px'><b style='color:{PRIORITY_COLORS['High']}'>&#9679;</b> {T.HIGH_PRIORITY}</span>"
-            f"<span style='background:#1e2329;padding:.35rem .6rem;border-radius:999px'><b style='color:{PRIORITY_COLORS['Medium']}'>&#9679;</b> {T.MEDIUM}</span>"
-            f"<span style='background:#1e2329;padding:.35rem .6rem;border-radius:999px'><b style='color:{PRIORITY_COLORS['Low']}'>&#9679;</b> {T.LOW}</span>"
-            "</div>",
-            unsafe_allow_html=True,
-        )
-        st.caption(T.COMMUNITY_MAP_CAPTION_FMT.format(center_description_bn, radius_m / 1000))
-        with st.container(border=True):
-            _render_community_map_fragment(nearby, gdf, search_lat, search_lon, radius_m, area_name)
-            # Mobile users should rotate their device for a wider map.
 
 
 def _popup_content(row: Mapping[str, object]) -> dict[str, Any]:
@@ -1328,14 +1153,25 @@ def _flagged_count(frame: pd.DataFrame, rules: Mapping[str, Any]) -> int:
     return int(flagged.sum())
 
 
+def _data_date_label(path: Path | None) -> str:
+    """Return the data file's modification date (UTC, ISO) or the no-data label.
+
+    Input: path of the loaded kilns file (or None). Output: ``YYYY-MM-DD`` of
+    the file's mtime, i.e. when the dataset was produced, never today's date.
+    """
+    if path is None:
+        return T.NO_DATA
+    try:
+        return datetime.fromtimestamp(Path(path).stat().st_mtime, tz=UTC).date().isoformat()
+    except OSError:
+        return T.NO_DATA
+
+
 def render_header(gdf: gpd.GeoDataFrame) -> str:
     """Render the Dhoa header, mode navigation, and candidate summary metrics."""
     st.markdown(f"<h1 class='dhoa-brand-title'>{html.escape(DASHBOARD_TITLE)}</h1>", unsafe_allow_html=True)
     loaded = dashboard_kilns_file()
     subtitle = T.BANGLADESH_BRICK_KILN_MONITORING_DASHBOA
-    if loaded is not None:
-        updated = datetime.fromtimestamp(loaded.stat().st_mtime, tz=UTC).date().isoformat()
-        subtitle += T.SUBTITLE_UPDATED_FMT.format(updated)
     st.caption(subtitle)
     view_options = ["inspector", "community"]
     if st.session_state.get("dhoa_view_mode") not in view_options:
@@ -1367,7 +1203,7 @@ def render_header(gdf: gpd.GeoDataFrame) -> str:
         (f"{len(gdf):,}", METRIC_LABELS["total_kilns"]),
         (f"{high:,}", METRIC_LABELS["high_priority_kilns"]),
         (f"{flagged:,}", METRIC_LABELS["rule_violations"]),
-        (datetime.now(UTC).date().isoformat(), METRIC_LABELS["last_updated"]),
+        (_data_date_label(loaded), METRIC_LABELS["last_updated"]),
     )
     metrics = "".join(f"<div class='dhoa-metric'><strong>{value}</strong><span>{label}</span></div>" for value, label in items)
     st.markdown(f"<div class='dhoa-metrics'>{metrics}</div>", unsafe_allow_html=True)
@@ -1433,20 +1269,6 @@ def render_district_summary(district: str, gdf: gpd.GeoDataFrame) -> None:
 def _reset_upazila_filter() -> None:
     """Reset the dependent area selection when district changes."""
     st.session_state["filter_upazila"] = ALL_AREAS
-
-
-def _reset_community_upazila_filter() -> None:
-    """Reset the Community area when its selected district changes."""
-    st.session_state["community_filter_upazila"] = ALL_AREAS
-
-
-def _reset_community_location_filters() -> None:
-    """Restore Community district and area filters to their defaults."""
-    st.session_state["community_filter_district"] = ALL_DISTRICTS
-    st.session_state["community_filter_upazila"] = ALL_AREAS
-    st.session_state["community_location_name"] = ""
-    st.session_state.pop("community_search_point", None)
-    st.session_state.pop("community_search_name", None)
 
 
 def _sync_map_tile(widget_key: str) -> None:
@@ -1631,7 +1453,8 @@ def _render_selected_candidate(row: pd.Series) -> None:
         with right:
             st.markdown(f"**{T.DISTANCE_FROM_GOVERNMENT_FOREST}:** {forest_distance_label}")
             st.markdown(f"**{T.COORDINATES}:** {lat:.5f}, {lon:.5f}")
-        columns = st.columns(3)
+        with st.container(key="dhoa_action_row"):
+            columns = st.columns(3)
         columns[0].link_button(T.DIRECTIONS_2, f"https://www.google.com/maps/dir/?api=1&destination={lat:.6f},{lon:.6f}&travelmode=driving", width="stretch")
         columns[1].link_button(T.STREET_VIEW, f"https://www.google.com/maps/@{lat:.6f},{lon:.6f},3a,90y,0h,90t/data=!3m1!1e3", width="stretch")
         columns[2].link_button(T.GOOGLE_EARTH, f"https://earth.google.com/web/@{lat:.6f},{lon:.6f},500a,500d,35y", width="stretch")
@@ -2141,8 +1964,6 @@ def main() -> None:
     try:
         get_projected_crs(centroid_longitude)
         mode = render_header(gdf)
-        with st.expander(T.RELEVANT_LAW_BRICK_MANUFACTURING_AND_KIL):
-            st.markdown(T.LAW_TEXT)
         filters = render_sidebar(gdf, mode)
         if mode == "community":
             render_community_view(gdf)
