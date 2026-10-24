@@ -304,7 +304,7 @@ DISTANCE_FROM_GOVERNMENT_FOREST = 'সরকারি বন থেকে দূ
 
 # Kiln type
 KILN_TYPE_2 = 'ধরন'
-STATUS_NEW = 'নতুন প্রার্থী (২০২৫–২২)'
+STATUS_NEW = 'নতুন প্রার্থী (২০২৫–২৬)'
 STATUS_KNOWN = 'আগে চিহ্নিত (২০২৩–২৪ জরিপ)'
 
 # Detection status
@@ -341,7 +341,7 @@ PRIORITY_LIST = '🔥 অগ্রাধিকার তালিকা'
 NO_CANDIDATES_MATCH_THESE_FILTERS = 'এই ফিল্টারে কোনো প্রার্থী নেই।'
 
 # Marker colour shows priority; bold border shows the selected candidate.
-MARKER_COLOUR_SHOWS_PRIORITY_BOLD_BORDER = 'চিহ্নের রং অগ্রাধিকার বোঝায়; গাঢ় সীমানা নির্বাচিত প্রার্থীকে দেখায়।'
+MARKER_COLOUR_SHOWS_PRIORITY_BOLD_BORDER = 'চিহ্নের আকার ও রং অগ্রাধিকার বোঝায় (▲ উচ্চ, ◆ মাঝারি, ● নিম্ন); গাঢ় বৃত্ত নির্বাচিত প্রার্থীকে দেখায়।'
 
 # Select a candidate from the list or map to generate a PDF report.
 SELECT_A_CANDIDATE_FROM_THE_LIST_OR_MAP_ = 'পিডিএফ পেতে তালিকা বা মানচিত্র থেকে একটি প্রার্থী নির্বাচন করুন।'
@@ -412,3 +412,20 @@ REASON_FROM_FMT = '{0} থেকে {1:,.0f} মিটার'
 NO_KILNS_IN_RADIUS_FMT = '✅ {0:g} কিমি ব্যাসার্ধে কোনো ভাটা পাওয়া যায়নি।'
 KILNS_WITHIN_RADIUS_FMT = '{0:g} কিমি ব্যাসার্ধের মধ্যে ভাটা'
 PAGE_LOADING = 'পৃষ্ঠা লোড হচ্ছে, অপেক্ষা করুন…'
+
+# --- M4 Inspector redesign (native-speaker review needed for the new copy) ---
+RAIL_HINT = 'ফিল্টার বেছে নিয়ে “ফিল্টার প্রয়োগ করুন” চাপুন।'
+SUMMARY_MATCHING = 'মেলা প্রার্থী'
+SUMMARY_HIGH = 'উচ্চ অগ্রাধিকার'
+SUMMARY_MEDIUM = 'মাঝারি অগ্রাধিকার'
+SUMMARY_LOW = 'নিম্ন অগ্রাধিকার'
+SUMMARY_NEW = 'নতুন প্রার্থী'
+PRIORITY_NOTE = (
+    'উচ্চ, মাঝারি ও নিম্ন অগ্রাধিকার হলো সব প্রার্থীর র\u200d্যাংকিংয়ের আপেক্ষিক ভাগ '
+    '(শীর্ষ ২০%, পরের ৪০%, বাকি ৪০%)। এটি ঝুঁকির পরম মাত্রা নয়।'
+)
+PRIORITY_LEGEND = 'চিহ্ন'
+EMPTY_FILTER_HINT = 'ফিল্টার বদলে আবার চেষ্টা করুন, অথবা সব ফিল্টার মুছে দিন।'
+LOADING_MAP = 'মানচিত্র তৈরি হচ্ছে…'
+RETRY = '🔄 আবার চেষ্টা করুন'
+DETAIL_HINT = 'তালিকা থেকে একটি প্রার্থী বেছে নিন, অথবা মানচিত্রে চিহ্নে ক্লিক করুন।'
