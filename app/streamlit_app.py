@@ -213,6 +213,9 @@ h4 [data-testid="stHeaderActionElements"],
     width: 100%;
     margin: 0.5rem 0 1rem;
 }
+.dhoa-metrics.dhoa-summary { grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0.25rem 0 0.5rem; }
+.dhoa-pin { background: none; border: 0; }
+.dhoa-pin svg { display: block; filter: drop-shadow(0 0 1px rgba(0,0,0,.7)); }
 .dhoa-metric { min-width: 0; padding: 0.35rem 0.65rem; border-left: 2px solid #475569; }
 .dhoa-metric strong { display: block; font-size: 1.15rem; line-height: 1.3; }
 .dhoa-metric span { display: block; color: #aab4c0; font-size: 0.82rem; line-height: 1.35; }
@@ -1491,6 +1494,7 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
     with st.sidebar:
         if mode == "inspector":
             st.markdown(f"### {T.SEARCH_2}")
+            st.caption(T.RAIL_HINT)
             district_values = (
                 sorted(gdf["district"].dropna().astype(str).unique().tolist())
                 if "district" in gdf else []
@@ -1550,6 +1554,11 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
                     T.PRIORITY,
                     _priority_opts,
                     default=_priority_opts,
+                    format_func=lambda value: (
+                        f"{kd.PRIORITY_GLYPHS[band]} {value}"
+                        if (band := {T.HIGH: "High", T.MEDIUM: "Medium", T.LOW: "Low"}.get(value))
+                        else value
+                    ),
                     key="filter_priority",
                 )
                 filters["kiln_type"] = st.selectbox(
@@ -1594,30 +1603,38 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
 
 
 def _render_selected_candidate(row: pd.Series) -> None:
-    """Render selected kiln details and navigation without confidence scores."""
+    """Render the selected-kiln detail card with navigation links.
+
+    Input: one kiln row. Output: a bordered card with the id, a priority badge
+    (shape + text), type, area, detection status, distance to government
+    forest, coordinates and Google Maps / Street View / Earth links. No
+    confidence scores are shown.
+    """
     lat, lon = float(row.lat), float(row.lon)
     candidate_id = str(row.get("kiln_id", T.NO_DATA))
     forest_distance = kd.to_float(row.get("dist_government_forest_m"))
     if pd.isna(forest_distance):
         forest_distance = kd.to_float(row.get("dist_forests_m"))
-    st.subheader(T.SELECTED_KILN_TITLE_FMT.format(candidate_id))
     forest_distance_label = (
-        T.METRES_FMT.format(float(forest_distance))
-        if pd.notna(forest_distance)
-        else T.NO_DATA
+        T.METRES_FMT.format(float(forest_distance)) if pd.notna(forest_distance) else T.NO_DATA
     )
-    st.markdown(f"**{T.DISTANCE_FROM_GOVERNMENT_FOREST}:** {forest_distance_label}")
-    st.markdown(f"**{T.KILN_TYPE_2}:** {_type_label(row.get('class'))}")
-    st.markdown(f"**{T.PRIORITY}:** {_priority_label(row.get('priority_band'))} — {_priority_reason(row)}")
-    st.markdown(f"**{T.AREA}:** {_area_display_name(row)}")
     is_new = row.get("detection_status") == "New candidate (2025-26)"
     detection = T.STATUS_NEW if is_new else T.STATUS_KNOWN
-    st.markdown(f"**{T.DETECTION_STATUS}:** {detection}")
-    st.markdown(f"**{T.COORDINATES}:** {lat:.5f}, {lon:.5f}")
-    columns = st.columns(3)
-    columns[0].link_button(T.DIRECTIONS_2, f"https://www.google.com/maps/dir/?api=1&destination={lat:.6f},{lon:.6f}&travelmode=driving", width="stretch")
-    columns[1].link_button(T.STREET_VIEW, f"https://www.google.com/maps/@{lat:.6f},{lon:.6f},3a,90y,0h,90t/data=!3m1!1e3", width="stretch")
-    columns[2].link_button(T.GOOGLE_EARTH, f"https://earth.google.com/web/@{lat:.6f},{lon:.6f},500a,500d,35y", width="stretch")
+    with st.container(border=True, key="dhoa_detail_card"):
+        st.subheader(T.SELECTED_KILN_TITLE_FMT.format(candidate_id))
+        st.markdown(f"**{kd.priority_badge(row.get('priority_band'))}** — {_priority_reason(row)}")
+        left, right = st.columns(2)
+        with left:
+            st.markdown(f"**{T.KILN_TYPE_2}:** {_type_label(row.get('class'))}")
+            st.markdown(f"**{T.AREA}:** {_area_display_name(row)}")
+            st.markdown(f"**{T.DETECTION_STATUS}:** {detection}")
+        with right:
+            st.markdown(f"**{T.DISTANCE_FROM_GOVERNMENT_FOREST}:** {forest_distance_label}")
+            st.markdown(f"**{T.COORDINATES}:** {lat:.5f}, {lon:.5f}")
+        columns = st.columns(3)
+        columns[0].link_button(T.DIRECTIONS_2, f"https://www.google.com/maps/dir/?api=1&destination={lat:.6f},{lon:.6f}&travelmode=driving", width="stretch")
+        columns[1].link_button(T.STREET_VIEW, f"https://www.google.com/maps/@{lat:.6f},{lon:.6f},3a,90y,0h,90t/data=!3m1!1e3", width="stretch")
+        columns[2].link_button(T.GOOGLE_EARTH, f"https://earth.google.com/web/@{lat:.6f},{lon:.6f},500a,500d,35y", width="stretch")
 
 
 def _render_report_download(row: pd.Series) -> None:
@@ -1661,7 +1678,11 @@ def _current_tile() -> str:
 
 
 def _marker_callback_js(payload: Mapping[str, Any], radius: int = 8) -> str:
-    """Return the JS factory that turns one compact row into a circle marker.
+    """Return the JS factory that turns one compact row into a shaped marker.
+
+    Priority is encoded by shape *and* colour (triangle = High, diamond =
+    Medium, circle = Low, square = unclassified), so it never relies on colour
+    alone. The shape is a small inline SVG ``divIcon`` sized from ``radius``.
 
     Input: ``kiln_data.marker_payload`` output. Output: a JS function expression
     for ``FastMarkerCluster``. Each marker gets a hover tooltip and, on click, a
@@ -1681,6 +1702,8 @@ def _marker_callback_js(payload: Mapping[str, Any], radius: int = 8) -> str:
             "bands": payload["bands"],
             "types": payload["types"],
             "areas": payload["areas"],
+            "rules": payload["rules"],
+            "text": payload["text"],
             "labels": {
                 "kiln": html.escape(T.KILN_CANDIDATE),
                 "area": html.escape(T.AREA),
@@ -1690,29 +1713,36 @@ def _marker_callback_js(payload: Mapping[str, Any], radius: int = 8) -> str:
         },
         ensure_ascii=False,
     )
-    popup_js = (
-        "var la=row[0],lo=row[1],q=la.toFixed(6)+','+lo.toFixed(6),"
-        "g='https://www.google.com/maps',"
-        "h=\"<div class='dhoa-popup'><div class='badges'><span class='badge'>\"+D.types[row[3]]+\"</span>\""
-        "+\"<span class='badge priority-badge'>\"+D.bands[row[2]]+\"</span></div>\""
-        "+\"<strong>\"+D.labels.kiln+\" · \"+D.areas[row[4]]+\"</strong><hr>\""
-        "+\"📍 \"+D.labels.area+\": \"+D.areas[row[4]]+\"<br>\"+la.toFixed(5)+\", \"+lo.toFixed(5)+\"<hr>\""
-        "+\"<div class='popup-actions'>\""
-        "+\"<a href='\"+g+\"/dir/?api=1&destination=\"+q+\"&travelmode=driving' target='_blank' rel='noopener'>🗺️ \"+D.labels.directions+\"</a>\""
-        "+\"<a href='\"+g+\"?q=\"+q+\"' target='_blank' rel='noopener'>📍 \"+D.labels.map+\"</a>\""
-        "+\"<a href='https://earth.google.com/web/@\"+la.toFixed(6)+\",\"+lo.toFixed(6)+\",500a,500d,35y' target='_blank' rel='noopener'>🌍 Google Earth</a>\""
-        "+\"</div></div>\";"
-    )
+    popup_js = r"""var sg="<strong>"+D.text.signals+":</strong>";
+for(var i=0;i<D.rules.length;i++){var st=row[5].charAt(i),dv=row[6][i];
+sg+="<div class='rule-signal-row'><span>"+['🔴','🟡','🟢','⚪'][st]+"</span> "+D.rules[i]+": "
++(st==='3'?D.text.nodata:st==='2'?D.text.outside:dv.toLocaleString('en-US')+D.text.unit)+"</div>";}
+var la=row[0],lo=row[1],q=la.toFixed(6)+','+lo.toFixed(6),g='https://www.google.com/maps',
+h="<div class='dhoa-popup'><div class='badges'><span class='badge'>"+D.types[row[3]]+"</span>"
++"<span class='badge priority-badge'>"+D.bands[row[2]]+"</span></div>"
++"<strong>"+D.labels.kiln+" · "+D.areas[row[4]]+"</strong><hr>"
++"📍 "+D.labels.area+": "+D.areas[row[4]]+"<br>"+la.toFixed(5)+", "+lo.toFixed(5)+"<hr>"
++sg+"<hr><div class='popup-actions'>"
++"<a href='"+g+"/dir/?api=1&destination="+q+"&travelmode=driving' target='_blank' rel='noopener'>🗺️ "+D.labels.directions+"</a>"
++"<a href='"+g+"?q="+q+"' target='_blank' rel='noopener'>📍 "+D.labels.map+"</a>"
++"<a href='https://earth.google.com/web/@"+la.toFixed(6)+","+lo.toFixed(6)+",500a,500d,35y' target='_blank' rel='noopener'>🌍 Google Earth</a>"
++"</div></div>";"""
+    factory = r"""(function(){var D=__LOOKUPS__;
+return function(row){var c=D.colors[row[2]];var S=__SIZE__;
+var sh=["<polygon points='11,2 21,19 1,19'","<polygon points='11,1 21,11 11,21 1,11'",
+"<circle cx='11' cy='11' r='9'","<rect x='3' y='3' width='16' height='16'"];
+var ic=L.divIcon({className:'dhoa-pin',iconSize:[S,S],iconAnchor:[S/2,S/2],
+html:"<svg width='"+S+"' height='"+S+"' viewBox='0 0 22 22'>"+sh[row[2]]+" fill='"+c+"' fill-opacity='0.92' stroke='#fff' stroke-width='1.6'/></svg>"});
+var m=L.marker([row[0],row[1]],{icon:ic,riseOnHover:true});
+m.bindTooltip(D.bands[row[2]]+" | "+D.types[row[3]]+" | "+D.areas[row[4]],{sticky:true});
+__POPUP__
+m.on('click',function(e){var mp=e.target._map;if(!mp){return;}
+L.popup({maxWidth:300,autoPan:true}).setLatLng(e.target.getLatLng()).setContent(h).openOn(mp);});
+return m;};})()"""
     return (
-        "(function(){var D=" + lookups + ";"
-        "return function(row){var c=D.colors[row[2]];"
-        f"var m=L.circleMarker([row[0],row[1]],{{radius:{int(radius)},color:c,weight:2,"
-        "fill:true,fillColor:c,fillOpacity:0.85});"
-        'm.bindTooltip(D.bands[row[2]]+\" | \"+D.types[row[3]]+\" | \"+D.areas[row[4]],{sticky:true});'
-        + popup_js +
-        "m.on('click',function(e){var mp=e.target._map;if(!mp){return;}"
-        "L.popup({maxWidth:300,autoPan:true}).setLatLng(e.target.getLatLng()).setContent(h).openOn(mp);});"
-        "return m;};})()"
+        factory.replace("__LOOKUPS__", lookups)
+        .replace("__SIZE__", str(int(radius) * 2 + 8))
+        .replace("__POPUP__", popup_js)
     )
 
 
@@ -1872,6 +1902,25 @@ def _cached_list_payload(
     return _build_list_payload(_frame)
 
 
+def _render_empty_results(selected_upazila: str) -> None:
+    """Show the empty state for a filter combination with no kilns.
+
+    Input: the selected upazila (or ``ALL_AREAS``). Output: a message that says
+    what happened, a hint, and a one-click reset that reruns the whole app so
+    the sidebar widgets pick up the cleared filters.
+    """
+    st.info(
+        T.NO_KILNS_IN_AREA_FMT.format(selected_upazila)
+        if selected_upazila != ALL_AREAS
+        else T.NO_CANDIDATES_MATCH_THESE_FILTERS
+    )
+    st.caption(T.EMPTY_FILTER_HINT)
+    # The reset runs as a callback (the only place widget-keyed state may be
+    # changed); the app-wide rerun then redraws the sidebar with cleared filters.
+    if st.button(T.RESET_FILTERS, key="dhoa_empty_reset_filters", on_click=_reset_inspector_filters):
+        st.rerun(scope="app")
+
+
 def render_map(
     gdf: gpd.GeoDataFrame,
     filters: Mapping[str, Any],
@@ -1891,8 +1940,8 @@ def render_map(
     if visible is None:
         visible = get_filtered_gdf(gdf)
     selected_upazila = st.session_state.get("filter_upazila", ALL_AREAS)
-    if selected_upazila != ALL_AREAS and visible.empty:
-        st.info(T.NO_KILNS_IN_AREA_FMT.format(selected_upazila))
+    if visible.empty:
+        _render_empty_results(selected_upazila)
         return
     tile = _current_tile()
     map_key = _map_key("dhoa_map", tuple(_inspector_filter_key()), tile)
@@ -1914,44 +1963,41 @@ def render_map(
     with list_panel:
         st.subheader(T.PRIORITY_LIST)
         st.caption(T.CANDIDATES_MATCH_FMT.format(len(list_candidates)))
-        if list_candidates.empty:
-            st.info(T.NO_CANDIDATES_MATCH_THESE_FILTERS)
-        else:
-            list_columns, list_rows, list_kiln_ids = _list_payload(list_candidates, gdf)
-            list_choice = _priority_candidate_list(
-                columns=list_columns,
-                rows=list_rows,
-                kiln_ids=list_kiln_ids,
-                select_label=T.VIEW_KILN,
-                selected_label=T.SELECTED,
-                selected_id=(
-                    str(st.session_state.get("selected_kiln_id"))
-                    if st.session_state.get("selected_kiln_id") is not None
-                    else None
-                ),
-                height=640,
-                key="dhoa_priority_list",
-                default=None,
-            )
-            if isinstance(list_choice, dict):
-                click_token = list_choice.get("selection_token")
-                _token_key = "dhoa_list_selection_token"
-                if click_token and click_token != st.session_state.get(_token_key):
-                    chosen_id = list_choice.get("kiln_id")
-                    chosen_rows = visible[visible["kiln_id"].astype(str).eq(str(chosen_id))] if chosen_id else visible.iloc[0:0]
-                    if not chosen_rows.empty:
-                        chosen_row = chosen_rows.iloc[0]
-                        chosen_lat, chosen_lng = float(chosen_row["lat"]), float(chosen_row["lon"])
-                        st.session_state["selected_kiln_id"] = str(chosen_id)
-                        st.session_state["selected_lat"] = chosen_lat
-                        st.session_state["selected_lng"] = chosen_lng
-                        # Programmatic view change: honoured only for this map.
-                        st.session_state["dhoa_map_view"] = {
-                            "map_key": map_key,
-                            "center": [chosen_lat, chosen_lng],
-                            "zoom": SELECTED_ZOOM,
-                        }
-                    st.session_state[_token_key] = click_token
+        list_columns, list_rows, list_kiln_ids = _list_payload(list_candidates, gdf)
+        list_choice = _priority_candidate_list(
+            columns=list_columns,
+            rows=list_rows,
+            kiln_ids=list_kiln_ids,
+            select_label=T.VIEW_KILN,
+            selected_label=T.SELECTED,
+            selected_id=(
+                str(st.session_state.get("selected_kiln_id"))
+                if st.session_state.get("selected_kiln_id") is not None
+                else None
+            ),
+            height=640,
+            key="dhoa_priority_list",
+            default=None,
+        )
+        if isinstance(list_choice, dict):
+            click_token = list_choice.get("selection_token")
+            _token_key = "dhoa_list_selection_token"
+            if click_token and click_token != st.session_state.get(_token_key):
+                chosen_id = list_choice.get("kiln_id")
+                chosen_rows = visible[visible["kiln_id"].astype(str).eq(str(chosen_id))] if chosen_id else visible.iloc[0:0]
+                if not chosen_rows.empty:
+                    chosen_row = chosen_rows.iloc[0]
+                    chosen_lat, chosen_lng = float(chosen_row["lat"]), float(chosen_row["lon"])
+                    st.session_state["selected_kiln_id"] = str(chosen_id)
+                    st.session_state["selected_lat"] = chosen_lat
+                    st.session_state["selected_lng"] = chosen_lng
+                    # Programmatic view change: honoured only for this map.
+                    st.session_state["dhoa_map_view"] = {
+                        "map_key": map_key,
+                        "center": [chosen_lat, chosen_lng],
+                        "zoom": SELECTED_ZOOM,
+                    }
+                st.session_state[_token_key] = click_token
     with map_panel:
         st.caption(T.MARKER_COLOUR_SHOWS_PRIORITY_BOLD_BORDER)
         selected_id_for_report = st.session_state.get("selected_kiln_id")
@@ -1965,10 +2011,13 @@ def render_map(
         else:
             _render_report_download(selected_for_report.iloc[0])
         try:
-            _m = build_map(gdf, filters, filtered=visible)
+            with st.spinner(T.LOADING_MAP):
+                _m = build_map(gdf, filters, filtered=visible)
         except Exception as _exc:
             logging.exception("Inspector map rendering failed")
             st.error(T.COULD_NOT_RENDER_THE_MAP)
+            if st.button(T.RETRY, key="dhoa_retry_map"):
+                st.rerun(scope="app")
             _m = None
         map_result: dict[str, Any] = {}
         if _m is not None:
@@ -1996,6 +2045,7 @@ def render_map(
                     **view_args,
                 )
                 map_result = result if isinstance(result, dict) else {}
+        detail_slot = st.container()
     click_signature = _clicked_point(map_result)
     if (
         click_signature is not None
@@ -2012,20 +2062,46 @@ def render_map(
 
     selected_id = st.session_state.get("selected_kiln_id")
     selected = visible[visible["kiln_id"].astype(str).eq(str(selected_id))] if selected_id is not None else visible.iloc[0:0]
-    if selected.empty:
-        st.info(T.TAP_ANY_KILN_MARKER_ON_THE_MAP_TO_VIEW_D)
-    else:
-        if st.button(T.CLEAR_KILN_SELECTION_SHOW_ALL_KILNS, key="dhoa_clear_kiln_selection"):
-            st.session_state["selected_kiln_id"] = None
-            st.session_state["selected_lat"] = None
-            st.session_state["selected_lng"] = None
-            st.session_state["dhoa_list_selection_token"] = None
-            _rerun_local()
-        _render_selected_candidate(selected.iloc[0])
+    with detail_slot:
+        if selected.empty:
+            st.info(T.DETAIL_HINT)
+        else:
+            if st.button(T.CLEAR_KILN_SELECTION_SHOW_ALL_KILNS, key="dhoa_clear_kiln_selection"):
+                st.session_state["selected_kiln_id"] = None
+                st.session_state["selected_lat"] = None
+                st.session_state["selected_lng"] = None
+                st.session_state["dhoa_list_selection_token"] = None
+                _rerun_local()
+            _render_selected_candidate(selected.iloc[0])
 
 
 # Selecting a kiln reruns only this fragment, not the header, sidebar or data layer.
 render_map_fragment = st.fragment(render_map)
+
+
+def _render_summary_strip(visible: pd.DataFrame) -> None:
+    """Render the filtered-results summary strip and the priority explanation.
+
+    Input: the already-filtered frame. Output: one row of counts (matching,
+    High, Medium, Low, new) with shape glyphs as well as colours, plus a short
+    note that the bands are relative shares of the ranking, not absolute risk.
+    """
+    counts = kd.priority_summary(visible)
+    glyphs = kd.PRIORITY_GLYPHS
+    items = (
+        (f"{counts['total']:,}", T.SUMMARY_MATCHING, "#475569"),
+        (f"{glyphs['High']} {counts['high']:,}", T.SUMMARY_HIGH, PRIORITY_COLORS["High"]),
+        (f"{glyphs['Medium']} {counts['medium']:,}", T.SUMMARY_MEDIUM, PRIORITY_COLORS["Medium"]),
+        (f"{glyphs['Low']} {counts['low']:,}", T.SUMMARY_LOW, PRIORITY_COLORS["Low"]),
+        (f"{counts['new']:,}", T.SUMMARY_NEW, "#475569"),
+    )
+    cells = "".join(
+        f"<div class='dhoa-metric' style='border-left-color:{color}'>"
+        f"<strong>{value}</strong><span>{html.escape(label)}</span></div>"
+        for value, label, color in items
+    )
+    st.markdown(f"<div class='dhoa-metrics dhoa-summary'>{cells}</div>", unsafe_allow_html=True)
+    st.caption(T.PRIORITY_NOTE)
 
 
 def render_footer() -> None:
@@ -2073,16 +2149,8 @@ def main() -> None:
             render_footer()
             return
         visible = filters["visible"]  # computed once in render_sidebar
+        _render_summary_strip(visible)
         render_map_fragment(gdf, filters, visible)
-        high_count = int(visible.get("priority_band", pd.Series(index=visible.index, dtype="string")).astype(str).eq("High").sum())
-        flagged_count = _flagged_count(visible, load_config()["rules"])
-        new_status = visible.get("detection_status", pd.Series("Known", index=visible.index))
-        new_count = int(new_status.eq("New candidate (2025-26)").sum())
-        st.markdown(
-            f"**{high_count:,} {METRIC_LABELS['high_priority_kilns']} | "
-            f"{flagged_count:,} {METRIC_LABELS['rule_signals']} | "
-            f"{new_count:,} {METRIC_LABELS['new_candidates']}**"
-        )
         render_footer()
     except Exception as _exc:
         logging.getLogger(__name__).exception("Dashboard view rendering failed")

@@ -89,7 +89,9 @@ _PRIORITY_LABELS = {
     T.MEDIUM: T.MEDIUM,
     T.LOW: T.LOW,
 }
-_PRIORITY_ICONS = {"High": "🔴", "Medium": "🟠", "Low": "🟢"}
+# Priority is shown by shape AND colour (never colour alone): triangle / diamond / circle.
+PRIORITY_GLYPHS = {"High": "▲", "Medium": "◆", "Low": "●"}
+_PRIORITY_ICONS = PRIORITY_GLYPHS
 _DISTRICT_LABELS = {
     "Chapainawabganj": T.DISTRICT_CHAPAINAWABGANJ,
     "Gazipur": T.DISTRICT_GAZIPUR,
@@ -221,6 +223,36 @@ def type_label(value: object) -> str:
 def priority_label(value: object) -> str:
     """Translate an English or Bangla priority band; unknown -> UNCLASSIFIED."""
     return _PRIORITY_LABELS.get(str(value), T.UNCLASSIFIED)
+
+
+def priority_badge(value: object) -> str:
+    """Return ``glyph + label`` for a priority band (shape plus text, not colour only)."""
+    glyph = PRIORITY_GLYPHS.get(str(value), "")
+    return f"{glyph} {priority_label(value)}".strip()
+
+
+def priority_summary(frame: pd.DataFrame) -> dict[str, int]:
+    """Count the filtered kilns for the Inspector summary strip.
+
+    Input: kiln frame with optional ``priority_band`` and ``detection_status``
+    columns. Output: ``{"total", "high", "medium", "low", "new"}`` integers
+    (missing columns count as zero), computed column-wise.
+    """
+    bands = (
+        frame["priority_band"].astype(str) if "priority_band" in frame.columns
+        else pd.Series("", index=frame.index)
+    )
+    status = (
+        frame["detection_status"].astype(str) if "detection_status" in frame.columns
+        else pd.Series("", index=frame.index)
+    )
+    return {
+        "total": int(len(frame)),
+        "high": int(bands.eq("High").sum()),
+        "medium": int(bands.eq("Medium").sum()),
+        "low": int(bands.eq("Low").sum()),
+        "new": int(status.eq(NEW_CANDIDATE_STATUS).sum()),
+    }
 
 
 def district_label(value: object) -> str:
@@ -425,7 +457,7 @@ def build_list_frame(frame: pd.DataFrame, rules: Sequence[Mapping[str, Any]]) ->
         T.VIEW_KILN: [T.VIEW_KILN] * count,
         T.AREA: [f"📍 {area}" for area in areas],
         T.PRIORITY: [
-            f"{_PRIORITY_ICONS.get(band, '')} {priority_label(band)}".strip() for band in bands
+            priority_badge(band) for band in bands
         ],
     }
     for rule in rules:
@@ -601,6 +633,46 @@ def prepare_display_frame(
 # --------------------------------------------------------------------------
 # Compact map payload (M3)
 # --------------------------------------------------------------------------
+def popup_signal_codes(
+    frame: pd.DataFrame, rules: Sequence[Mapping[str, Any]]
+) -> tuple[list[str], list[list[int]]]:
+    """Return compact per-kiln rule-signal data for the on-click popup.
+
+    Input: kiln frame and ``siting_rules`` (thresholds are read from them, never
+    hardcoded). Output: ``(states, distances)`` aligned to the frame. ``states``
+    is one string per kiln with one digit per ``_POPUP_RULES`` entry:
+    ``0`` inside the configured buffer or flagged, ``1`` near it (within
+    ``NEAR_THRESHOLD_FACTOR`` x the buffer, display-only), ``2`` outside,
+    ``3`` no data. ``distances`` holds the rounded metres per rule (``-1`` when
+    missing). Same decision logic as ``rule_signal_rows_html``.
+    """
+    count = len(frame)
+    if count == 0:
+        return [], []
+    rules_by_id = {str(rule.get("id")): rule for rule in rules}
+    breached = _breached_sets(frame)
+    digits: list[list[str]] = []
+    metres: list[list[int]] = []
+    for rule_id, _label, columns in _POPUP_RULES:
+        threshold = to_float(rules_by_id.get(rule_id, {}).get("buffer_m"))
+        near_limit = threshold * NEAR_THRESHOLD_FACTOR
+        state_col: list[str] = []
+        dist_col: list[int] = []
+        for distance, ids in zip(numeric_column(frame, columns).tolist(), breached):
+            if distance != distance or threshold != threshold:
+                state_col.append("3")
+            elif rule_id in ids or distance <= threshold:
+                state_col.append("0")
+            elif distance <= near_limit:
+                state_col.append("1")
+            else:
+                state_col.append("2")
+            dist_col.append(-1 if distance != distance else int(round(distance)))
+        digits.append(state_col)
+        metres.append(dist_col)
+    return ["".join(parts) for parts in zip(*digits)], [list(parts) for parts in zip(*metres)]
+
+
 BAND_INDEX = {"High": 0, "Medium": 1, "Low": 2}
 OTHER_BAND_INDEX = 3
 
@@ -609,7 +681,7 @@ def marker_payload(frame: pd.DataFrame, rules: Sequence[Mapping[str, Any]] = ())
     """Pack kilns into a small JSON-ready structure for the map layer.
 
     Input: kiln frame (display columns are computed when missing, using
-    ``rules``). Output: ``{"rows": [[lat, lon, band, type, area], ...],
+    ``rules``). Output: ``{"rows": [[lat, lon, band, type, area, states, metres], ...],
     "bands": [...], "types": [...], "areas": [...]}`` where band/type/area are
     indexes into the label lists. Labels are HTML-escaped because Leaflet
     renders tooltip strings as HTML. Rows without finite coordinates are
@@ -621,13 +693,14 @@ def marker_payload(frame: pd.DataFrame, rules: Sequence[Mapping[str, Any]] = ())
     valid = np.isfinite(lat) & np.isfinite(lon)
     bands_raw = frame["priority_band"].astype(str).tolist() if "priority_band" in frame.columns else [""] * len(frame)
     band_idx = [BAND_INDEX.get(band, OTHER_BAND_INDEX) for band in bands_raw]
+    states, distances = popup_signal_codes(frame, rules)
     types, areas = [], []
     type_pos: dict[str, int] = {}
     area_pos: dict[str, int] = {}
     rows: list[list[Any]] = []
-    for ok, la, lo, band, kind, area in zip(
+    for ok, la, lo, band, kind, area, state, dist in zip(
         valid.tolist(), lat.tolist(), lon.tolist(), band_idx,
-        frame["ui_type"].tolist(), frame["ui_area"].tolist(),
+        frame["ui_type"].tolist(), frame["ui_area"].tolist(), states, distances,
     ):
         if not ok:
             continue
@@ -637,13 +710,20 @@ def marker_payload(frame: pd.DataFrame, rules: Sequence[Mapping[str, Any]] = ())
         area_i = area_pos.setdefault(area, len(area_pos))
         if area_i == len(areas):
             areas.append(html.escape(area))
-        rows.append([round(la, 5), round(lo, 5), band, kind_i, area_i])
+        rows.append([round(la, 5), round(lo, 5), band, kind_i, area_i, state, dist])
     return {
         "rows": rows,
         "bands": [T.HIGH + " " + T.PRIORITY, T.MEDIUM + " " + T.PRIORITY,
                   T.LOW + " " + T.PRIORITY, T.UNCLASSIFIED + " " + T.PRIORITY],
         "types": types,
         "areas": areas,
+        "rules": [html.escape(label) for _id, label, _cols in _POPUP_RULES],
+        "text": {
+            "signals": html.escape(T.RULE_SIGNALS),
+            "outside": html.escape(T.OUTSIDE_THRESHOLD),
+            "nodata": html.escape(T.NO_DATA),
+            "unit": html.escape(T.M_DOT_FMT.format(0)[1:]),
+        },
     }
 
 
