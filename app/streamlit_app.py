@@ -382,6 +382,9 @@ def _add_map_base_layers(
         control=True,
         show=selected_tile == "street",
         no_wrap=True,
+        max_zoom=19,
+        max_native_zoom=19,
+        keep_buffer=4,
     ).add_to(map_view)
     folium.TileLayer(
         tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
@@ -391,6 +394,9 @@ def _add_map_base_layers(
         control=True,
         show=selected_tile == "satellite",
         no_wrap=True,
+        max_zoom=19,
+        max_native_zoom=17,
+        keep_buffer=4,
     ).add_to(map_view)
     if with_layer_control:
         folium.LayerControl(collapsed=False).add_to(map_view)
@@ -1862,9 +1868,12 @@ def _new_map(tile: str, bounds: list[list[float]] | None) -> folium.Map:
     """
     map_view = folium.Map(
         location=DISTRICT_CENTERS["All Districts"], zoom_start=DEFAULT_ZOOM,
-        control_scale=True, tiles=None, min_zoom=DEFAULT_ZOOM - 2,
-        max_zoom=SELECTED_ZOOM + 3, world_copy_jump=False,
+        control_scale=True, tiles=None, world_copy_jump=False,
     )
+    # folium 0.20 drops min_zoom/max_zoom when ``tiles=None``, which left the map with no zoom
+    # limits (zoom out to the whole world, zoom in past the tiles = stretched, blurry imagery).
+    map_view.options["minZoom"] = DEFAULT_ZOOM - 1
+    map_view.options["maxZoom"] = SELECTED_ZOOM + 3
     _add_map_base_layers(map_view, with_layer_control=False, tile=tile)
     if bounds:
         map_view.fit_bounds(bounds, max_zoom=SELECTED_ZOOM, padding=(24, 24))
@@ -1966,9 +1975,14 @@ def _selected_feature_group(
     if heat:
         HeatMap(heat, radius=18, blur=22, min_opacity=0.25).add_to(group)
     if latitude is not None and longitude is not None:
+        # white under-ring + accent ring: reads on light and satellite tiles, never a black blob
         folium.CircleMarker(
-            [latitude, longitude], radius=14, color=DESIGN_COLORS["marker_outline"], weight=4,
-            fill=False,
+            [latitude, longitude], radius=13, color=DESIGN_COLORS["marker_halo"], weight=7,
+            fill=False, interactive=False,
+        ).add_to(group)
+        folium.CircleMarker(
+            [latitude, longitude], radius=13, color=tokens.COLORS["selected"], weight=3,
+            fill=False, interactive=False,
         ).add_to(group)
     return group
 
