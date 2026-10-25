@@ -356,10 +356,43 @@ h4 [data-testid="stHeaderActionElements"],
     }
 }
 
+/* ---- P7: panels, states, skeleton -------------------------------------------- */
+.dhoa-panel { background: var(--dhoa-color-card); border: 1px solid var(--dhoa-color-border); border-radius: var(--dhoa-radius-md, 12px); padding: var(--dhoa-space-md); margin: var(--dhoa-space-md) 0; animation: dhoa-fade 180ms ease-out; }
+.dhoa-panel-title { font-weight: var(--dhoa-weight-bold, 700); margin-bottom: var(--dhoa-space-sm); }
+.dhoa-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--dhoa-space-sm); grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); }
+.dhoa-step { display: flex; gap: var(--dhoa-space-sm); align-items: flex-start; min-width: 0; }
+.dhoa-step-no { flex: none; width: 2rem; height: 2rem; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--dhoa-color-primary); color: var(--dhoa-color-on-primary); font-weight: 700; }
+.dhoa-step strong, .dhoa-step span { display: block; overflow-wrap: anywhere; }
+.dhoa-step span { color: var(--dhoa-color-text-soft); }
+.dhoa-facts { margin: 0; display: grid; gap: var(--dhoa-space-sm); }
+.dhoa-facts dt { color: var(--dhoa-color-text-muted); font-size: var(--dhoa-type-caption); }
+.dhoa-facts dd { margin: 0; overflow-wrap: anywhere; }
+.dhoa-state { display: flex; gap: var(--dhoa-space-sm); align-items: flex-start; padding: var(--dhoa-space-md); margin: var(--dhoa-space-md) 0; border-radius: var(--dhoa-radius-md, 12px); background: var(--dhoa-color-raised); border: 1px solid var(--dhoa-color-border-strong); animation: dhoa-fade 180ms ease-out; }
+.dhoa-state strong, .dhoa-state span { display: block; overflow-wrap: anywhere; }
+.dhoa-state span:not(.dhoa-state-glyph) { color: var(--dhoa-color-text-soft); }
+.dhoa-state-glyph { flex: none; width: 1.75rem; height: 1.75rem; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; border: 2px solid var(--dhoa-color-accent-text); color: var(--dhoa-color-accent-text); }
+.dhoa-state--error .dhoa-state-glyph { border-color: var(--dhoa-color-high-text); color: var(--dhoa-color-high-text); }
+.dhoa-skeleton { margin: var(--dhoa-space-lg) 0; }
+.dhoa-skel-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--dhoa-space-sm); margin-bottom: var(--dhoa-space-md); }
+.dhoa-skel-tile, .dhoa-skel-bar { background: linear-gradient(90deg, var(--dhoa-color-card) 25%, var(--dhoa-color-raised) 50%, var(--dhoa-color-card) 75%); background-size: 200% 100%; animation: dhoa-shimmer 1.4s linear infinite; border-radius: var(--dhoa-radius-md, 12px); }
+.dhoa-skel-tile { height: 4.5rem; }
+.dhoa-skel-bar { height: 1.25rem; margin-bottom: var(--dhoa-space-sm); }
+.dhoa-skel-text { color: var(--dhoa-color-text-muted); font-size: var(--dhoa-type-caption); }
+@keyframes dhoa-fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes dhoa-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+/* ---- P8: small-screen safety and link targets --------------------------------- */
+.dhoa-footer a { display: inline-block; min-height: var(--dhoa-tap, 44px); line-height: var(--dhoa-tap, 44px); padding: 0 var(--dhoa-space-xs, 4px); color: var(--dhoa-color-accent-text); }
+.dhoa-metric strong, .dhoa-hero-title, .dhoa-about p { overflow-wrap: anywhere; }
+[data-testid="stMarkdownContainer"] table { display: block; max-width: 100%; overflow-x: auto; }
+img, svg, iframe { max-width: 100%; }
+@media (max-width: 480px) { .dhoa-skel-tiles { grid-template-columns: 1fr; } }
+
 /* ---- focus and motion ------------------------------------------------------ */
 :focus-visible { outline: 3px solid var(--dhoa-color-focus); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+    .dhoa-skel-tile, .dhoa-skel-bar { animation: none !important; }
+    *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
 """
 

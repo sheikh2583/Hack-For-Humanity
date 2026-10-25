@@ -124,7 +124,8 @@
       }
       .select-kiln:hover { background: var(--card-background); }
       .select-kiln[aria-pressed="true"] { color: var(--text-primary); background: var(--selected); }
-      .select-kiln:focus-visible { outline: 3px solid var(--selected); outline-offset: 2px; }
+      .select-kiln:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+      #table-scroll:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
       tr.candidate:focus-visible { outline: 3px solid var(--selected); outline-offset: -3px; }
       body.mobile-layout #top-scroll { display: none; }
       body.mobile-layout #table-scroll {
@@ -191,11 +192,11 @@
     </style>
   </head>
   <body>
-    <div id="top-scroll" aria-label="তালিকা আড়াআড়ি সরান">
+    <div id="top-scroll" aria-hidden="true">
       <div id="top-scroll-inner"></div>
     </div>
-    <div id="table-scroll">
-      <table>
+    <div id="table-scroll" role="region" tabindex="0">
+      <table id="list-table">
         <thead><tr id="headers"></tr></thead>
         <tbody id="rows"></tbody>
       </table>
@@ -246,6 +247,10 @@
 
       function render(args) {
         latestArgs = args;
+        if (args.lang) document.documentElement.lang = args.lang;
+        const label = args.aria_label || "";
+        tableBox.setAttribute("aria-label", label);
+        table.setAttribute("aria-label", label);
         const previousScrollTop = tableBox.scrollTop;
         const headers = document.getElementById("headers");
         const rows = document.getElementById("rows");
@@ -255,6 +260,7 @@
         for (const heading of args.columns || []) {
           const th = document.createElement("th");
           th.textContent = heading;
+          th.scope = "col";
           headers.appendChild(th);
         }
 
@@ -275,6 +281,8 @@
                 ? (args.selected_label || "\u2713 \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09bf\u09a4")
                 : (args.select_label || "\u09ad\u09be\u099f\u09be\u099f\u09bf \u09a6\u09c7\u0996\u09c1\u09a8");
               button.setAttribute("aria-pressed", String(isSelected));
+              const fmt = args.aria_select_fmt || "{0}: {1}";
+              button.setAttribute("aria-label", fmt.replace("{0}", button.textContent).replace("{1}", String(values[1] || "")));
               button.addEventListener("click", (event) => {
                 event.stopPropagation();
                 selectKiln(kilnId, isSelected);
@@ -285,7 +293,6 @@
             }
             tr.appendChild(td);
           }
-          tr.setAttribute("aria-label", `Select ${values[1] || "kiln candidate"}. ${values.slice(2).join(", ")}`);
           tr.addEventListener("click", () => selectKiln(kilnId, isSelected));
           rows.appendChild(tr);
         }

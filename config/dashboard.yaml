@@ -1,2 +1,14 @@
 display:
   always_show_advisory_banner: true
+
+# P7: contact and About content. Nothing here is shown until the owner confirms it.
+contact:
+  hotline_number: "16131"
+  # Set to true ONLY after the owner has called/verified the number. While false, the UI and
+  # PDFs show the Department of Environment website only: no number, no tel:/sms: links.
+  hotline_verified: false
+  website: "https://doe.gov.bd"
+about:
+  # Shown on the About page when non-empty. Leave the list empty until real names are agreed.
+  team: []
+  methodology_url: "https://github.com/sheikh2583/Hack-For-Humanity/blob/main/docs/screening_provenance.md"

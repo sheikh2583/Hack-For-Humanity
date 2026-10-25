@@ -28,6 +28,7 @@ ACCENT = (197, 48, 48)
 BAND = (243, 244, 246)
 STATUS_COLOURS = {"within": (197, 48, 48), "outside": (22, 128, 61), "nodata": (156, 163, 175)}
 
+BN_DIGITS = str.maketrans("0123456789", "০১২৩৪৫৬৭৮৯")
 _BN_CHAR = re.compile("[ঀ-৿‌‍]+")
 
 LABELS: dict[str, dict[str, str]] = {
@@ -72,7 +73,8 @@ LABELS: dict[str, dict[str, str]] = {
         "col_coords": "স্থানাঙ্ক",
         "no_rows": "এই এলাকায় কোনো ভাটার তথ্য পাওয়া যায়নি।",
         "can_do": "আপনি যা করতে পারেন",
-        "do_1": "অভিযোগ জানান: পরিবেশ অধিদপ্তরের হটলাইন ১৬১৩১ অথবা doe.gov.bd",
+        "do_1": "অভিযোগ জানান: পরিবেশ অধিদপ্তরের হটলাইন {hotline} অথবা doe.gov.bd",
+        "do_1_web": "অভিযোগ জানান: পরিবেশ অধিদপ্তরের ওয়েবসাইট doe.gov.bd",
         "do_2": "আপনার উপজেলার পরিবেশ কর্মকর্তার সাথে যোগাযোগ করুন",
         "do_3": "এই প্রতিবেদন স্থানীয় এনজিও বা গণমাধ্যমের সাথে ভাগ করুন",
         "do_4": "স্থানীয় প্রশাসনের মাধ্যমে সরকারি পরিদর্শনের অনুরোধ করুন",
@@ -127,7 +129,8 @@ LABELS: dict[str, dict[str, str]] = {
         "col_coords": "Coordinates",
         "no_rows": "No kiln data was found for this area.",
         "can_do": "What you can do",
-        "do_1": "File a complaint: DoE hotline 16131 or doe.gov.bd",
+        "do_1": "File a complaint: DoE hotline {hotline} or doe.gov.bd",
+        "do_1_web": "File a complaint: Department of Environment website doe.gov.bd",
         "do_2": "Contact your Upazila Environment Officer",
         "do_3": "Share this report with local NGOs or media",
         "do_4": "Request an official inspection through your local administration",

@@ -109,7 +109,7 @@ def test_overview_is_the_default_and_hero_buttons_switch_views(data_dir: Path) -
 
     at = AppTest.from_file(str(ROOT / "app" / "streamlit_app.py"), default_timeout=120).run()
     assert not at.exception
-    markdown = " ".join(m.value for m in at.markdown)
+    markdown = " ".join(m.value for m in at.markdown if not m.value.lstrip().startswith("<style"))
     assert "dhoa-hero" in markdown and T.HERO_MISSION in markdown
     assert "dhoa-summary" not in markdown  # the map summary strip is not on the landing page
     at.button(key="dhoa_hero_map").click().run()
