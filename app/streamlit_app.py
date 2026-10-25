@@ -1780,7 +1780,12 @@ def _render_report_download(row: pd.Series) -> None:
 MAP_HEIGHT = 580
 DEFAULT_ZOOM = 7
 SELECTED_ZOOM = 15
-_MARKER_OPTIONS = {"disableClusteringAtZoom": 12}
+#: Zoom level from which clusters split into individual kilns. Raise it to keep dense
+#: areas grouped for longer (each +1 = one more zoom step before they split); lower it to
+#: split earlier. Zooming back out below it re-forms the clusters at the same level.
+#: Must stay <= SELECTED_ZOOM so a kiln picked from the list is always shown on its own.
+CLUSTER_DISABLE_ZOOM = 13
+_MARKER_OPTIONS = {"disableClusteringAtZoom": CLUSTER_DISABLE_ZOOM}
 
 
 def _current_tile() -> str:
@@ -1875,6 +1880,11 @@ def _new_map(tile: str, bounds: list[list[float]] | None) -> folium.Map:
     map_view.options["minZoom"] = DEFAULT_ZOOM - 1
     map_view.options["maxZoom"] = SELECTED_ZOOM + 3
     _add_map_base_layers(map_view, with_layer_control=False, tile=tile)
+    # The density heatmap is sent later through ``feature_group_to_add``, which only ships the
+    # layer's own JS, not the leaflet-heat plugin it needs; without this the layer fails
+    # silently (``L.heatLayer`` is undefined). Load the plugin with the base map instead.
+    for js_name, js_url in getattr(HeatMap, "default_js", []):
+        map_view.add_js_link(js_name, js_url)
     if bounds:
         map_view.fit_bounds(bounds, max_zoom=SELECTED_ZOOM, padding=(24, 24))
     map_name = map_view.get_name()
