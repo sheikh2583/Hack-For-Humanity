@@ -47,7 +47,7 @@ if str(_ROOT) not in sys.path:
 if str(_ROOT / "app") not in sys.path:
     sys.path.insert(0, str(_ROOT / "app"))
 
-import strings as T  # noqa: E402
+from app import strings as T  # noqa: E402
 from popup import format_district_label  # noqa: E402
 
 ALL_KILN_TYPES = "__all__"

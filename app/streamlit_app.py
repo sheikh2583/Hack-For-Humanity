@@ -27,7 +27,7 @@ if str(_ROOT) not in sys.path:
 if str(_ROOT / "app") not in sys.path:
     sys.path.insert(0, str(_ROOT / "app"))
 
-import strings as T  # noqa: E402
+from app import strings as T  # noqa: E402
 
 DASHBOARD_TITLE = unicodedata.normalize("NFC", T.APP_TITLE)
 assert T.CHANDRABINDU in DASHBOARD_TITLE, repr(DASHBOARD_TITLE)
