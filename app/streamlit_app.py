@@ -381,6 +381,7 @@ def _add_map_base_layers(
         overlay=False,
         control=True,
         show=selected_tile == "street",
+        no_wrap=True,
     ).add_to(map_view)
     folium.TileLayer(
         tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
@@ -389,6 +390,7 @@ def _add_map_base_layers(
         overlay=False,
         control=True,
         show=selected_tile == "satellite",
+        no_wrap=True,
     ).add_to(map_view)
     if with_layer_control:
         folium.LayerControl(collapsed=False).add_to(map_view)
@@ -1860,11 +1862,28 @@ def _new_map(tile: str, bounds: list[list[float]] | None) -> folium.Map:
     """
     map_view = folium.Map(
         location=DISTRICT_CENTERS["All Districts"], zoom_start=DEFAULT_ZOOM,
-        control_scale=True, tiles=None,
+        control_scale=True, tiles=None, min_zoom=DEFAULT_ZOOM - 2,
+        max_zoom=SELECTED_ZOOM + 3, world_copy_jump=False,
     )
     _add_map_base_layers(map_view, with_layer_control=False, tile=tile)
     if bounds:
         map_view.fit_bounds(bounds, max_zoom=SELECTED_ZOOM, padding=(24, 24))
+    map_name = map_view.get_name()
+    folium.Element(
+        f"""
+<script>
+(function () {{
+    var map = {map_name};
+    function resizeMap() {{
+        map.invalidateSize({{pan: false, animate: false}});
+    }}
+    window.addEventListener("resize", resizeMap);
+    setTimeout(resizeMap, 0);
+    setTimeout(resizeMap, 250);
+}})();
+</script>
+"""
+    ).add_to(map_view.get_root().html)
     return map_view
 
 

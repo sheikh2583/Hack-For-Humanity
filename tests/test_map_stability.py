@@ -57,6 +57,18 @@ def test_map_has_no_layer_control_and_no_embedded_popups() -> None:
     assert len(layer_control_calls) == 1
 
 
+def test_map_has_stable_zoom_limits_and_resizes_after_layout_changes() -> None:
+    """Leaflet keeps one world view and recalculates tiles after responsive resize."""
+    map_view = dashboard._new_map("street", None)
+    options = map_view.options
+    assert options["minZoom"] == dashboard.DEFAULT_ZOOM - 2
+    assert options["maxZoom"] == dashboard.SELECTED_ZOOM + 3
+    assert options["worldCopyJump"] is False
+    rendered = map_view.get_root().render()
+    assert "invalidateSize" in rendered
+    assert "noWrap: true" in rendered
+
+
 def test_selected_marker_and_radius_use_feature_group_not_the_base_map() -> None:
     """Both st_folium calls pass feature_group_to_add (highlight / radius overlay)."""
     for call in _st_folium_calls():
