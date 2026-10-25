@@ -317,11 +317,11 @@ def _priority_reason(row: pd.Series) -> str:
 
 
 @st.cache_data(show_spinner=False)
-def _report_from_json(row_json: str) -> bytes | None:
-    """Build and cache a candidate report from serialized row fields."""
+def _report_from_json(row_json: str, lang: str = "bn") -> bytes | None:
+    """Build and cache a candidate report from serialized row fields (per language)."""
     from src.eval.generate_report import generate_kiln_report
 
-    return generate_kiln_report(json.loads(row_json))
+    return generate_kiln_report(json.loads(row_json), lang)
 
 
 def _json_default(value: object) -> Any:
@@ -1751,7 +1751,9 @@ def _render_report_download(row: pd.Series) -> None:
         report_fields = {
             name: value for name, value in row.to_dict().items() if not str(name).startswith("ui_")
         }
-        report = _report_from_json(json.dumps(report_fields, default=_json_default, sort_keys=True))
+        report = _report_from_json(
+            json.dumps(report_fields, default=_json_default, sort_keys=True), T.get_language()
+        )
         if report is None:
             st.error(T.COULD_NOT_GENERATE_THE_REPORT_PLEASE_TRY)
             return

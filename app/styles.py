@@ -55,7 +55,9 @@ hr { border-color: var(--dhoa-color-border) !important; }
 }
 [data-testid="stMainBlockContainer"] {
     max-width: 100% !important;
-    padding-top: 0.75rem !important;
+    /* Streamlit's fixed top bar is 60px tall and paints over the first row (it hid the
+       language switch); keep the page content clear of it. */
+    padding-top: 4.25rem !important;
 }
 /* Hide heading permalinks only; keep map, navigation, and export links usable. */
 [data-testid="stHeaderActionElements"],
@@ -272,7 +274,7 @@ h4 [data-testid="stHeaderActionElements"],
     [data-testid="stAppViewContainer"] .main .block-container {
         padding: 0.65rem 0.75rem 1.5rem;
     }
-    [data-testid="stMainBlockContainer"] { padding-top: 1.35rem !important; }
+    [data-testid="stMainBlockContainer"] { padding-top: 4.25rem !important; }
     [data-testid="stHorizontalBlock"] { flex-direction: column; gap: 0.75rem; }
     [data-testid="stMetricContainer"] { min-width: 0; }
     [data-testid="stStatusWidgetRunningIcon"]::after {
