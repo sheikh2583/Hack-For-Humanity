@@ -35,7 +35,7 @@ assert T.CHANDRABINDU in DASHBOARD_TITLE, repr(DASHBOARD_TITLE)
 _FAVICON = _ROOT / "app" / "static" / "favicon.png"
 st.set_page_config(
     page_title=DASHBOARD_TITLE, page_icon=str(_FAVICON) if _FAVICON.is_file() else None,
-    layout="wide", initial_sidebar_state="expanded",
+    layout="wide", initial_sidebar_state="collapsed",
 )
 
 import folium
