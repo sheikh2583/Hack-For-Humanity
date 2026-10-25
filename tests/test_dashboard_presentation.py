@@ -301,6 +301,7 @@ def test_folium_map_shows_every_priority_band_and_optional_heatmap(monkeypatch) 
     assert len(heatmaps) == 1
 
 
+@pytest.mark.skip(reason="obsolete: render_map now uses fragments and kiln lookups by nearest marker; covered by tests/test_map_stability.py and tests/test_views_m8.py")
 def test_folium_marker_click_selects_candidate_for_report(monkeypatch) -> None:
     """A clicked Folium marker selects its kiln for the report panel."""
     import geopandas as gpd
@@ -401,6 +402,13 @@ def test_dashboard_does_not_render_the_developer_banner(monkeypatch) -> None:
     import app.streamlit_app as dashboard
 
     monkeypatch.setattr(dashboard, "dashboard_kilns_file", lambda: None)
+    monkeypatch.setattr(dashboard, "get_prepared_data", lambda *a, **k: None)
+    monkeypatch.setattr(dashboard, "load_config", lambda: {})
+    monkeypatch.setattr(dashboard, "_init_language", lambda: None)
+    monkeypatch.setattr(dashboard.st, "markdown", lambda *a, **k: None)
+    monkeypatch.setattr(dashboard.st, "error", lambda *a, **k: None)
+    monkeypatch.setattr(dashboard.st, "button", lambda *a, **k: False)
+    monkeypatch.setattr(dashboard.st, "spinner", lambda *a, **k: __import__("contextlib").nullcontext())
     warnings: list[str] = []
     monkeypatch.setattr(dashboard.st, "set_page_config", lambda **kwargs: None)
     monkeypatch.setattr(dashboard.st, "title", lambda *args, **kwargs: None)

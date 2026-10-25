@@ -241,7 +241,7 @@ _district_label = kd.district_label
 
 
 def _area_display_name(row: Mapping[str, object]) -> str:
-    """Format a kiln's administrative area in Bangla."""
+    """Format a kiln's administrative area (``upazila, district``) in the active language."""
     return kd.area_display_name(row.get("upazila"), row.get("district"))
 
 
@@ -668,7 +668,9 @@ def _community_place(gdf: pd.DataFrame) -> cm.Place | None:
     """
     origin = st.session_state.get("community_origin")
     if isinstance(origin, dict):
-        return cm.point_place(str(origin["name"]), float(origin["lat"]), float(origin["lon"]))
+        # A GPS fix stores no text: its label is looked up now, in the active language.
+        name = T.MY_LOCATION if origin.get("gps") else str(origin["name"])
+        return cm.point_place(name, float(origin["lat"]), float(origin["lon"]))
     return _community_places(gdf).get(st.session_state.get("community_place_key"))
 
 
@@ -693,11 +695,27 @@ def _set_community_radius(radius_m: int) -> None:
     st.session_state["community_radius_m"] = int(radius_m)
 
 
-def _set_community_origin(name: str, lat: float, lon: float) -> None:
-    """Make a point the origin; the picker is cleared on the next run."""
-    st.session_state["community_origin"] = {"name": name, "lat": float(lat), "lon": float(lon)}
+def _set_community_origin(name: str | None, lat: float, lon: float) -> None:
+    """Make a point the origin (``name=None`` = GPS fix); the picker is cleared next run."""
+    st.session_state["community_origin"] = {
+        "name": name or "", "gps": name is None, "lat": float(lat), "lon": float(lon),
+    }
     st.session_state["community_picker_reset"] = True
     st.session_state["community_selected_kiln_id"] = None
+
+
+# Notices are stored as catalogue *names* (never translated text), so a language
+# switch re-renders them in the new language.
+_NOTICE_NAMES = {
+    "gps_ok": "C_GPS_OK", "gps_denied": "C_GPS_DENIED", "gps_unsupported": "C_GPS_UNSUPPORTED",
+    "gps_insecure": "C_GPS_INSECURE", "gps_timeout": "C_GPS_TIMEOUT", "gps_unavailable": "C_GPS_UNAVAILABLE",
+    "geo_empty": "C_GEO_EMPTY", "geo_unavailable": "C_GEO_UNAVAILABLE", "geo_not_found": "C_GEO_NOT_FOUND",
+}
+
+
+def _set_community_notice(level: str, code: str) -> None:
+    """Remember a notice by level (``success``/``warning``) and code, not by text."""
+    st.session_state["community_notice"] = (level, code)
 
 
 _GPS_ERRORS = T.LazyMapping(
@@ -721,11 +739,11 @@ def _handle_gps_event(event: object) -> None:
     st.session_state["community_gps_token"] = token
     lat, lon = kd.to_float(event.get("lat")), kd.to_float(event.get("lon"))
     if not (math.isnan(lat) or math.isnan(lon)):
-        _set_community_origin(T.MY_LOCATION, lat, lon)
-        st.session_state["community_notice"] = ("success", T.C_GPS_OK)
+        _set_community_origin(None, lat, lon)
+        _set_community_notice("success", "gps_ok")
     else:
-        message = _GPS_ERRORS.get(str(event.get("error")), T.C_GPS_UNAVAILABLE)
-        st.session_state["community_notice"] = ("warning", message)
+        code = f"gps_{event.get('error')}"
+        _set_community_notice("warning", code if code in _NOTICE_NAMES else "gps_unavailable")
     st.rerun()
 
 
@@ -733,20 +751,20 @@ def _submit_community_geocode(query: str) -> None:
     """Run the optional free-text fallback and store the outcome in session state."""
     text = " ".join(query.split())
     if not text:
-        st.session_state["community_notice"] = ("warning", T.C_GEO_EMPTY)
+        _set_community_notice("warning", "geo_empty")
         return
     try:
         with st.spinner(T.C_GEO_SEARCHING):
             hit = _cached_geocode(text.casefold())
     except cm.GeocodeUnavailable:
-        st.session_state["community_notice"] = ("warning", T.C_GEO_UNAVAILABLE)
+        _set_community_notice("warning", "geo_unavailable")
         return
     except Exception:  # noqa: BLE001 - never break the page on a provider error
         logging.exception("Community geocoding failed")
-        st.session_state["community_notice"] = ("warning", T.C_GEO_UNAVAILABLE)
+        _set_community_notice("warning", "geo_unavailable")
         return
     if hit is None:
-        st.session_state["community_notice"] = ("warning", T.C_GEO_NOT_FOUND)
+        _set_community_notice("warning", "geo_not_found")
         return
     st.session_state.pop("community_notice", None)
     _set_community_origin(text, hit[0], hit[1])
@@ -785,8 +803,8 @@ def _render_community_inputs(gdf: pd.DataFrame) -> cm.Place | None:
         if submitted:
             _submit_community_geocode(typed)
         notice = st.session_state.get("community_notice")
-        if notice:
-            getattr(st, notice[0], st.info)(notice[1])
+        if notice and notice[1] in _NOTICE_NAMES:
+            getattr(st, notice[0], st.info)(T.text(_NOTICE_NAMES[notice[1]]))
 
     place = _community_place(gdf)
     with st.container(border=True, key="dhoa_community_step2"):

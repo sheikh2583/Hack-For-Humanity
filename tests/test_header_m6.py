@@ -10,7 +10,7 @@ import app.streamlit_app as dashboard
 import app.strings as T
 
 ROOT = Path(__file__).resolve().parents[1]
-BANNED = ("লঙ্ঘন", "বিপজ্জনক", "violation", "hazardous")
+BANNED = ("লঙ্ঘন", "বিপজ্জনক", "violation", "hazardous", "illegal", "non-compliant")
 
 
 def test_data_date_is_file_mtime_not_today(tmp_path: Path) -> None:
@@ -25,7 +25,9 @@ def test_data_date_is_file_mtime_not_today(tmp_path: Path) -> None:
 
 def test_header_wording_is_advisory() -> None:
     for name in ("METRIC_HIGH_PRIORITY_KILNS", "METRIC_RULE_VIOLATIONS", "COL_BREACH_COUNT"):
-        assert not any(word in getattr(T, name) for word in BANNED)
+        for language in T.LANGUAGES:  # both Bangla and English wording
+            text = T.text(name, language).casefold()
+            assert not any(word in text for word in BANNED), (name, language)
 
 
 def test_no_legal_distances_or_law_expander_in_ui_strings() -> None:
