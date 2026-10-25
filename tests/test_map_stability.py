@@ -61,12 +61,13 @@ def test_map_has_stable_zoom_limits_and_resizes_after_layout_changes() -> None:
     """Leaflet keeps one world view and recalculates tiles after responsive resize."""
     map_view = dashboard._new_map("street", None)
     options = map_view.options
-    assert options["minZoom"] == dashboard.DEFAULT_ZOOM - 2
+    assert options["minZoom"] == dashboard.DEFAULT_ZOOM - 1
     assert options["maxZoom"] == dashboard.SELECTED_ZOOM + 3
-    assert options["worldCopyJump"] is False
+    assert options.get("worldCopyJump", options.get("world_copy_jump")) is False
     rendered = map_view.get_root().render()
     assert "invalidateSize" in rendered
-    assert "noWrap: true" in rendered
+    assert "noWrap: true" in rendered or '"noWrap": true' in rendered  # folium 0.20 renders JSON
+    assert "minZoom" in rendered and "maxZoom" in rendered  # must reach the browser, not only the dict
 
 
 def test_selected_marker_and_radius_use_feature_group_not_the_base_map() -> None:

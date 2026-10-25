@@ -238,11 +238,75 @@
         send("streamlit:setFrameHeight", { height: frameHeight });
       }
 
+      // Table layout dominates the cost (about 0.55 s for 2,135 rows in Chromium, much more on a phone), so
+      // only the first rows are laid out; more are appended when the user scrolls or tabs near the end.
+      const FIRST_CHUNK = 120;
+      const NEXT_CHUNK = 240;
+      const rowsBody = document.getElementById("rows");
+      let current = { signature: "", columns: [], rows: [], ids: [] };
+      let rowById = new Map();
+      let renderedCount = 0;
+
       function selectKiln(kilnId, isSelected) {
         send("streamlit:setComponentValue", {
           value: { kiln_id: isSelected ? null : kilnId, selection_token: `${Date.now()}-${Math.random()}` },
           dataType: "json",
         });
+      }
+
+      function applyRowSelection(tr, isSelected, args) {
+        tr.classList.toggle("selected", isSelected);
+        const button = tr.querySelector("button.select-kiln");
+        if (!button) return;
+        button.textContent = isSelected
+          ? (args.selected_label || "\u2713 \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09bf\u09a4")
+          : (args.select_label || "\u09ad\u09be\u099f\u09be\u099f\u09bf \u09a6\u09c7\u0996\u09c1\u09a8");
+        button.setAttribute("aria-pressed", String(isSelected));
+        const fmt = args.aria_select_fmt || "{0}: {1}";
+        const values = current.rows[Number(tr.dataset.index)] || [];
+        button.setAttribute("aria-label", fmt.replace("{0}", button.textContent).replace("{1}", String(values[1] || "")));
+      }
+
+      function buildRow(index, args, selectedKey) {
+        const values = current.rows[index];
+        const kilnId = current.ids[index] || "";
+        const tr = document.createElement("tr");
+        tr.className = "candidate";
+        tr.dataset.index = String(index);
+        tr.dataset.kilnId = kilnId;
+        tr.setAttribute("aria-rowindex", String(index + 2));
+        for (let column = 0; column < values.length; column += 1) {
+          const td = document.createElement("td");
+          td.setAttribute("data-label", current.columns[column] || "");
+          if (column === 0) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "select-kiln";
+            button.addEventListener("click", (event) => {
+              event.stopPropagation();
+              selectKiln(kilnId, tr.classList.contains("selected"));
+            });
+            td.appendChild(button);
+          } else {
+            td.textContent = values[column];
+          }
+          tr.appendChild(td);
+        }
+        tr.addEventListener("click", () => selectKiln(kilnId, tr.classList.contains("selected")));
+        applyRowSelection(tr, selectedKey !== "" && kilnId === selectedKey, args);
+        rowById.set(kilnId, tr);
+        return tr;
+      }
+
+      function appendRows(limit, args) {
+        const end = Math.min(current.rows.length, limit);
+        if (renderedCount >= end) return;
+        const selectedKey = args.selected_id == null ? "" : String(args.selected_id);
+        const fragment = document.createDocumentFragment();
+        for (let index = renderedCount; index < end; index += 1) fragment.appendChild(buildRow(index, args, selectedKey));
+        rowsBody.appendChild(fragment);
+        renderedCount = end;
+        topInner.style.width = `${table.scrollWidth}px`;
       }
 
       function render(args) {
@@ -251,57 +315,65 @@
         const label = args.aria_label || "";
         tableBox.setAttribute("aria-label", label);
         table.setAttribute("aria-label", label);
-        const previousScrollTop = tableBox.scrollTop;
-        const headers = document.getElementById("headers");
-        const rows = document.getElementById("rows");
-        headers.replaceChildren();
-        rows.replaceChildren();
-
-        for (const heading of args.columns || []) {
-          const th = document.createElement("th");
-          th.textContent = heading;
-          th.scope = "col";
-          headers.appendChild(th);
-        }
-
-        for (const [rowIndex, values] of (args.rows || []).entries()) {
-          const tr = document.createElement("tr");
-          tr.className = "candidate";
-          const kilnId = String((args.kiln_ids || [])[rowIndex] || "");
-          const isSelected = kilnId === String(args.selected_id || "");
-          if (isSelected) tr.classList.add("selected");
-          for (let index = 0; index < values.length; index += 1) {
-            const td = document.createElement("td");
-            td.setAttribute("data-label", (args.columns || [])[index] || "");
-            if (index === 0) {
-              const button = document.createElement("button");
-              button.type = "button";
-              button.className = "select-kiln";
-              button.textContent = isSelected
-                ? (args.selected_label || "\u2713 \u09a8\u09bf\u09b0\u09cd\u09ac\u09be\u099a\u09bf\u09a4")
-                : (args.select_label || "\u09ad\u09be\u099f\u09be\u099f\u09bf \u09a6\u09c7\u0996\u09c1\u09a8");
-              button.setAttribute("aria-pressed", String(isSelected));
-              const fmt = args.aria_select_fmt || "{0}: {1}";
-              button.setAttribute("aria-label", fmt.replace("{0}", button.textContent).replace("{1}", String(values[1] || "")));
-              button.addEventListener("click", (event) => {
-                event.stopPropagation();
-                selectKiln(kilnId, isSelected);
-              });
-              td.appendChild(button);
-            } else {
-              td.textContent = values[index];
-            }
-            tr.appendChild(td);
+        const selectedKey = args.selected_id == null ? "" : String(args.selected_id);
+        const signature = JSON.stringify([
+          args.columns || [], args.rows || [], args.kiln_ids || [],
+          args.select_label || "", args.selected_label || "", args.aria_select_fmt || "",
+        ]);
+        if (signature !== current.signature) {
+          // New rows or labels: rebuild, starting from the top of the new list.
+          current = {
+            signature,
+            columns: args.columns || [],
+            rows: args.rows || [],
+            ids: (args.kiln_ids || []).map(String),
+          };
+          const headers = document.getElementById("headers");
+          headers.replaceChildren();
+          headers.setAttribute("aria-rowindex", "1");
+          rowsBody.replaceChildren();
+          rowById = new Map();
+          renderedCount = 0;
+          for (const heading of current.columns) {
+            const th = document.createElement("th");
+            th.textContent = heading;
+            th.scope = "col";
+            headers.appendChild(th);
           }
-          tr.addEventListener("click", () => selectKiln(kilnId, isSelected));
-          rows.appendChild(tr);
+          table.setAttribute("aria-rowcount", String(current.rows.length + 1));
+          appendRows(FIRST_CHUNK, args);
+          tableBox.scrollTop = 0;
+          topBar.scrollLeft = tableBox.scrollLeft;
+        } else {
+          // Same rows: only the selection can differ, so flip at most two rows in place.
+          for (const tr of Array.from(rowsBody.querySelectorAll("tr.selected"))) {
+            if (tr.dataset.kilnId !== selectedKey) applyRowSelection(tr, false, args);
+          }
+          // A selected row that is not rendered yet is marked when it is built (see buildRow).
+          const tr = selectedKey ? rowById.get(selectedKey) : null;
+          if (tr && !tr.classList.contains("selected")) applyRowSelection(tr, true, args);
         }
-
-        topInner.style.width = `${table.scrollWidth}px`;
-        topBar.scrollLeft = tableBox.scrollLeft;
-        tableBox.scrollTop = previousScrollTop;
         setFrameHeight(args);
       }
+
+      let scrollQueued = false;
+      tableBox.addEventListener("scroll", () => {
+        if (scrollQueued || renderedCount >= current.rows.length) return;
+        scrollQueued = true;
+        requestAnimationFrame(() => {
+          scrollQueued = false;
+          if (tableBox.scrollTop + tableBox.clientHeight > tableBox.scrollHeight - 600) {
+            appendRows(renderedCount + NEXT_CHUNK, latestArgs);
+          }
+        });
+      });
+      // Keyboard users tabbing towards the end of the rendered rows get the next block.
+      rowsBody.addEventListener("focusin", (event) => {
+        const tr = event.target.closest ? event.target.closest("tr") : null;
+        if (tr && renderedCount < current.rows.length && Number(tr.dataset.index) >= renderedCount - 10) {
+          appendRows(renderedCount + NEXT_CHUNK, latestArgs);
+        }
+      });
 
       window.addEventListener("message", (event) => {
         if (event.data && event.data.type === "streamlit:render") {
