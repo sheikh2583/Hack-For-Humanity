@@ -156,7 +156,7 @@ def test_community_apptest_prompts_before_a_place_is_chosen() -> None:
 
 def test_community_apptest_every_upazila_choice_gives_a_result_or_next_step() -> None:
     at = _apptest()
-    picker = at.selectbox(key="community_place_key")
+    picker = at.selectbox(key="w_community_place_key@bn")
     upazilas = [i for i, label in enumerate(picker.options) if label.endswith("টি ভাটা") and "," in label][:6]
     assert upazilas
     for index in upazilas:
@@ -168,7 +168,7 @@ def test_community_apptest_every_upazila_choice_gives_a_result_or_next_step() ->
 
 def test_community_apptest_empty_radius_offers_one_click_widen() -> None:
     at = _apptest()
-    picker = at.selectbox(key="community_place_key")
+    picker = at.selectbox(key="w_community_place_key@bn")
     named = [i for i, label in enumerate(picker.options) if label]  # any place
     picker.select_index(named[0]).run()
     assert not at.exception

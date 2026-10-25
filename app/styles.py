@@ -1,7 +1,8 @@
-"""Page CSS for the Dhoa dashboard (module M7): tokens, fonts, layout, mobile rules.
+"""Page CSS for the Dhoa dashboard (modules M7, P1): tokens, fonts, components, layout, mobile rules.
 
 Input schema: the "page loading" string. Output schema: one ``<style>`` block.
-No Streamlit import, so it is unit-testable. Colours come from ``design_tokens``.
+No Streamlit import, so it is unit-testable. Every colour, size, radius and shadow
+comes from ``design_tokens`` through ``var(--dhoa-*)``: the CSS below contains no hex literals.
 """
 
 from __future__ import annotations
@@ -34,7 +35,21 @@ def font_face_css() -> str:
     return "\n".join(rules)
 
 
-_BODY_CSS = """html, body, [data-testid="stAppViewContainer"] { overflow-x: hidden; }
+_BODY_CSS = """/* ---- base: surface, type, rhythm ---------------------------------------- */
+html, body, [data-testid="stAppViewContainer"] { overflow-x: hidden; }
+.stApp, .stApp button, .stApp input, .stApp textarea, .stApp select,
+[data-baseweb="select"], [data-baseweb="popover"], [data-testid="stMarkdownContainer"] {
+    font-family: var(--dhoa-font);
+}
+.stApp { background: var(--dhoa-color-background); color: var(--dhoa-color-text); }
+[data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] li, label, .dhoa-metric span {
+    line-height: var(--dhoa-lh-body);
+}
+h1, h2, h3, h4 { font-family: var(--dhoa-font); font-weight: var(--dhoa-weight-bold); line-height: var(--dhoa-lh-heading); letter-spacing: 0; }
+h2 { font-size: var(--dhoa-type-h2); }
+h3 { font-size: var(--dhoa-type-h3); }
+a { color: var(--dhoa-color-accent-text); }
+hr { border-color: var(--dhoa-color-border) !important; }
 [data-testid="stAppViewContainer"] .main .block-container {
     max-width: 100%; padding: 0.75rem 1.25rem 1.5rem;
 }
@@ -52,8 +67,11 @@ h3 [data-testid="stHeaderActionElements"],
 h4 [data-testid="stHeaderActionElements"],
 [role="heading"] [data-testid="stHeaderActionElements"] { display: none !important; }
 [data-testid="stAppViewContainer"] .main [data-testid="stCaptionContainer"] { margin-top: 0.2rem; }
+[data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] p {
+    color: var(--dhoa-color-text-muted); font-size: var(--dhoa-type-caption); line-height: var(--dhoa-lh-body);
+}
 [data-testid="stMetric"] { min-width: 0; }
-/* Replace Streamlit's developer-oriented status icon with a Bengali loading cue. */
+/* Replace Streamlit's developer-oriented status icon with a loading cue. */
 [data-testid="stStatusWidget"],
 [data-testid^="stStatusWidget"],
 [data-testid="stStatusWidgetRunningIcon"] {
@@ -74,12 +92,14 @@ h4 [data-testid="stHeaderActionElements"],
     display: block;
     max-width: 220px;
     color: var(--dhoa-color-text-soft);
-    font-family: "Noto Sans Bengali", "Nirmala UI", "Vrinda", sans-serif;
-    font-size: 0.82rem;
-    font-weight: 500;
-    line-height: 1.35;
+    font-family: var(--dhoa-font);
+    font-size: var(--dhoa-type-caption);
+    font-weight: var(--dhoa-weight-medium);
+    line-height: var(--dhoa-lh-body);
     white-space: nowrap;
 }
+
+/* ---- metric tiles ---------------------------------------------------------- */
 .dhoa-metrics {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -88,27 +108,131 @@ h4 [data-testid="stHeaderActionElements"],
     margin: 0.5rem 0 1rem;
 }
 .dhoa-metrics.dhoa-summary { grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0.25rem 0 0.5rem; }
+.dhoa-metric {
+    min-width: 0;
+    padding: var(--dhoa-space-md) var(--dhoa-space-lg);
+    background: var(--dhoa-color-card);
+    border: 1px solid var(--dhoa-color-border);
+    border-left: 4px solid var(--dhoa-color-border-strong);
+    border-radius: var(--dhoa-radius-md);
+    box-shadow: var(--dhoa-shadow-card);
+}
+.dhoa-metric strong {
+    display: block; font-size: var(--dhoa-type-h2); font-weight: var(--dhoa-weight-bold);
+    line-height: var(--dhoa-lh-heading); overflow-wrap: anywhere;
+}
+.dhoa-metric span { display: block; color: var(--dhoa-color-text-muted); font-size: var(--dhoa-type-caption); }
+
+
+/* ---- landing hero (P2) ------------------------------------------------------ */
+.dhoa-hero { margin: var(--dhoa-space-lg) 0 var(--dhoa-space-md); }
+.dhoa-hero-title {
+    max-width: 34ch; font-size: var(--dhoa-type-display); font-weight: var(--dhoa-weight-bold);
+    line-height: var(--dhoa-lh-heading); overflow-wrap: anywhere;
+}
+.dhoa-hero-sub {
+    max-width: 62ch; margin: var(--dhoa-space-sm) 0 var(--dhoa-space-lg);
+    color: var(--dhoa-color-text-soft); font-size: var(--dhoa-type-metric); line-height: var(--dhoa-lh-body);
+}
+.dhoa-hero-metrics { margin-bottom: var(--dhoa-space-lg); }
+.dhoa-about { max-width: 70ch; }
+.dhoa-about p { color: var(--dhoa-color-text-soft); font-size: var(--dhoa-type-metric); }
+
+/* ---- cards and chips ------------------------------------------------------- */
+.dhoa-card, [data-testid="stVerticalBlockBorderWrapper"]:has(> div > [data-testid="stVerticalBlock"] > .dhoa-card-marker) {
+    background: var(--dhoa-color-card);
+    border: 1px solid var(--dhoa-color-border);
+    border-radius: var(--dhoa-radius-lg);
+    box-shadow: var(--dhoa-shadow-card);
+    padding: var(--dhoa-space-lg);
+}
+.dhoa-chip {
+    display: inline-flex; align-items: center; gap: var(--dhoa-space-xs);
+    padding: var(--dhoa-space-xxs) var(--dhoa-space-md);
+    border: 1px solid var(--dhoa-color-border-strong); border-radius: var(--dhoa-radius-pill);
+    background: var(--dhoa-color-raised); color: var(--dhoa-color-text);
+    font-size: var(--dhoa-type-caption); font-weight: var(--dhoa-weight-semibold); line-height: var(--dhoa-lh-body);
+}
+.dhoa-chip--high { border-color: var(--dhoa-color-high); color: var(--dhoa-color-high-text); }
+.dhoa-chip--medium { border-color: var(--dhoa-color-medium); color: var(--dhoa-color-medium); }
+.dhoa-chip--low { border-color: var(--dhoa-color-low); color: var(--dhoa-color-low); }
+.dhoa-chip--new { border-color: var(--dhoa-color-new); color: var(--dhoa-color-new-text); }
 .dhoa-pin { background: none; border: 0; }
-.dhoa-pin svg { display: block; filter: drop-shadow(0 0 1px rgba(0,0,0,.7)); }
-.dhoa-metric { min-width: 0; padding: 0.35rem 0.65rem; border-left: 2px solid var(--dhoa-color-border); }
-.dhoa-metric strong { display: block; font-size: 1.15rem; line-height: 1.3; }
-.dhoa-metric span { display: block; color: var(--dhoa-color-text-muted); font-size: 0.82rem; line-height: 1.35; }
+.dhoa-pin svg { display: block; }
+
+/* ---- buttons, inputs, navigation ------------------------------------------ */
 [data-testid="stDownloadButton"] button,
 [data-testid="stButton"] button,
 [data-testid="stFormSubmitButton"] button,
-[data-testid="stBaseLinkButton-secondary"],
-[data-testid="stBaseLinkButton-primary"],
+[data-testid^="stBaseLinkButton"],
 [data-testid="stSegmentedControl"] button,
 [data-testid="stPopover"] button,
 [data-testid="stExpander"] summary,
 [data-baseweb="select"] > div,
+.st-key-dhoa_lang_toggle [role="radiogroup"] label,
 [data-testid="stSlider"] [role="slider"] { min-height: var(--dhoa-tap); }
+[data-testid^="stBaseButton-secondary"], [data-testid^="stBaseLinkButton-secondary"] {
+    background: var(--dhoa-color-raised); color: var(--dhoa-color-text);
+    border: 1px solid var(--dhoa-color-border-strong); border-radius: var(--dhoa-radius-md);
+    font-weight: var(--dhoa-weight-semibold); line-height: var(--dhoa-lh-body);
+    transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+[data-testid^="stBaseButton-secondary"]:hover, [data-testid^="stBaseLinkButton-secondary"]:hover {
+    background: var(--dhoa-color-card); border-color: var(--dhoa-color-accent-text); color: var(--dhoa-color-text);
+}
+[data-testid^="stBaseButton-primary"], [data-testid^="stBaseLinkButton-primary"] {
+    background: var(--dhoa-color-primary); color: var(--dhoa-color-on-primary);
+    border: 1px solid var(--dhoa-color-primary); border-radius: var(--dhoa-radius-md);
+    font-weight: var(--dhoa-weight-bold); line-height: var(--dhoa-lh-body);
+    transition: background-color 0.12s ease;
+}
+[data-testid^="stBaseButton-primary"]:hover, [data-testid^="stBaseLinkButton-primary"]:hover {
+    background: var(--dhoa-color-primary-hover); border-color: var(--dhoa-color-primary-hover); color: var(--dhoa-color-on-primary);
+}
+[data-baseweb="select"] > div, [data-baseweb="input"], [data-baseweb="textarea"] {
+    background: var(--dhoa-color-raised) !important;
+    border-color: var(--dhoa-color-border-strong) !important;
+    border-radius: var(--dhoa-radius-md) !important;
+}
+[data-testid="stSidebar"] { background: var(--dhoa-color-card); border-right: 1px solid var(--dhoa-color-border); }
+[data-testid="stSegmentedControl"] button { border-radius: var(--dhoa-radius-md); font-weight: var(--dhoa-weight-semibold); }
+[data-testid="stSegmentedControl"] button[aria-checked="true"],
+[data-testid="stSegmentedControl"] button[aria-pressed="true"],
+[data-testid="stSegmentedControl"] button[kind="segmented_controlActive"] {
+    background: var(--dhoa-color-primary); color: var(--dhoa-color-on-primary); border-color: var(--dhoa-color-primary);
+}
+[data-testid="stExpander"], [data-testid="stPopover"] button {
+    border-color: var(--dhoa-color-border); border-radius: var(--dhoa-radius-md);
+}
+[data-testid="stAlert"] { border-radius: var(--dhoa-radius-md); }
+
+/* ---- language toggle: a two-option pill, same family as the buttons -------- */
+.st-key-dhoa_lang_toggle [role="radiogroup"] {
+    display: inline-flex; gap: 0; padding: 2px;
+    background: var(--dhoa-color-raised); border: 1px solid var(--dhoa-color-border-strong);
+    border-radius: var(--dhoa-radius-pill);
+}
+.st-key-dhoa_lang_toggle [role="radiogroup"] label {
+    display: flex; align-items: center; justify-content: center; margin: 0;
+    padding: 0 var(--dhoa-space-lg); min-width: var(--dhoa-tap);
+    border-radius: var(--dhoa-radius-pill); cursor: pointer;
+    font-weight: var(--dhoa-weight-semibold); color: var(--dhoa-color-text-soft);
+}
+.st-key-dhoa_lang_toggle [role="radiogroup"] label > div:first-child:not([data-testid]) { display: none; }
+.st-key-dhoa_lang_toggle [role="radiogroup"] label:has(input:checked) {
+    background: var(--dhoa-color-primary); color: var(--dhoa-color-on-primary);
+}
+.st-key-dhoa_lang_toggle [role="radiogroup"] label p { margin: 0; line-height: var(--dhoa-lh-tight); }
+
 .dhoa-mobile-map-hint {
     display: none;
     margin: 0.25rem 0 0.65rem;
     color: var(--dhoa-color-text-soft);
-    font-size: 0.9rem;
+    font-size: var(--dhoa-type-caption);
 }
+.dhoa-footer { color: var(--dhoa-color-text-muted); font-size: var(--dhoa-type-caption); padding: var(--dhoa-space-lg) 0; }
+
+/* ---- phones and tablets ---------------------------------------------------- */
 @media (max-width: 768px) {
     [data-testid="stAppViewContainer"] .main .block-container {
         padding: 0.65rem 0.75rem 1.5rem;
@@ -118,7 +242,7 @@ h4 [data-testid="stHeaderActionElements"],
     [data-testid="stMetricContainer"] { min-width: 0; }
     [data-testid="stStatusWidgetRunningIcon"]::after {
         max-width: 115px;
-        font-size: 0.7rem;
+        font-size: 0.75rem;
         line-height: 1.3;
         white-space: normal;
         text-align: right;
@@ -134,11 +258,15 @@ h4 [data-testid="stHeaderActionElements"],
         min-height: 300px !important;
         max-height: 500px !important;
     }
-    h2 { font-size: 1.35rem !important; }
-    h3 { font-size: 1.15rem !important; }
-    [data-testid="stMetricValue"] { font-size: 1.35rem; }
+    h2 { font-size: var(--dhoa-type-h3) !important; }
+    h3 { font-size: var(--dhoa-type-metric) !important; }
+    [data-testid="stMetricValue"] { font-size: var(--dhoa-type-h3); }
     .dhoa-metrics { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem !important; }
+    .dhoa-metric { padding: var(--dhoa-space-sm) var(--dhoa-space-md); }
+    .dhoa-metric strong { font-size: var(--dhoa-type-h3); }
     .dhoa-mobile-map-hint { display: block !important; }
+    .dhoa-hero-title { font-size: var(--dhoa-type-h2); }
+    .dhoa-hero-sub { font-size: var(--dhoa-type-body); }
 }
 /* Keep action buttons side by side on phones (only inside keyed rows). */
 @media (max-width: 768px) {
@@ -147,28 +275,35 @@ h4 [data-testid="stHeaderActionElements"],
     }
     .st-key-dhoa_action_row [data-testid="stColumn"] { min-width: 0 !important; flex: 1 1 0 !important; }
     .st-key-dhoa_action_row a, .st-key-dhoa_action_row button { font-size: 0.85rem; padding-left: 0.4rem; padding-right: 0.4rem; }
+    /* The language toggle stays on one line next to the title. */
+    .st-key-dhoa_lang_toggle [role="radiogroup"] { display: flex; width: 100%; }
+    .st-key-dhoa_lang_toggle [role="radiogroup"] label { flex: 1 1 0; padding: 0 var(--dhoa-space-sm); }
 }
 @media (max-width: 480px) {
     [data-testid="stAppViewContainer"] .main .block-container {
         padding-left: 0.5rem; padding-right: 0.5rem;
     }
-    body, p, label, [data-testid="stCaptionContainer"] { font-size: 14px; }
+    body, p, label, [data-testid="stCaptionContainer"] { font-size: 0.9rem; }
 }
+
+/* ---- brand title (Bangla conjuncts need the tall line box) ---------------- */
 [data-testid="stMainBlockContainer"] h1.dhoa-brand-title {
     display: block !important;
     box-sizing: border-box !important;
     width: 100% !important;
     padding: 0.38em 0 0.12em !important;
     margin-top: 0.35rem !important;
-    line-height: 1.8 !important;
+    font-size: var(--dhoa-type-title);
+    line-height: var(--dhoa-lh-brand) !important;
     overflow: visible !important;
-    font-family: "Noto Sans Bengali", sans-serif !important;
+    font-family: var(--dhoa-font) !important;
+    color: var(--dhoa-color-text);
     font-feature-settings: "kern", "liga", "mark", "mkmk" !important;
     font-kerning: normal !important;
     font-variant-ligatures: contextual common-ligatures !important;
 }
 [data-testid="stMainBlockContainer"] h1.dhoa-brand-title span {
-    font-family: "Noto Sans Bengali", sans-serif !important;
+    font-family: var(--dhoa-font) !important;
     font-feature-settings: "kern", "liga", "mark", "mkmk" !important;
     font-kerning: normal !important;
     font-variant-ligatures: contextual common-ligatures !important;
@@ -177,19 +312,31 @@ h4 [data-testid="stHeaderActionElements"],
 }
 @media (max-width: 768px) {
     [data-testid="stMainBlockContainer"] h1.dhoa-brand-title {
-        font-size: 1.9rem !important;
-        line-height: 1.8 !important;
+        font-size: var(--dhoa-type-title) !important;
+        line-height: var(--dhoa-lh-brand) !important;
         padding-top: 0.38em !important;
         padding-bottom: 0.12em !important;
     }
 }
 
-
+/* ---- focus and motion ------------------------------------------------------ */
 :focus-visible { outline: 3px solid var(--dhoa-color-focus); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
 """
+
+
+def priority_chip_html(band: str, label: str) -> str:
+    """Return a ``.dhoa-chip`` for a priority band: glyph (shape) plus text, never colour alone.
+
+    Input: band key (``High``/``Medium``/``Low``) and an already-translated, already-escaped
+    label. Output: an HTML string; an unknown band gives a neutral chip without glyph.
+    """
+    spec = tokens.PRIORITY.get(band)
+    if spec is None:
+        return f"<span class='dhoa-chip'>{label}</span>"
+    return f"<span class='dhoa-chip dhoa-chip--{band.lower()}'><span aria-hidden='true'>{spec['glyph']}</span>{label}</span>"
 
 
 def page_css(page_loading: str) -> str:

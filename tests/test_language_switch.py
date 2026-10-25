@@ -42,5 +42,25 @@ def test_geocoded_origin_keeps_the_typed_name_in_any_language(monkeypatch) -> No
 
 def test_widget_selections_are_canonical_values_not_labels() -> None:
     # priority, picker keys, view mode and radius are language-neutral values
-    assert 'key="filter_priority"' in SOURCE and '_priority_opts = ["High", "Medium", "Low"]' in SOURCE
-    assert "community_place_key" in SOURCE and "format_func=lambda key: places[key].label" in SOURCE
+    assert 'key=_wkey("filter_priority")' in SOURCE and '_priority_opts = ["High", "Medium", "Low"]' in SOURCE
+    assert "_wkey(\"community_place_key\")" in SOURCE and "format_func=lambda key: places[key].label" in SOURCE
+
+
+def test_widget_keys_change_with_language_so_option_text_remounts(monkeypatch) -> None:
+    keys = {}
+    for language in ("bn", "en"):
+        monkeypatch.setattr(app_strings, "get_language", lambda language=language: language)
+        keys[language] = dashboard._wkey("filter_priority")
+    assert keys["bn"] != keys["en"] and keys["bn"].startswith("w_filter_priority@")
+
+
+def test_priority_labels_in_any_language_map_to_the_same_filter() -> None:
+    import app.kiln_data as kd
+
+    bn = [app_strings.text(n, "bn") for n in ("HIGH", "MEDIUM")]
+    en = [app_strings.text(n, "en") for n in ("HIGH", "MEDIUM")]
+    expected = kd.make_filter_key(priorities=["High", "Medium"])
+    assert kd.make_filter_key(priorities=bn) == expected
+    assert kd.make_filter_key(priorities=en) == expected
+    assert kd.make_filter_key(priorities=[bn[0], en[1]]) == expected
+    assert kd.make_filter_key(priorities=["???"]).priorities == ("High", "Medium", "Low")  # unknown = all, never zero

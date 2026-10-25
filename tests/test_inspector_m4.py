@@ -80,7 +80,9 @@ def test_inspector_apptest_renders_summary_strip_and_note() -> None:
         pytest.skip("parquet not present")
     from streamlit.testing.v1 import AppTest
 
-    at = AppTest.from_file(str(ROOT / "app" / "streamlit_app.py"), default_timeout=180).run()
+    at = AppTest.from_file(str(ROOT / "app" / "streamlit_app.py"), default_timeout=180)
+    at.session_state["dhoa_view_mode"] = "inspector"  # P2: the default view is now the Overview
+    at.run()
     assert not at.exception
     markdown = " ".join(m.value for m in at.markdown)
     assert "dhoa-summary" in markdown
@@ -95,10 +97,12 @@ def test_inspector_apptest_empty_filter_shows_reset_state() -> None:
         pytest.skip("parquet not present")
     from streamlit.testing.v1 import AppTest
 
-    at = AppTest.from_file(str(ROOT / "app" / "streamlit_app.py"), default_timeout=180).run()
+    at = AppTest.from_file(str(ROOT / "app" / "streamlit_app.py"), default_timeout=180)
+    at.session_state["dhoa_view_mode"] = "inspector"  # P2: the default view is now the Overview
+    at.run()
     # Adabor is a listed Dhaka area with no kilns in the data (empty result, not an error).
-    at.selectbox(key="filter_district").select("Dhaka").run()
-    at.selectbox(key="filter_upazila").select("Adabor")
+    at.selectbox(key="w_filter_district@bn").select("Dhaka").run()
+    at.selectbox(key="w_filter_upazila@bn").select("Adabor")
     next(b for b in at.button if b.label == T.APPLY_FILTERS).click().run()
     assert not at.exception
     assert any(T.NO_KILNS_IN_AREA_FMT.format("Adabor") == i.value for i in at.info)

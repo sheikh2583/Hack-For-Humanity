@@ -1,4 +1,4 @@
-"""M7 design tokens, contrast, tap targets and mobile CSS (no Streamlit needed)."""
+"""M7/P1 design tokens, contrast, tap targets and mobile CSS (no Streamlit needed)."""
 
 from __future__ import annotations
 
@@ -18,14 +18,15 @@ def test_contrast_ratio_matches_wcag_reference_values() -> None:
 
 
 def test_text_colours_meet_aa_on_page_and_card() -> None:
-    for name in ("text", "text_muted", "text_soft", "high_text", "new_text", "medium", "low", "advisory"):
+    for name in ("text", "text_muted", "text_soft", "high_text", "new_text", "accent_text", "medium", "low", "unclassified"):
         for background in ("background", "card"):
             assert tk.contrast_ratio(tk.COLORS[name], tk.COLORS[background]) >= 4.5, (name, background)
 
 
 def test_primary_button_and_marker_contrast() -> None:
     assert tk.contrast_ratio(tk.COLORS["on_primary"], tk.COLORS["primary"]) >= 4.5
-    for name in ("high", "medium", "low", "new", "primary"):
+    assert tk.contrast_ratio(tk.COLORS["on_primary"], tk.COLORS["primary_hover"]) >= 4.5
+    for name in ("high", "medium", "low", "new", "primary", "border_strong"):
         assert tk.contrast_ratio(tk.COLORS[name], tk.COLORS["background"]) >= 3.0, name
     config = (ROOT / ".streamlit" / "config.toml").read_text(encoding="utf-8")
     assert f'primaryColor = "{tk.COLORS["primary"]}"' in config
@@ -59,6 +60,4 @@ def test_map_height_is_sensible_on_phones_and_fonts_are_self_hosted() -> None:
 
 
 def test_no_stray_hex_colours_outside_tokens_in_page_css() -> None:
-    allowed = {value.lower() for value in tk.COLORS.values()}
-    stray = {c.lower() for c in re.findall(r"#[0-9a-fA-F]{6}\b", styles._BODY_CSS)} - allowed
-    assert not stray, stray
+    assert not re.findall(r"#[0-9a-fA-F]{3,8}\b", styles._BODY_CSS)  # P1: tokens only, via var(--dhoa-*)

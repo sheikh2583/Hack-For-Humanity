@@ -47,6 +47,7 @@ from streamlit_folium import st_folium
 # isort: off
 import community as cm
 import design_tokens as tokens
+import hero
 import styles
 import kiln_data as kd
 from dashboard_filters import (
@@ -76,12 +77,20 @@ _geolocate = components.declare_component(
 )
 DESIGN_COLORS = {
     key: tokens.COLORS[key]
-    for key in ("high", "medium", "low", "new", "advisory", "background", "card", "text")
+    for key in (
+        "high", "medium", "low", "new", "unclassified", "background", "card", "text",
+        "text_muted", "border_strong", "marker_outline", "marker_halo",
+        "popup_text", "popup_badge", "popup_rule", "high_text", "new_text",
+    )
 }
 PRIORITY_COLORS = {
     "High": DESIGN_COLORS["high"],
     "Medium": DESIGN_COLORS["medium"],
     "Low": DESIGN_COLORS["low"],
+}
+# Text-safe variants (>= 4.5:1 on the card surface) for priority words in tables.
+PRIORITY_TEXT_COLORS = {
+    band: tokens.COLORS[spec["text_color"]] for band, spec in tokens.PRIORITY.items()
 }
 ALL_KILN_TYPES = kd.ALL_KILN_TYPES
 ALL_DISTRICTS = kd.ALL_DISTRICTS
@@ -205,7 +214,7 @@ def class_counts(frame: pd.DataFrame) -> tuple[int, int]:
 
 def color_for_kiln(row: Mapping[str, object]) -> str:
     """Return the map color for an existing priority band."""
-    return PRIORITY_COLORS.get(str(row.get("priority_band", "")), DESIGN_COLORS["advisory"])
+    return PRIORITY_COLORS.get(str(row.get("priority_band", "")), DESIGN_COLORS["unclassified"])
 
 
 def rules_are_verified(rules: dict[str, Any]) -> bool:
@@ -387,14 +396,12 @@ def _render_map_type_filter() -> str:
     """
     if st.session_state.get("map_tile") not in {"street", "satellite"}:
         st.session_state["map_tile"] = "street"
-    widget_key = "map_tile_widget"
-    st.session_state[widget_key] = st.session_state["map_tile"]
+    widget_key = _seed("map_tile", st.session_state["map_tile"])
     selected_tile = st.selectbox(
         T.MAP_TYPE,
         ["street", "satellite"],
         format_func=lambda value: T.STREET_MAP if value == "street" else T.SATELLITE_IMAGERY,
         key=widget_key,
-        index=["street", "satellite"].index(st.session_state["map_tile"]),
         on_change=_sync_map_tile,
         args=(widget_key,),
     )
@@ -685,6 +692,7 @@ def _community_result(gdf: pd.DataFrame) -> cm.SearchResult | None:
 
 def _on_community_pick() -> None:
     """A list choice replaces any GPS/geocoded origin and old notices."""
+    _commit("community_place_key")
     st.session_state["community_origin"] = None
     st.session_state.pop("community_notice", None)
     st.session_state["community_selected_kiln_id"] = None
@@ -776,9 +784,12 @@ def _render_community_inputs(gdf: pd.DataFrame) -> cm.Place | None:
     if st.session_state.pop("community_picker_reset", False):
         st.session_state["community_place_key"] = None
     places = _community_places(gdf)
-    st.session_state.setdefault("community_radius_m", cm.DEFAULT_RADIUS_M)
+    if st.session_state.get("community_radius_m") not in cm.RADIUS_CHOICES_M:
+        st.session_state["community_radius_m"] = cm.DEFAULT_RADIUS_M
     if st.session_state.get("community_place_key") not in places:
         st.session_state["community_place_key"] = None
+    _seed("community_place_key", st.session_state["community_place_key"])
+    _seed("community_radius_m", st.session_state["community_radius_m"])
 
     with st.container(border=True, key="dhoa_community_step1"):
         st.markdown(f"**{T.C_STEP1}**")
@@ -789,7 +800,7 @@ def _render_community_inputs(gdf: pd.DataFrame) -> cm.Place | None:
             format_func=lambda key: places[key].label if key in places else str(key),
             placeholder=T.C_PLACE_PLACEHOLDER,
             help=T.C_PLACE_HELP,
-            key="community_place_key",
+            key=_wkey("community_place_key"),
             on_change=_on_community_pick,
         )
         event = _geolocate(
@@ -815,7 +826,8 @@ def _render_community_inputs(gdf: pd.DataFrame) -> cm.Place | None:
             list(cm.RADIUS_CHOICES_M),
             format_func=lambda value: T.C_RADIUS_OPTION_FMT.format(value / 1000),
             help=T.C_RADIUS_HELP,
-            key="community_radius_m",
+            key=_wkey("community_radius_m"),
+            on_change=_commit_radius,
             disabled=whole_area,
             width="stretch",
         )
@@ -1074,9 +1086,10 @@ def _popup_styles() -> str:
     """Return popup CSS with readable contrast on Leaflet's white popup surface."""
     return (
         "<style>"
-        ".dhoa-popup{width:290px;color:#1f2937;line-height:1.45}"
-        ".dhoa-popup hr{border:0;border-top:1px solid #64748b;opacity:.45;margin:.45rem 0}"
-        f".dhoa-popup .badge{{background:{DESIGN_COLORS['card']};padding:.1rem .35rem;border-radius:.25rem;font-weight:700}}"
+        f".dhoa-popup{{width:290px;color:{DESIGN_COLORS['popup_text']};line-height:1.6}}"
+        f".dhoa-popup hr{{border:0;border-top:1px solid {DESIGN_COLORS['popup_rule']};opacity:.45;margin:.45rem 0}}"
+        f".dhoa-popup .badge{{background:{DESIGN_COLORS['popup_badge']};color:{DESIGN_COLORS['popup_text']};"
+        "padding:.1rem .5rem;border-radius:999px;font-weight:700}"
         f".dhoa-popup .new-badge{{background:{DESIGN_COLORS['new']}}}"
         ".dhoa-popup .rule-signal-row{margin:.12rem 0}"
         ".dhoa-popup .badges,.dhoa-popup .popup-actions{display:flex;gap:.4rem;flex-wrap:wrap}"
@@ -1108,7 +1121,7 @@ def _kiln_list_frame(gdf: gpd.GeoDataFrame) -> pd.DataFrame:
 
 def _priority_table_style(value: object) -> str:
     """Return the centralized design-system style for a priority cell."""
-    color = PRIORITY_COLORS.get(str(value), DESIGN_COLORS["advisory"])
+    color = PRIORITY_TEXT_COLORS.get(str(value), DESIGN_COLORS["text_muted"])
     return f"color: {color}; font-weight: 700"
 
 
@@ -1208,64 +1221,98 @@ def _init_language() -> None:
 
 def _render_language_toggle() -> None:
     """Render the bn/en switch; the choice lives in session state and the URL."""
-    st.radio(
-        "Language / ভাষা",
-        T.LANGUAGES,
-        format_func=lambda code: T.LANGUAGE_NAMES[code],
-        key=T.LANGUAGE_KEY,
-        horizontal=True,
-        label_visibility="collapsed",
-    )
+    with st.container(key="dhoa_lang_toggle"):  # styled as a pill by styles.py
+        st.radio(
+            "Language / ভাষা",
+            T.LANGUAGES,
+            format_func=lambda code: T.LANGUAGE_NAMES[code],
+            key=T.LANGUAGE_KEY,
+            horizontal=True,
+            label_visibility="collapsed",
+        )
     if st.query_params.get("lang") != st.session_state.get(T.LANGUAGE_KEY):
         st.query_params["lang"] = st.session_state.get(T.LANGUAGE_KEY, T.DEFAULT_LANGUAGE)
 
 
+def _nav_label(view: str) -> str:
+    """Translated top-navigation label for a view key."""
+    return {
+        "overview": T.NAV_OVERVIEW, "inspector": T.NAV_MAP,
+        "community": T.NAV_NEAR_ME, "about": T.NAV_ABOUT,
+    }[view]
+
+
+def _go_to_view(view: str) -> None:
+    """``on_click`` callback for the hero buttons: switch the top navigation to ``view``."""
+    if view in hero.VIEW_MODES:
+        st.session_state["dhoa_view_mode"] = view
+
+
 def render_header(gdf: gpd.GeoDataFrame) -> str:
-    """Render the Dhoa header, language switch, mode navigation and summary metrics."""
+    """Render the Dhoa title, language switch and top navigation; return the active view key.
+
+    Output: one of ``hero.VIEW_MODES`` (``overview``, ``inspector``, ``community``, ``about``).
+    The headline metrics live in the Overview hero only, so they are not repeated on every view.
+    """
     title_col, lang_col = st.columns([4, 2], vertical_alignment="center", gap="small")
     with title_col:
         st.markdown(f"<h1 class='dhoa-brand-title'>{html.escape(DASHBOARD_TITLE)}</h1>", unsafe_allow_html=True)
     with lang_col:
         _render_language_toggle()
-    loaded = dashboard_kilns_file()
-    subtitle = T.BANGLADESH_BRICK_KILN_MONITORING_DASHBOA
-    st.caption(subtitle)
-    view_options = ["inspector", "community"]
+    st.caption(T.BANGLADESH_BRICK_KILN_MONITORING_DASHBOA)
+    view_options = list(hero.VIEW_MODES)
     if st.session_state.get("dhoa_view_mode") not in view_options:
-        st.session_state["dhoa_view_mode"] = "inspector"
+        st.session_state["dhoa_view_mode"] = hero.DEFAULT_VIEW
+    _seed("dhoa_view_mode", st.session_state["dhoa_view_mode"])
     mode = st.segmented_control(
         T.CHOOSE_VIEW,
         view_options,
-        format_func=lambda value: (
-            T.VIEW_INSPECTOR if value == "inspector"
-            else T.VIEW_COMMUNITY
-        ),
-        key="dhoa_view_mode", width="stretch",
+        format_func=_nav_label,
+        key=_wkey("dhoa_view_mode"), width="stretch",
+        on_change=_commit_view_mode,
+        label_visibility="collapsed",
     )
-    is_community = mode == "community"
-    with st.popover(T.HOW_TO_USE, icon=":material/help:", width="stretch"):
-        if is_community:
-            st.markdown(T.HELP_COMMUNITY)
-        else:
-            st.markdown(T.HELP_INSPECTOR)
-    if is_community:
-        st.caption(T.CHOOSE_A_DISTRICT_AND_UPAZILA_YOU_MAY_EN)
-        selected_mode = "community"
-    else:
-        st.caption(T.BROWSE_THE_KILN_LIST_AND_MAP_USE_FILTERS)
-        selected_mode = "inspector"
-    high = int(gdf["priority_band"].eq("High").sum())
-    flagged = _flagged_count(gdf, load_config()["rules"])
-    items = (
-        (f"{len(gdf):,}", METRIC_LABELS["total_kilns"]),
-        (f"{high:,}", METRIC_LABELS["high_priority_kilns"]),
-        (f"{flagged:,}", METRIC_LABELS["rule_violations"]),
-        (_data_date_label(loaded), METRIC_LABELS["last_updated"]),
-    )
-    metrics = "".join(f"<div class='dhoa-metric'><strong>{value}</strong><span>{label}</span></div>" for value, label in items)
-    st.markdown(f"<div class='dhoa-metrics'>{metrics}</div>", unsafe_allow_html=True)
+    if mode in view_options:
+        st.session_state["dhoa_view_mode"] = mode
+    selected_mode = st.session_state["dhoa_view_mode"]
+    if selected_mode in ("inspector", "community"):
+        with st.popover(T.HOW_TO_USE, icon=":material/help:", width="stretch"):
+            st.markdown(T.HELP_COMMUNITY if selected_mode == "community" else T.HELP_INSPECTOR)
+        st.caption(
+            T.CHOOSE_A_DISTRICT_AND_UPAZILA_YOU_MAY_EN if selected_mode == "community"
+            else T.BROWSE_THE_KILN_LIST_AND_MAP_USE_FILTERS
+        )
     st.divider()
     return selected_mode
+
+
+def render_overview(gdf: gpd.GeoDataFrame) -> None:
+    """Landing view: mission line, four real headline numbers and two next-step buttons."""
+    counts = hero.hero_counts(gdf)
+    metrics = (
+        (f"{counts['total']:,}", METRIC_LABELS["total_candidates"]),
+        (f"{counts['high']:,}", METRIC_LABELS["high_priority_kilns"]),
+        (f"{counts['districts']:,}", T.HERO_METRIC_DISTRICTS),
+        (_data_date_label(dashboard_kilns_file()), METRIC_LABELS["last_updated"]),
+    )
+    st.markdown(hero.hero_html(T.HERO_MISSION, T.HERO_SUB, metrics), unsafe_allow_html=True)
+    with st.container(key="dhoa_action_row"):
+        left, right = st.columns(2, gap="small")
+        left.button(T.HERO_CTA_MAP, key="dhoa_hero_map", type="primary", width="stretch",
+                    on_click=_go_to_view, args=("inspector",))
+        right.button(T.HERO_CTA_NEAR_ME, key="dhoa_hero_near", width="stretch",
+                     on_click=_go_to_view, args=("community",))
+    st.caption(T.PRIORITY_NOTE)
+
+
+def render_about() -> None:
+    """About view (short; the full methodology and sources panel belongs to module P7)."""
+    st.markdown(
+        f"<div class='dhoa-about'><div class='dhoa-hero-title' role='heading' aria-level='2'>"
+        f"{html.escape(T.ABOUT_TITLE)}</div><p>{html.escape(T.ABOUT_BODY)}</p></div>",
+        unsafe_allow_html=True,
+    )
+    st.caption(T.PRIORITY_NOTE)
 
 
 def render_district_summary(district: str, gdf: gpd.GeoDataFrame) -> None:
@@ -1323,6 +1370,75 @@ def render_district_summary(district: str, gdf: gpd.GeoDataFrame) -> None:
     st.info(T.RISK_INFO_FMT.format(_district_label(district), risk_scope_label, risk_count))
 
 
+def _commit_view_mode() -> None:
+    """``on_change`` callback for the view switch (a deselect keeps the current view)."""
+    value = st.session_state.get(_wkey("dhoa_view_mode"))
+    if value in hero.VIEW_MODES:
+        st.session_state["dhoa_view_mode"] = value
+
+
+def _wkey(name: str) -> str:
+    """Widget key for ``name`` in the active language.
+
+    Widgets whose options are shown through a translating ``format_func`` get a
+    language-suffixed key, so Streamlit mounts a brand-new widget when the
+    language changes (a widget re-used under the same key keeps showing the
+    previous language's option text). The value that matters is kept under the
+    language-neutral name ``name`` (always canonical: ``High``, ``Dhaka``,
+    ``street`` ...); ``_seed`` copies it into the widget and ``_commit`` copies
+    the user's choice back.
+    """
+    return f"w_{name}@{T.get_language()}"
+
+
+def _seed(name: str, value: Any) -> str:
+    """Set the widget for ``name`` to the canonical ``value``; return its key."""
+    key = _wkey(name)
+    st.session_state[key] = value
+    return key
+
+
+def _commit(name: str) -> None:
+    """``on_change`` callback: store the widget's choice under the canonical name."""
+    st.session_state[name] = st.session_state.get(_wkey(name))
+
+
+def _commit_radius() -> None:
+    """``on_change`` callback for the radius control (a deselect keeps the old radius)."""
+    value = st.session_state.get(_wkey("community_radius_m"))
+    st.session_state["community_radius_m"] = int(value) if value else cm.DEFAULT_RADIUS_M
+
+
+_FORM_FILTERS = ("filter_upazila", "filter_priority", "filter_kiln_type")
+
+
+def _drop_widget_state(*names: str) -> None:
+    """Forget the widget copies of ``names`` so the next run re-seeds them from canonical state."""
+    for name in names:
+        st.session_state.pop(_wkey(name), None)
+
+
+def _pull_form_values() -> None:
+    """Copy the submitted filter-form widget values into canonical state.
+
+    Widgets inside ``st.form`` cannot have ``on_change`` callbacks, so the
+    values are read from the widget keys at the start of the run (before
+    ``_seed`` would overwrite them). Absent keys (first run, language switch,
+    a reset) are skipped and re-seeded from canonical state instead.
+    """
+    for name in _FORM_FILTERS:
+        key = _wkey(name)
+        if key in st.session_state:
+            st.session_state[name] = st.session_state[key]
+
+
+def _on_district_change() -> None:
+    """A new district clears the dependent area."""
+    _commit("filter_district")
+    st.session_state["filter_upazila"] = ALL_AREAS
+    _drop_widget_state("filter_upazila")
+
+
 def _reset_upazila_filter() -> None:
     """Reset the dependent area selection when district changes."""
     st.session_state["filter_upazila"] = ALL_AREAS
@@ -1339,6 +1455,7 @@ def _reset_inspector_filters() -> None:
     st.session_state["filter_upazila"] = ALL_AREAS
     st.session_state["filter_priority"] = ["High", "Medium", "Low"]
     st.session_state["filter_kiln_type"] = ALL_KILN_TYPES
+    _drop_widget_state(*_FORM_FILTERS)
 
 
 @st.cache_data(show_spinner=False, max_entries=32)
@@ -1379,6 +1496,7 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
             district_options = [ALL_DISTRICTS, *district_values]
             if st.session_state.get("filter_district") not in district_options:
                 st.session_state["filter_district"] = ALL_DISTRICTS
+            _seed("filter_district", st.session_state["filter_district"])
             filters["district"] = st.selectbox(
                 T.DISTRICT,
                 district_options,
@@ -1387,8 +1505,8 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
                     if value == ALL_DISTRICTS
                     else _district_label(value)
                 ),
-                key="filter_district",
-                on_change=_reset_upazila_filter,
+                key=_wkey("filter_district"),
+                on_change=_on_district_change,
             )
 
             district_selected = filters["district"] != ALL_DISTRICTS
@@ -1404,42 +1522,48 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
             _known_upazilas = BD_ADMIN_AREAS.get(filters["district"], [])
             upazila_values = sorted(set(_known_upazilas) | set(_data_upazilas))
             upazila_options = [ALL_AREAS, *upazila_values]
+            _pull_form_values()
             if st.session_state.get("filter_upazila") not in upazila_options:
                 st.session_state["filter_upazila"] = ALL_AREAS
+            _seed("filter_upazila", st.session_state["filter_upazila"])
             # Priority options are canonical English keys; only their labels are translated,
             # so the stored selection survives a language switch.
             _priority_opts = ["High", "Medium", "Low"]
             _priority_text = {"High": T.HIGH, "Medium": T.MEDIUM, "Low": T.LOW}
             _stored_p = st.session_state.get("filter_priority", _priority_opts)
-            if not _stored_p or any(v not in _priority_opts for v in _stored_p):
-                st.session_state["filter_priority"] = _priority_opts
+            # Map any spelling (old Bangla/English labels) to canonical keys; never keep an unknown one.
+            _canonical_p = [v for v in kd.make_filter_key(priorities=_stored_p).priorities] if _stored_p else _priority_opts
+            st.session_state["filter_priority"] = _canonical_p
+            _seed("filter_priority", _canonical_p)
             type_column = "class" if "class" in gdf.columns else "class_name"
             available_types = (
                 sorted(gdf[type_column].dropna().astype(str).unique().tolist())
                 if type_column in gdf.columns else []
             )
             type_options = [ALL_KILN_TYPES, *available_types]
+            if st.session_state.get("filter_kiln_type") not in type_options:
+                st.session_state["filter_kiln_type"] = ALL_KILN_TYPES
+            _seed("filter_kiln_type", st.session_state["filter_kiln_type"])
             with st.form("dhoa_inspector_filters", border=False):
                 filters["upazila"] = st.selectbox(
                     T.AREA_THANA,
                     upazila_options,
                     format_func=lambda value: T.ALL_AREAS if value == ALL_AREAS else value,
-                    key="filter_upazila",
+                    key=_wkey("filter_upazila"),
                     disabled=not district_selected,
                 )
                 st.markdown(f"### {T.FILTERS}")
                 filters["priorities"] = st.multiselect(
                     T.PRIORITY,
                     _priority_opts,
-                    default=_priority_opts,
                     format_func=lambda value: f"{kd.PRIORITY_GLYPHS[value]} {_priority_text[value]}",
-                    key="filter_priority",
+                    key=_wkey("filter_priority"),
                 )
                 filters["kiln_type"] = st.selectbox(
                     T.KILN_TYPE,
                     type_options,
                     format_func=lambda value: T.ALL_TYPES if value == ALL_KILN_TYPES else _type_label(value),
-                    key="filter_kiln_type",
+                    key=_wkey("filter_kiln_type"),
                 )
                 st.form_submit_button(T.APPLY_FILTERS, type="primary", width="stretch")
             filters["map_tile"] = _render_map_type_filter()
@@ -1572,8 +1696,10 @@ def _marker_callback_js(payload: Mapping[str, Any], radius: int = 8) -> str:
         {
             "colors": [
                 PRIORITY_COLORS["High"], PRIORITY_COLORS["Medium"], PRIORITY_COLORS["Low"],
-                DESIGN_COLORS["advisory"],
+                DESIGN_COLORS["unclassified"],
             ],
+            "outline": DESIGN_COLORS["marker_outline"],
+            "halo": DESIGN_COLORS["marker_halo"],
             "bands": payload["bands"],
             "types": payload["types"],
             "areas": payload["areas"],
@@ -1607,7 +1733,7 @@ return function(row){var c=D.colors[row[2]];var S=__SIZE__;
 var sh=["<polygon points='11,2 21,19 1,19'","<polygon points='11,1 21,11 11,21 1,11'",
 "<circle cx='11' cy='11' r='9'","<rect x='3' y='3' width='16' height='16'"];
 var ic=L.divIcon({className:'dhoa-pin',iconSize:[S,S],iconAnchor:[S/2,S/2],
-html:"<svg width='"+S+"' height='"+S+"' viewBox='0 0 22 22'>"+sh[row[2]]+" fill='"+c+"' fill-opacity='0.92' stroke='#fff' stroke-width='1.6'/></svg>"});
+html:"<svg width='"+S+"' height='"+S+"' viewBox='0 0 22 22'>"+sh[row[2]]+" fill='none' stroke='"+D.halo+"' stroke-width='3.6' stroke-linejoin='round'/>"+sh[row[2]]+" fill='"+c+"' stroke='"+D.outline+"' stroke-width='1.3' stroke-linejoin='round'/></svg>"});
 var m=L.marker([row[0],row[1]],{icon:ic,riseOnHover:true});
 m.bindTooltip(D.bands[row[2]]+" | "+D.types[row[3]]+" | "+D.areas[row[4]],{sticky:true});
 __POPUP__
@@ -1706,7 +1832,7 @@ def _selected_feature_group(latitude: float, longitude: float) -> folium.Feature
     """Return the highlight ring for the selected kiln (sent without a remount)."""
     group = folium.FeatureGroup(name="dhoa_selected")
     folium.CircleMarker(
-        [latitude, longitude], radius=14, color="#111827", weight=4,
+        [latitude, longitude], radius=14, color=DESIGN_COLORS["marker_outline"], weight=4,
         fill=False,
     ).add_to(group)
     return group
@@ -1964,11 +2090,11 @@ def _render_summary_strip(visible: pd.DataFrame) -> None:
     counts = kd.priority_summary(visible)
     glyphs = kd.PRIORITY_GLYPHS
     items = (
-        (f"{counts['total']:,}", T.SUMMARY_MATCHING, "#475569"),
+        (f"{counts['total']:,}", T.SUMMARY_MATCHING, DESIGN_COLORS["border_strong"]),
         (f"{glyphs['High']} {counts['high']:,}", T.SUMMARY_HIGH, PRIORITY_COLORS["High"]),
         (f"{glyphs['Medium']} {counts['medium']:,}", T.SUMMARY_MEDIUM, PRIORITY_COLORS["Medium"]),
         (f"{glyphs['Low']} {counts['low']:,}", T.SUMMARY_LOW, PRIORITY_COLORS["Low"]),
-        (f"{counts['new']:,}", T.SUMMARY_NEW, "#475569"),
+        (f"{counts['new']:,}", T.SUMMARY_NEW, DESIGN_COLORS["new"]),
     )
     cells = "".join(
         f"<div class='dhoa-metric' style='border-left-color:{color}'>"
@@ -2017,6 +2143,14 @@ def main() -> None:
     try:
         get_projected_crs(centroid_longitude)
         mode = render_header(gdf)
+        if mode == "overview":
+            render_overview(gdf)
+            render_footer()
+            return
+        if mode == "about":
+            render_about()
+            render_footer()
+            return
         filters = render_sidebar(gdf, mode)
         if mode == "community":
             render_community_view(gdf)

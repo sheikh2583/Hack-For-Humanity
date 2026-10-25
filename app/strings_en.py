@@ -115,7 +115,7 @@ BANGLADESH_BRICK_KILN_MONITORING_DASHBOA = 'Bangladesh Brick Kiln Monitoring Das
 CHOOSE_VIEW = 'Choose view'
 VIEW_INSPECTOR = '🏛 Inspector view'
 VIEW_COMMUNITY = '🏘 Community view'
-HOW_TO_USE = '❔ How to use'
+HOW_TO_USE = 'How to use'
 HELP_COMMUNITY = """
 **Using the Community view**
 
@@ -248,3 +248,20 @@ C_SHOW_WITHIN_FMT = 'Show within {0:g} km'
 C_LIST_TITLE = 'Nearby kilns'
 C_MAP_CAPTION_RADIUS_FMT = 'The blue circle shows {1:g} km from {0}. Each marker is one kiln; tap a marker for details.'
 C_MAP_CAPTION_AREA_FMT = 'The map shows all kilns in {0}. Each marker is one kiln; tap a marker for details.'
+
+# P2: landing hero and top navigation (flag for native-speaker review)
+NAV_OVERVIEW = 'Overview'
+NAV_MAP = 'Map'
+NAV_NEAR_ME = 'Near me'
+NAV_ABOUT = 'About'
+HERO_MISSION = 'Brick kilns found in satellite images, mapped and ranked by priority.'
+HERO_SUB = 'Explore every candidate on the map, or find the ones near your home.'
+HERO_CTA_MAP = 'Explore the map'
+HERO_CTA_NEAR_ME = 'Find kilns near me'
+HERO_METRIC_DISTRICTS = 'Districts covered'
+ABOUT_TITLE = 'About Dhoa'
+ABOUT_BODY = (
+    'Dhoa shows brick kiln candidates detected in Sentinel-2 satellite images. '
+    'Each candidate is checked against distance rules for schools, hospitals, settlements, '
+    'railways, forests and wetlands, then placed in a priority band.'
+)
