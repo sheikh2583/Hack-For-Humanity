@@ -27,7 +27,7 @@ if str(_ROOT) not in sys.path:
 if str(_ROOT / "app") not in sys.path:
     sys.path.insert(0, str(_ROOT / "app"))
 
-from app import strings as T  # noqa: E402
+import strings as T  # noqa: E402
 
 DASHBOARD_TITLE = unicodedata.normalize("NFC", T.APP_TITLE)
 assert T.CHANDRABINDU in DASHBOARD_TITLE, repr(DASHBOARD_TITLE)
@@ -86,43 +86,51 @@ PRIORITY_COLORS = {
 ALL_KILN_TYPES = kd.ALL_KILN_TYPES
 ALL_DISTRICTS = kd.ALL_DISTRICTS
 ALL_AREAS = kd.ALL_AREAS
-KILN_TYPE_LABELS = {
-    ALL_KILN_TYPES: T.ALL_TYPES,
-    "Zigzag": T.ZIGZAG_KILN,
-    "FCBK": T.FIXED_CHIMNEY_KILN,
-}
-INSPECTOR_CSV_COLUMNS = [
-    ("kiln_id", T.COL_KILN_ID),
-    ("lat", T.COL_LATITUDE),
-    ("lon", T.COL_LONGITUDE),
-    ("district", T.DISTRICT),
-    ("upazila", T.COL_UPAZILA),
-    ("nearest_place", T.COL_NEAREST_PLACE),
-    ("nearest_place_dist_m", T.COL_DISTANCE_M),
-    ("priority_band", T.PRIORITY),
-    ("breach_count", T.COL_BREACH_COUNT),
-]
-COMMUNITY_CSV_COLUMNS = [
-    ("kiln_id", T.COL_KILN_ID),
-    ("lat", T.COL_LATITUDE),
-    ("lon", T.COL_LONGITUDE),
-    ("district", T.DISTRICT),
-    ("upazila", T.COL_UPAZILA),
-    ("nearest_place", T.COL_NEAREST_PLACE),
-    ("nearest_place_dist_m", T.COL_DISTANCE_M),
-    ("priority_band", T.PRIORITY),
-]
-METRIC_LABELS = {
-    "total_kilns": T.METRIC_TOTAL_KILNS,
-    "high_priority_kilns": T.METRIC_HIGH_PRIORITY_KILNS,
-    "rule_violations": T.METRIC_RULE_VIOLATIONS,
-    "last_updated": T.METRIC_LAST_UPDATED,
-    "total_candidates": T.METRIC_TOTAL_CANDIDATES,
-    "estimated_area": T.METRIC_ESTIMATED_AREA,
-    "primary_signal": T.METRIC_PRIMARY_SIGNAL,
-    "new_candidates": T.METRIC_NEW_CANDIDATES,
-    "rule_signals": T.METRIC_RULE_SIGNALS,
-}
+KILN_TYPE_LABELS = T.LazyMapping(
+    lambda: {
+        ALL_KILN_TYPES: T.ALL_TYPES,
+        "Zigzag": T.ZIGZAG_KILN,
+        "FCBK": T.FIXED_CHIMNEY_KILN,
+    }
+)
+INSPECTOR_CSV_COLUMNS = T.LazySequence(
+    lambda: [
+        ("kiln_id", T.COL_KILN_ID),
+        ("lat", T.COL_LATITUDE),
+        ("lon", T.COL_LONGITUDE),
+        ("district", T.DISTRICT),
+        ("upazila", T.COL_UPAZILA),
+        ("nearest_place", T.COL_NEAREST_PLACE),
+        ("nearest_place_dist_m", T.COL_DISTANCE_M),
+        ("priority_band", T.PRIORITY),
+        ("breach_count", T.COL_BREACH_COUNT),
+    ]
+)
+COMMUNITY_CSV_COLUMNS = T.LazySequence(
+    lambda: [
+        ("kiln_id", T.COL_KILN_ID),
+        ("lat", T.COL_LATITUDE),
+        ("lon", T.COL_LONGITUDE),
+        ("district", T.DISTRICT),
+        ("upazila", T.COL_UPAZILA),
+        ("nearest_place", T.COL_NEAREST_PLACE),
+        ("nearest_place_dist_m", T.COL_DISTANCE_M),
+        ("priority_band", T.PRIORITY),
+    ]
+)
+METRIC_LABELS = T.LazyMapping(
+    lambda: {
+        "total_kilns": T.METRIC_TOTAL_KILNS,
+        "high_priority_kilns": T.METRIC_HIGH_PRIORITY_KILNS,
+        "rule_violations": T.METRIC_RULE_VIOLATIONS,
+        "last_updated": T.METRIC_LAST_UPDATED,
+        "total_candidates": T.METRIC_TOTAL_CANDIDATES,
+        "estimated_area": T.METRIC_ESTIMATED_AREA,
+        "primary_signal": T.METRIC_PRIMARY_SIGNAL,
+        "new_candidates": T.METRIC_NEW_CANDIDATES,
+        "rule_signals": T.METRIC_RULE_SIGNALS,
+    }
+)
 
 
 DISTRICT_CENTERS = {
@@ -162,12 +170,14 @@ def load_data(path: Path = DATA_PATH) -> gpd.GeoDataFrame | None:
 
 
 @st.cache_resource(show_spinner=False)
-def _prepared_data(path_text: str, mtime_ns: int, size: int) -> gpd.GeoDataFrame | None:
+def _prepared_data(path_text: str, mtime_ns: int, size: int, lang: str) -> gpd.GeoDataFrame | None:
     """Build the display-ready dataset once per data file version.
 
     Input: data path plus its mtime/size (cache key, so a replaced file is
     picked up). Output: the loaded frame with priority bands, a default
-    detection status and the precomputed ``ui_*`` display columns, or None when
+    detection status and the precomputed ``ui_*`` display columns (in ``lang``;
+    the language is part of the cache key and of the data version, so every
+    cache keyed by the version is per-language too), or None when
     the file cannot be loaded. The object is shared by every session and must
     be treated as read-only; all consumers copy via ``iloc``/``loc``.
     """
@@ -175,7 +185,7 @@ def _prepared_data(path_text: str, mtime_ns: int, size: int) -> gpd.GeoDataFrame
     if gdf is None:
         return None
     return kd.prepare_display_frame(
-        add_priority_bands(gdf), _siting_rules(), version=f"{mtime_ns}-{size}-{len(gdf)}"
+        add_priority_bands(gdf), _siting_rules(), version=f"{mtime_ns}-{size}-{len(gdf)}-{lang}"
     )
 
 
@@ -184,7 +194,7 @@ def get_prepared_data(path: Path = DATA_PATH) -> gpd.GeoDataFrame | None:
     if not path.is_file():
         return None
     stat = path.stat()
-    return _prepared_data(str(path), stat.st_mtime_ns, stat.st_size)
+    return _prepared_data(str(path), stat.st_mtime_ns, stat.st_size, T.get_language())
 
 
 def class_counts(frame: pd.DataFrame) -> tuple[int, int]:
@@ -525,7 +535,7 @@ _PDF_COLUMNS = (("distance_m", None), ("class", "Unknown"), ("priority_band", "U
 
 
 @st.cache_data(show_spinner=False, max_entries=16)
-def _cached_community_pdf(location: str, radius_m: int, rows: tuple, day: str) -> bytes:
+def _cached_community_pdf(location: str, radius_m: int, rows: tuple, day: str, lang: str) -> bytes:
     """Build the community PDF once per (place, radius, result rows, day).
 
     ``day`` is part of the key because the report prints its generation date.
@@ -541,7 +551,7 @@ def _community_report(location: str, rows: pd.DataFrame, radius_m: int) -> bytes
         for name, default in _PDF_COLUMNS
     ]
     return _cached_community_pdf(
-        location, int(radius_m), tuple(zip(*columns)), f"{datetime.now(UTC):%Y-%m-%d}"
+        location, int(radius_m), tuple(zip(*columns)), f"{datetime.now(UTC):%Y-%m-%d}", T.get_language()
     )
 
 
@@ -690,13 +700,15 @@ def _set_community_origin(name: str, lat: float, lon: float) -> None:
     st.session_state["community_selected_kiln_id"] = None
 
 
-_GPS_ERRORS = {
-    "denied": T.C_GPS_DENIED,
-    "unsupported": T.C_GPS_UNSUPPORTED,
-    "insecure": T.C_GPS_INSECURE,
-    "timeout": T.C_GPS_TIMEOUT,
-    "unavailable": T.C_GPS_UNAVAILABLE,
-}
+_GPS_ERRORS = T.LazyMapping(
+    lambda: {
+        "denied": T.C_GPS_DENIED,
+        "unsupported": T.C_GPS_UNSUPPORTED,
+        "insecure": T.C_GPS_INSECURE,
+        "timeout": T.C_GPS_TIMEOUT,
+        "unavailable": T.C_GPS_UNAVAILABLE,
+    }
+)
 
 
 def _handle_gps_event(event: object) -> None:
@@ -946,7 +958,8 @@ def _popup_content(row: Mapping[str, object]) -> dict[str, Any]:
     Input schema: one kiln row with optional type, place, priority, rule,
     coordinate, and detection fields. Output schema: sanitized display values.
     """
-    def present(value: object, fallback: str = T.NO_DATA) -> str:
+    def present(value: object, fallback: str | None = None) -> str:
+        fallback = T.NO_DATA if fallback is None else fallback
         return fallback if value is None or pd.isna(value) or not str(value).strip() else str(value)
 
     area = _area_display_name(row)
@@ -1167,9 +1180,35 @@ def _data_date_label(path: Path | None) -> str:
         return T.NO_DATA
 
 
+def _init_language() -> None:
+    """Pick the starting language once per session (``?lang=en`` or Bangla)."""
+    if st.session_state.get(T.LANGUAGE_KEY) in T.LANGUAGES:
+        return
+    requested = str(st.query_params.get("lang", "")).lower()
+    st.session_state[T.LANGUAGE_KEY] = requested if requested in T.LANGUAGES else T.DEFAULT_LANGUAGE
+
+
+def _render_language_toggle() -> None:
+    """Render the bn/en switch; the choice lives in session state and the URL."""
+    st.radio(
+        "Language / ভাষা",
+        T.LANGUAGES,
+        format_func=lambda code: T.LANGUAGE_NAMES[code],
+        key=T.LANGUAGE_KEY,
+        horizontal=True,
+        label_visibility="collapsed",
+    )
+    if st.query_params.get("lang") != st.session_state.get(T.LANGUAGE_KEY):
+        st.query_params["lang"] = st.session_state.get(T.LANGUAGE_KEY, T.DEFAULT_LANGUAGE)
+
+
 def render_header(gdf: gpd.GeoDataFrame) -> str:
-    """Render the Dhoa header, mode navigation, and candidate summary metrics."""
-    st.markdown(f"<h1 class='dhoa-brand-title'>{html.escape(DASHBOARD_TITLE)}</h1>", unsafe_allow_html=True)
+    """Render the Dhoa header, language switch, mode navigation and summary metrics."""
+    title_col, lang_col = st.columns([4, 2], vertical_alignment="center", gap="small")
+    with title_col:
+        st.markdown(f"<h1 class='dhoa-brand-title'>{html.escape(DASHBOARD_TITLE)}</h1>", unsafe_allow_html=True)
+    with lang_col:
+        _render_language_toggle()
     loaded = dashboard_kilns_file()
     subtitle = T.BANGLADESH_BRICK_KILN_MONITORING_DASHBOA
     st.caption(subtitle)
@@ -1280,9 +1319,7 @@ def _reset_inspector_filters() -> None:
     """Restore the Inspector filter widgets to their defaults."""
     st.session_state["filter_district"] = ALL_DISTRICTS
     st.session_state["filter_upazila"] = ALL_AREAS
-    st.session_state["filter_priority"] = [
-        T.HIGH, T.MEDIUM, T.LOW
-    ]
+    st.session_state["filter_priority"] = ["High", "Medium", "Low"]
     st.session_state["filter_kiln_type"] = ALL_KILN_TYPES
 
 
@@ -1351,11 +1388,12 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
             upazila_options = [ALL_AREAS, *upazila_values]
             if st.session_state.get("filter_upazila") not in upazila_options:
                 st.session_state["filter_upazila"] = ALL_AREAS
-            # Priority options are always stored as Bengali keys (the filter key maps them).
-            _priority_opts = [T.HIGH, T.MEDIUM, T.LOW]
-            # Sanitise stored value: clear English labels or an empty selection.
+            # Priority options are canonical English keys; only their labels are translated,
+            # so the stored selection survives a language switch.
+            _priority_opts = ["High", "Medium", "Low"]
+            _priority_text = {"High": T.HIGH, "Medium": T.MEDIUM, "Low": T.LOW}
             _stored_p = st.session_state.get("filter_priority", _priority_opts)
-            if not _stored_p or any(v in ("High", "Medium", "Low") for v in _stored_p):
+            if not _stored_p or any(v not in _priority_opts for v in _stored_p):
                 st.session_state["filter_priority"] = _priority_opts
             type_column = "class" if "class" in gdf.columns else "class_name"
             available_types = (
@@ -1376,11 +1414,7 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
                     T.PRIORITY,
                     _priority_opts,
                     default=_priority_opts,
-                    format_func=lambda value: (
-                        f"{kd.PRIORITY_GLYPHS[band]} {value}"
-                        if (band := {T.HIGH: "High", T.MEDIUM: "Medium", T.LOW: "Low"}.get(value))
-                        else value
-                    ),
+                    format_func=lambda value: f"{kd.PRIORITY_GLYPHS[value]} {_priority_text[value]}",
                     key="filter_priority",
                 )
                 filters["kiln_type"] = st.selectbox(
@@ -1941,6 +1975,7 @@ def main() -> None:
     Input schema: local configuration and prioritized GeoParquet.
     Output schema: one Inspector or Community dashboard view.
     """
+    _init_language()
     st.markdown(responsive_css(), unsafe_allow_html=True)
     try:
         with st.spinner(T.LOADING_KILN_DATA_THIS_MAY_TAKE_A_FEW_SE):

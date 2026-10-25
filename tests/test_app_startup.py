@@ -5,14 +5,15 @@ from pathlib import Path
 from app.startup import DATA_FILENAME, check_prioritised_data
 
 
-def test_check_prioritised_data_reports_missing_file(tmp_path: Path, capsys) -> None:
+def test_check_prioritised_data_reports_missing_file(tmp_path: Path, caplog) -> None:
     """A missing synthetic data file prints actionable setup instructions."""
-    message = check_prioritised_data(tmp_path)
+    with caplog.at_level("WARNING"):
+        message = check_prioritised_data(tmp_path)
 
     assert message is not None
     assert DATA_FILENAME in message
     assert "does not run inference" in message
-    assert message == capsys.readouterr().out.strip()
+    assert message in caplog.text
 
 
 def test_check_prioritised_data_accepts_existing_file(tmp_path: Path) -> None:

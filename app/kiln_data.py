@@ -47,7 +47,7 @@ if str(_ROOT) not in sys.path:
 if str(_ROOT / "app") not in sys.path:
     sys.path.insert(0, str(_ROOT / "app"))
 
-from app import strings as T  # noqa: E402
+import strings as T  # noqa: E402
 from popup import format_district_label  # noqa: E402
 
 ALL_KILN_TYPES = "__all__"
@@ -73,52 +73,59 @@ DISPLAY_COLUMNS: tuple[str, ...] = (
 
 _KNOWN_DISTRICTS = {"Dhaka", "Gazipur", "Rajshahi", "Chittagong", "Chapainawabganj"}
 _NULLISH = {"", "nan", "none", "<na>", "nat"}
-_PRIORITY_FROM_LABEL = {
-    "High": "High",
-    "Medium": "Medium",
-    "Low": "Low",
-    T.HIGH: "High",
-    T.MEDIUM: "Medium",
-    T.LOW: "Low",
-}
-_PRIORITY_LABELS = {
-    "High": T.HIGH,
-    "Medium": T.MEDIUM,
-    "Low": T.LOW,
-    T.HIGH: T.HIGH,
-    T.MEDIUM: T.MEDIUM,
-    T.LOW: T.LOW,
-}
+_PRIORITY_FROM_LABEL = T.LazyMapping(
+    lambda: {
+        **{"High": "High", "Medium": "Medium", "Low": "Low"},
+        **{label: "High" for label in T.variants("HIGH")},
+        **{label: "Medium" for label in T.variants("MEDIUM")},
+        **{label: "Low" for label in T.variants("LOW")},
+    }
+)
+"""Any spelling of a priority (canonical English or a label in any language) -> canonical."""
+_PRIORITY_LABELS = T.LazyMapping(
+    lambda: {
+        "High": T.HIGH, "Medium": T.MEDIUM, "Low": T.LOW,
+        **{label: T.HIGH for label in T.variants("HIGH")},
+        **{label: T.MEDIUM for label in T.variants("MEDIUM")},
+        **{label: T.LOW for label in T.variants("LOW")},
+    }
+)
 # Priority is shown by shape AND colour (never colour alone): triangle / diamond / circle.
 PRIORITY_GLYPHS = {"High": "▲", "Medium": "◆", "Low": "●"}
 _PRIORITY_ICONS = PRIORITY_GLYPHS
-_DISTRICT_LABELS = {
-    "Chapainawabganj": T.DISTRICT_CHAPAINAWABGANJ,
-    "Gazipur": T.DISTRICT_GAZIPUR,
-    "Rajshahi": T.DISTRICT_RAJSHAHI,
-    "Dhaka": T.DISTRICT_DHAKA,
-    "Chittagong": T.DISTRICT_CHITTAGONG,
-}
-_FEATURE_LABELS = {
-    "schools": T.SCHOOL,
-    "hospitals": T.HOSPITAL,
-    "railways": T.RAILWAY,
-    "settlements": T.SETTLEMENT,
-    "government_forest": T.GOVERNMENT_FOREST,
-    "water": T.WETLAND,
-}
+_DISTRICT_LABELS = T.LazyMapping(
+    lambda: {
+        "Chapainawabganj": T.DISTRICT_CHAPAINAWABGANJ,
+        "Gazipur": T.DISTRICT_GAZIPUR,
+        "Rajshahi": T.DISTRICT_RAJSHAHI,
+        "Dhaka": T.DISTRICT_DHAKA,
+        "Chittagong": T.DISTRICT_CHITTAGONG,
+    }
+)
+_FEATURE_LABELS = T.LazyMapping(
+    lambda: {
+        "schools": T.SCHOOL,
+        "hospitals": T.HOSPITAL,
+        "railways": T.RAILWAY,
+        "settlements": T.SETTLEMENT,
+        "government_forest": T.GOVERNMENT_FOREST,
+        "water": T.WETLAND,
+    }
+)
 # (rule id, Bangla label, candidate distance columns in priority order)
-_POPUP_RULES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
-    ("near_school", T.SCHOOL, ("dist_school_m", "dist_schools_m")),
-    ("near_hospital", T.HOSPITAL, ("dist_hospital_m", "dist_hospitals_m")),
-    ("near_railway", T.RAILWAY, ("dist_rail_m", "dist_railway_m", "dist_railways_m")),
-    (
-        "near_government_forest",
-        T.FOREST,
-        ("dist_forest_m", "dist_government_forest_m", "dist_forests_m"),
-    ),
-    ("near_settlement", T.SETTLEMENT, ("dist_settlement_m", "dist_settlements_m")),
-    ("near_wetland", T.WETLAND, ("dist_water_m",)),
+_POPUP_RULES = T.LazySequence(
+    lambda: (
+        ("near_school", T.SCHOOL, ("dist_school_m", "dist_schools_m")),
+        ("near_hospital", T.HOSPITAL, ("dist_hospital_m", "dist_hospitals_m")),
+        ("near_railway", T.RAILWAY, ("dist_rail_m", "dist_railway_m", "dist_railways_m")),
+        (
+            "near_government_forest",
+            T.FOREST,
+            ("dist_forest_m", "dist_government_forest_m", "dist_forests_m"),
+        ),
+        ("near_settlement", T.SETTLEMENT, ("dist_settlement_m", "dist_settlements_m")),
+        ("near_wetland", T.WETLAND, ("dist_water_m",)),
+    )
 )
 _WARNING_MARK = " ⚠️"
 
