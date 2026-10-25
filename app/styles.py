@@ -135,6 +135,41 @@ h4 [data-testid="stHeaderActionElements"],
     color: var(--dhoa-color-text-soft); font-size: var(--dhoa-type-metric); line-height: var(--dhoa-lh-body);
 }
 .dhoa-hero-metrics { margin-bottom: var(--dhoa-space-lg); }
+/* ---- overview charts (P3): HTML bars with direct value labels ------------------- */
+.dhoa-section-title { font-size: var(--dhoa-type-h3); font-weight: var(--dhoa-weight-bold); margin: var(--dhoa-space-xl) 0 var(--dhoa-space-xs); }
+.dhoa-bar-legend { display: flex; flex-wrap: wrap; gap: var(--dhoa-space-md); color: var(--dhoa-color-text-soft); font-size: var(--dhoa-type-caption); margin: var(--dhoa-space-xs) 0 var(--dhoa-space-sm); }
+.dhoa-key { display: inline-block; width: 1.1em; margin-inline-end: var(--dhoa-space-xs); font-style: normal; text-align: center; }
+.dhoa-key-total { height: 0.7em; background: var(--dhoa-color-primary); border-radius: var(--dhoa-radius-sm); }
+.dhoa-key-high { color: var(--dhoa-color-high-text); }
+.dhoa-bar-block { display: grid; gap: var(--dhoa-space-xs); padding: var(--dhoa-space-sm) 0; min-height: var(--dhoa-tap); align-content: center; }
+.dhoa-bar-line { display: flex; align-items: center; gap: var(--dhoa-space-sm); min-height: 1.25rem; }
+.dhoa-bar { display: block; min-width: 2px; height: 0.9rem; border-radius: var(--dhoa-radius-sm); }
+.dhoa-bar-total { background: var(--dhoa-color-primary); }
+.dhoa-bar-high { background: var(--dhoa-color-high); }
+.dhoa-bar-value { font-weight: var(--dhoa-weight-semibold); white-space: nowrap; }
+.dhoa-bar-value-high { color: var(--dhoa-color-high-text); }
+.dhoa-split-bar { display: flex; height: 1.1rem; overflow: hidden; border-radius: var(--dhoa-radius-sm); border: 1px solid var(--dhoa-color-border-strong); }
+.dhoa-split-seg { display: block; height: 100%; }
+.dhoa-split-zigzag { background: var(--dhoa-color-primary); }
+.dhoa-split-fcbk { background: repeating-linear-gradient(45deg, var(--dhoa-color-accent-text) 0 6px, var(--dhoa-color-raised) 6px 12px); }
+.dhoa-split-other { background: var(--dhoa-color-unclassified); }
+.dhoa-split-legend { list-style: none; display: flex; flex-wrap: wrap; gap: var(--dhoa-space-sm) var(--dhoa-space-lg); padding: 0; margin: var(--dhoa-space-sm) 0 0; }
+.dhoa-split-key { display: inline-block; width: 1.1em; height: 0.9em; margin-inline-end: var(--dhoa-space-xs); vertical-align: middle; border-radius: var(--dhoa-radius-sm); }
+.dhoa-split-share { color: var(--dhoa-color-text-muted); }
+.dhoa-legend { display: flex; flex-wrap: wrap; align-items: center; gap: var(--dhoa-space-xs) var(--dhoa-space-lg); font-size: var(--dhoa-type-caption); color: var(--dhoa-color-text-soft); margin-bottom: var(--dhoa-space-xs); }
+.dhoa-legend ul { list-style: none; display: flex; flex-wrap: wrap; gap: var(--dhoa-space-md); padding: 0; margin: 0; }
+.dhoa-legend-key { font-style: normal; margin-inline-end: var(--dhoa-space-xs); }
+.dhoa-legend-high { color: var(--dhoa-color-high-text); }
+.dhoa-legend-medium { color: var(--dhoa-color-medium); text-shadow: 0 0 1px var(--dhoa-color-text); }
+.dhoa-legend-low { color: var(--dhoa-color-low); }
+.dhoa-dist-grid { list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr)); gap: var(--dhoa-space-sm); padding: 0; margin: 0 0 var(--dhoa-space-md); }
+.dhoa-dist { display: grid; grid-template-columns: auto 1fr; column-gap: var(--dhoa-space-sm); padding: var(--dhoa-space-sm); border: 1px solid var(--dhoa-color-border); border-radius: var(--dhoa-radius-md); background: var(--dhoa-color-card); }
+.dhoa-dist-icon { grid-row: 1 / span 3; font-size: 1.4rem; }
+.dhoa-dist-name, .dhoa-dist-state { color: var(--dhoa-color-text-soft); font-size: var(--dhoa-type-caption); }
+.dhoa-dist-inside { border-color: var(--dhoa-color-high); }
+.dhoa-dist-inside .dhoa-dot { color: var(--dhoa-color-high-text); }
+.dhoa-dot { font-style: normal; }
+@media (min-width: 769px) { .st-key-dhoa_map_sticky { position: sticky; top: var(--dhoa-space-md); align-self: flex-start; } }
 .dhoa-about { max-width: 70ch; }
 .dhoa-about p { color: var(--dhoa-color-text-soft); font-size: var(--dhoa-type-metric); }
 

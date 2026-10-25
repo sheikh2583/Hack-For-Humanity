@@ -41,7 +41,7 @@ import pandas as pd
 import yaml
 from branca.element import Element
 from pyproj import Transformer
-from folium.plugins import FastMarkerCluster
+from folium.plugins import FastMarkerCluster, HeatMap
 from streamlit_folium import st_folium
 
 # isort: off
@@ -50,6 +50,8 @@ import design_tokens as tokens
 import hero
 import styles
 import kiln_data as kd
+import inspector as ins
+import overview as ov
 from dashboard_filters import (
     add_priority_bands,
 )
@@ -755,6 +757,16 @@ def _handle_gps_event(event: object) -> None:
     st.rerun()
 
 
+def _apply_community_example(gdf: pd.DataFrame) -> None:
+    """Button callback: fill in a worked example (Savar, Dhaka, 5 km) without a reload."""
+    origin = cm.example_origin(list(_community_places(gdf).values()))
+    if origin is None:
+        return
+    st.session_state.pop("community_notice", None)
+    _set_community_origin(origin.name, origin.lat, origin.lon)
+    st.session_state["community_radius_m"] = cm.DEFAULT_RADIUS_M
+
+
 def _submit_community_geocode(query: str) -> None:
     """Run the optional free-text fallback and store the outcome in session state."""
     text = " ".join(query.split())
@@ -802,6 +814,13 @@ def _render_community_inputs(gdf: pd.DataFrame) -> cm.Place | None:
             help=T.C_PLACE_HELP,
             key=_wkey("community_place_key"),
             on_change=_on_community_pick,
+        )
+        st.button(
+            T.C_EXAMPLE_BUTTON,
+            key="community_example",
+            help=T.C_EXAMPLE_HELP,
+            on_click=_apply_community_example,
+            args=(gdf,),
         )
         event = _geolocate(
             label=T.C_GPS_LABEL, busy_label=T.C_GPS_BUSY, key="community_gps", default=None
@@ -1303,6 +1322,67 @@ def render_overview(gdf: gpd.GeoDataFrame) -> None:
         right.button(T.HERO_CTA_NEAR_ME, key="dhoa_hero_near", width="stretch",
                      on_click=_go_to_view, args=("community",))
     st.caption(T.PRIORITY_NOTE)
+    render_overview_charts(gdf)
+
+
+def _open_district(district: str) -> None:
+    """``on_click`` callback: open the Map view filtered to ``district`` (no page reload)."""
+    st.session_state["filter_district"] = district
+    st.session_state["filter_upazila"] = ALL_AREAS
+    _drop_widget_state("filter_upazila", "filter_district")
+    st.session_state["selected_kiln_id"] = None
+    st.session_state["dhoa_view_mode"] = "inspector"
+
+
+def render_overview_charts(gdf: pd.DataFrame) -> None:
+    """Overview body: district bars (each opens the map), top upazilas, kiln-type split.
+
+    Input: the prepared frame. Output: bars with the value printed at the end of every
+    bar (colour is never the only cue: High priority also carries the triangle glyph), a
+    plain table and a share bar. Every number is a groupby of the frame (see ``overview``).
+    """
+    stats = ov.district_stats(gdf)
+    with st.container(key="dhoa_overview_charts"):
+        st.markdown(f"<div class='dhoa-section-title'>{html.escape(T.OV_DISTRICTS_TITLE)}</div>",
+                    unsafe_allow_html=True)
+        if stats.empty:
+            st.caption(T.OV_NO_DATA)
+        else:
+            st.caption(T.OV_DISTRICTS_HINT)
+            st.markdown(ov.bars_legend_html(T.OV_SERIES_TOTAL, T.OV_SERIES_HIGH), unsafe_allow_html=True)
+            maximum = int(stats["total"].max())
+            for row in stats.to_dict("records"):
+                name_col, bar_col = st.columns([2, 5], vertical_alignment="center", gap="small")
+                name_col.button(
+                    _district_label(row["district"]), key=f"dhoa_ov_open_{row['district']}",
+                    help=T.OV_OPEN_DISTRICT_FMT.format(_district_label(row["district"])),
+                    width="stretch", on_click=_open_district, args=(str(row["district"]),),
+                )
+                bar_col.markdown(
+                    ov.district_bar_html(row, maximum, T.OV_SERIES_TOTAL, T.OV_SERIES_HIGH),
+                    unsafe_allow_html=True,
+                )
+        upazilas = ov.upazila_stats(gdf, limit=10)
+        st.markdown(f"<div class='dhoa-section-title'>{html.escape(T.OV_UPAZILAS_TITLE)}</div>",
+                    unsafe_allow_html=True)
+        if upazilas.empty:
+            st.caption(T.OV_NO_DATA)
+        else:
+            table = pd.DataFrame({
+                T.COL_UPAZILA: upazilas["upazila"].tolist(),
+                T.DISTRICT: [_district_label(d) if d else "" for d in upazilas["district"]],
+                T.OV_COL_CANDIDATES: upazilas["total"].tolist(),
+                T.OV_COL_HIGH: upazilas["high"].tolist(),
+            })
+            st.dataframe(table, hide_index=True, width="stretch")
+        st.markdown(f"<div class='dhoa-section-title'>{html.escape(T.OV_TYPES_TITLE)}</div>",
+                    unsafe_allow_html=True)
+        parts = ov.type_split(gdf)
+        if parts:
+            labels = {"Zigzag": T.ZIGZAG_KILN, "FCBK": T.FIXED_CHIMNEY_KILN, "other": T.OV_TYPE_OTHER}
+            st.markdown(ov.type_split_html(parts, labels, T.OV_SHARE_FMT), unsafe_allow_html=True)
+        else:
+            st.caption(T.OV_NO_DATA)
 
 
 def render_about() -> None:
@@ -1600,6 +1680,31 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
     return filters
 
 
+def _metres_text(value: float) -> str:
+    """Format a metre distance the way the list does (m below 1 km, km above)."""
+    return T.KM_FMT.format(value / 1000) if value >= 1000 else T.M_FMT.format(value)
+
+
+def _render_distance_grid(row: pd.Series) -> None:
+    """Render the icon grid of distances with threshold dots (thresholds from rules.yaml)."""
+    entries = ins.distance_rows(row, _siting_rules())
+    if not entries:
+        return
+    labels = {entry["feature"]: str(kd._FEATURE_LABELS.get(entry["feature"], entry["feature"])) for entry in entries}
+    distances = {
+        entry["feature"]: T.NO_DATA if entry["distance_m"] is None else _metres_text(entry["distance_m"])
+        for entry in entries
+    }
+    states = {"unknown": T.DETAIL_STATE_UNKNOWN}
+    for entry in entries:
+        if entry["buffer_m"] is not None:
+            limit = _metres_text(entry["buffer_m"])
+            states[f"{entry['feature']}:inside"] = T.DETAIL_WITHIN_FMT.format(limit)
+            states[f"{entry['feature']}:outside"] = T.DETAIL_BEYOND_FMT.format(limit)
+    st.markdown(f"**{T.DETAIL_DISTANCES_TITLE}**")
+    st.markdown(ins.distance_grid_html(entries, labels, distances, states), unsafe_allow_html=True)
+
+
 def _render_selected_candidate(row: pd.Series) -> None:
     """Render the selected-kiln detail card with navigation links.
 
@@ -1629,6 +1734,7 @@ def _render_selected_candidate(row: pd.Series) -> None:
         with right:
             st.markdown(f"**{T.DISTANCE_FROM_GOVERNMENT_FOREST}:** {forest_distance_label}")
             st.markdown(f"**{T.COORDINATES}:** {lat:.5f}, {lon:.5f}")
+        _render_distance_grid(row)
         with st.container(key="dhoa_action_row"):
             columns = st.columns(3)
         columns[0].link_button(T.DIRECTIONS_2, f"https://www.google.com/maps/dir/?api=1&destination={lat:.6f},{lon:.6f}&travelmode=driving", width="stretch")
@@ -1828,13 +1934,24 @@ def _map_key(prefix: str, *parts: object) -> str:
     return f"{prefix}_{digest}"
 
 
-def _selected_feature_group(latitude: float, longitude: float) -> folium.FeatureGroup:
-    """Return the highlight ring for the selected kiln (sent without a remount)."""
-    group = folium.FeatureGroup(name="dhoa_selected")
-    folium.CircleMarker(
-        [latitude, longitude], radius=14, color=DESIGN_COLORS["marker_outline"], weight=4,
-        fill=False,
-    ).add_to(group)
+def _selected_feature_group(
+    latitude: float | None, longitude: float | None, heat: list[list[float]] | None = None
+) -> folium.FeatureGroup | None:
+    """Return the overlay group sent through ``feature_group_to_add`` (no remount).
+
+    It holds the highlight ring for the selected kiln and/or the optional density
+    heatmap. Returns ``None`` when there is nothing to draw.
+    """
+    if latitude is None and not heat:
+        return None
+    group = folium.FeatureGroup(name="dhoa_overlay")
+    if heat:
+        HeatMap(heat, radius=18, blur=22, min_opacity=0.25).add_to(group)
+    if latitude is not None and longitude is not None:
+        folium.CircleMarker(
+            [latitude, longitude], radius=14, color=DESIGN_COLORS["marker_outline"], weight=4,
+            fill=False,
+        ).add_to(group)
     return group
 
 
@@ -1999,8 +2116,17 @@ def render_map(
                         "zoom": SELECTED_ZOOM,
                     }
                 st.session_state[_token_key] = click_token
-    with map_panel:
+    with map_panel, st.container(key="dhoa_map_sticky"):
+        st.markdown(
+            ins.legend_html(
+                T.LEGEND_TITLE,
+                {"High": T.HIGH, "Medium": T.MEDIUM, "Low": T.LOW},
+                "",  # the summary strip above already carries T.PRIORITY_NOTE
+            ),
+            unsafe_allow_html=True,
+        )
         st.caption(T.MARKER_COLOUR_SHOWS_PRIORITY_BOLD_BORDER)
+        st.toggle(T.HEAT_TOGGLE, key="dhoa_heatmap", help=T.HEAT_HELP)
         selected_id_for_report = st.session_state.get("selected_kiln_id")
         selected_for_report = (
             visible[visible["kiln_id"].astype(str).eq(str(selected_id_for_report))]
@@ -2028,12 +2154,10 @@ def render_map(
                 if isinstance(view_request, dict) and view_request.get("map_key") == map_key
                 else {}
             )
-            highlight = (
-                _selected_feature_group(
-                    float(selected_for_report.iloc[0]["lat"]), float(selected_for_report.iloc[0]["lon"])
-                )
-                if not selected_for_report.empty
-                else None
+            highlight = _selected_feature_group(
+                None if selected_for_report.empty else float(selected_for_report.iloc[0]["lat"]),
+                None if selected_for_report.empty else float(selected_for_report.iloc[0]["lon"]),
+                ins.heat_points(visible) if st.session_state.get("dhoa_heatmap") else None,
             )
             with st.container(key="dhoa_map_frame"):
                 result = st_folium(

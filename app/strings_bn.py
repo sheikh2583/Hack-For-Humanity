@@ -469,3 +469,30 @@ ABOUT_BODY = (
     'প্রতিটি প্রার্থীকে স্কুল, হাসপাতাল, বসতি, রেললাইন, বন ও জলাভূমি থেকে দূরত্বের নিয়মের সাথে মিলিয়ে '
     'দেখা হয়, তারপর অগ্রাধিকারের স্তরে রাখা হয়।'
 )
+
+# P3: overview charts and district comparison (flag for native-speaker review)
+OV_DISTRICTS_TITLE = 'জেলা অনুযায়ী ভাটার প্রার্থী'
+OV_DISTRICTS_HINT = 'জেলার নামে চাপলে সেই জেলা মানচিত্রে খুলবে।'
+OV_OPEN_DISTRICT_FMT = '{0} মানচিত্রে দেখুন'
+OV_SERIES_TOTAL = 'সব প্রার্থী'
+OV_SERIES_HIGH = 'উচ্চ অগ্রাধিকার'
+OV_UPAZILAS_TITLE = 'সবচেয়ে বেশি প্রার্থীর উপজেলা'
+OV_COL_CANDIDATES = 'প্রার্থী'
+OV_COL_HIGH = 'উচ্চ অগ্রাধিকার'
+OV_TYPES_TITLE = 'ভাটার ধরন'
+OV_TYPE_OTHER = 'অন্যান্য বা অজানা'
+OV_SHARE_FMT = '{0:.0f}%'
+OV_NO_DATA = 'দেখানোর মতো তথ্য নেই।'
+
+# --- P4: inspector ---
+LEGEND_TITLE = 'মার্কারের চিহ্ন'
+HEAT_TOGGLE = 'ঘনত্বের হিটম্যাপ দেখান'
+HEAT_HELP = 'যেখানে অনেক ভাটা কাছাকাছি আছে সেই এলাকা গাঢ় দেখায়। এটি ঝুঁকি দেখায় না।'
+DETAIL_DISTANCES_TITLE = 'কাছাকাছি স্থানের দূরত্ব'
+DETAIL_WITHIN_FMT = '{0}-এর মধ্যে'
+DETAIL_BEYOND_FMT = '{0}-এর বাইরে'
+DETAIL_STATE_UNKNOWN = 'তথ্য নেই'
+
+# --- P5: community example ---
+C_EXAMPLE_BUTTON = 'একটি উদাহরণ দেখুন'
+C_EXAMPLE_HELP = 'পাতাটি কীভাবে কাজ করে দেখুন: একটি নমুনা জায়গা থেকে ৫ কিমির মধ্যে ভাটা। পরে জায়গা বা দূরত্ব বদলাতে পারবেন।'

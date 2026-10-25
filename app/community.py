@@ -171,6 +171,28 @@ def build_places(
     return places
 
 
+#: Named in the brief as the demo example; used only when the data has this upazila.
+EXAMPLE_DISTRICT = "Dhaka"
+EXAMPLE_UPAZILA = "Savar"
+
+
+def example_origin(places: Sequence[Place]) -> Place | None:
+    """Pick the "Try an example" origin: Savar (Dhaka) if present, else the busiest upazila.
+
+    Input: places from ``build_places``. Output: a ``KIND_POINT`` place at the
+    upazila's kiln centre (data-derived, no typed coordinates), or ``None`` when
+    the data has no upazila. Searched with ``DEFAULT_RADIUS_M``.
+    """
+    upazilas = [item for item in places if item.kind == KIND_UPAZILA]
+    if not upazilas:
+        return None
+    chosen = next(
+        (item for item in upazilas if item.upazila == EXAMPLE_UPAZILA and item.district == EXAMPLE_DISTRICT),
+        None,
+    ) or max(upazilas, key=lambda item: (item.kiln_count, item.key))
+    return point_place(f"{chosen.upazila}, {chosen.district}", chosen.lat, chosen.lon)
+
+
 def point_place(name: str, lat: float, lon: float) -> Place:
     """Build an ad-hoc origin for a geocoded name or a GPS fix."""
     return Place(

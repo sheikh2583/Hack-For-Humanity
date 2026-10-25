@@ -265,3 +265,30 @@ ABOUT_BODY = (
     'Each candidate is checked against distance rules for schools, hospitals, settlements, '
     'railways, forests and wetlands, then placed in a priority band.'
 )
+
+# P3: overview charts and district comparison
+OV_DISTRICTS_TITLE = 'Kiln candidates by district'
+OV_DISTRICTS_HINT = 'Select a district name to open it on the map.'
+OV_OPEN_DISTRICT_FMT = 'Open {0} on the map'
+OV_SERIES_TOTAL = 'All candidates'
+OV_SERIES_HIGH = 'High priority'
+OV_UPAZILAS_TITLE = 'Upazilas with the most candidates'
+OV_COL_CANDIDATES = 'Candidates'
+OV_COL_HIGH = 'High priority'
+OV_TYPES_TITLE = 'Kiln types'
+OV_TYPE_OTHER = 'Other or unknown'
+OV_SHARE_FMT = '{0:.0f}%'
+OV_NO_DATA = 'No data to show.'
+
+# --- P4: inspector ---
+LEGEND_TITLE = 'Marker key'
+HEAT_TOGGLE = 'Show density heatmap'
+HEAT_HELP = 'Shades areas where many kilns sit close together. It does not show risk.'
+DETAIL_DISTANCES_TITLE = 'Distance to nearby places'
+DETAIL_WITHIN_FMT = 'Within {0}'
+DETAIL_BEYOND_FMT = 'Beyond {0}'
+DETAIL_STATE_UNKNOWN = 'Not available'
+
+# --- P5: community example ---
+C_EXAMPLE_BUTTON = 'Try an example'
+C_EXAMPLE_HELP = 'See how this page works: kilns within 5 km of a sample place. You can change the place or distance afterwards.'
