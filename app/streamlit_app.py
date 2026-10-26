@@ -970,21 +970,33 @@ def _debug_details(exc: BaseException) -> None:
 
 
 def render_voice_guide(view: str, where: str = "popover") -> None:
-    """Spoken "how to use" guide for ``view``, shown only when a playable audio file exists.
+    """Spoken "how to use" guide for ``view``.
 
-    The pre-rendered AI voice file (``app/static/audio``, see ``tools/generate_voice_guides.py``)
-    is played with Streamlit's own audio player. If there is no file that matches the current
-    script, NOTHING is shown (no heading, no empty box): a control that does not work is worse
-    than none. Never raises, so it cannot break the header or the view.
+    Order of preference: (1) a pre-rendered AI voice file in ``app/static/audio`` whose hash
+    matches the current script, played with Streamlit's audio player; (2) otherwise the
+    "Read aloud" component, which uses the browser's own voice; (3) always the written script
+    as a text transcript, so the guide is still usable when the browser has no voice for the
+    language. Never raises, so it cannot break the header or the view.
     """
     try:
         lang = T.get_language()
         script = T.VOICE_COMMUNITY_SCRIPT if view == "community" else T.VOICE_INSPECTOR_SCRIPT
         audio = voice.current_audio(view, lang, script)
-        if audio is None:
-            return
         st.markdown(f"**{T.LISTEN_TO_THE_GUIDE}**")
-        st.audio(str(audio), format="audio/mpeg")
+        if audio is not None:
+            st.audio(str(audio), format="audio/mpeg")
+        elif voice.component_available():
+            _voice_player(
+                text=script,
+                lang=voice.speech_lang(lang),
+                read=T.VOICE_READ_ALOUD,
+                stop=T.VOICE_STOP,
+                none=T.VOICE_NO_VOICE,
+                key=f"dhoa_voice_{where}_{view}_{lang}",
+                default=None,
+            )
+        with st.expander(T.VOICE_TRANSCRIPT):
+            st.markdown(script)
     except Exception as exc:  # noqa: BLE001
         logging.getLogger(__name__).exception("Voice guide failed")
         _debug_details(exc)
