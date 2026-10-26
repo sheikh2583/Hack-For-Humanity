@@ -30,7 +30,10 @@ connected and authorized. Follow Streamlit's current
 [deployment steps](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/deploy):
 
 1. Push the full project source to GitHub, including `app/`, `src/`,
-   `config/rules.yaml`, `.streamlit/config.toml`, and `requirements.txt`.
+   `config/rules.yaml`, `.streamlit/config.toml`, and both dependency files.
+   Community Cloud checks the entrypoint directory before the repository root;
+   `app/requirements.txt` delegates to the CPU-only root `requirements.txt` so
+   the development `uv.lock` does not replace the dashboard dependency set.
 2. Make `data/processed/kilns_prioritised.parquet` available from the deployed
    checkout. The local `data/processed/` directory is git-ignored, so adding a
    local file alone will not put it in the cloud repository. Commit it with

@@ -1,0 +1,19 @@
+[theme]
+base = "dark"
+primaryColor = "#0072b2"
+backgroundColor = "#0f1419"
+secondaryBackgroundColor = "#182029"
+textColor = "#f2f5f8"
+
+[[theme.fontFaces]]
+family = "Noto Sans Bengali UI"
+url = "app/static/NotoSansBengaliUI-Bold.woff2"
+weight = 700
+style = "normal"
+
+[server]
+enableStaticServing = true
+maxUploadSize = 200
+
+[client]
+toolbarMode = "viewer"

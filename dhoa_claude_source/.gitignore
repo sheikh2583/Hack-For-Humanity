@@ -1,0 +1,59 @@
+# Python bytecode and local environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv
+venv
+env
+
+# Packaging and testtool state
+*.egg-info/
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.coverage
+htmlcov
+build
+dist
+
+# Local agenteditor state
+.kilo
+.vscode
+.idea
+.swp
+.swo
+
+# Nested copy of the project; keep it outside the outer repository index
+Hack-For-Humanity/
+
+# Downloaded, intermediate, and generated project data
+data/raw/*
+!data/raw/.gitkeep
+!data/raw/bangladesh_boundary.geojson
+!data/raw/boundaries/
+!data/raw/boundaries/geoBoundaries_BGD_ADM2.geojson
+data/interim/*
+!data/interim/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+!data/processed/kilns_prioritised.parquet
+!data/processed/kilns_scored.parquet
+
+# Model weights and training outputs
+*.pt
+*.pth
+*.onnx
+*.engine
+runs
+results/current_run.json
+results/*/checkpoints/
+wandb
+
+# Local archives, scratch scripts, and captured command output
+*.zip
+*_out.txt
+
+# Expo local configuration and dependencies
+mobile/node_modules/
+mobile/.env
+data/raw/boundaries/geoBoundaries_BGD_ADM3.geojson

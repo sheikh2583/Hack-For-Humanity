@@ -1,0 +1,20 @@
+# Dashboard (Streamlit Community Cloud) requirements. CPU only; no torch.
+# Tested-version pins for the UI stack; the rest use a lower bound. For an exact,
+# reproducible set run `python tools/freeze_deploy_requirements.py` inside the
+# environment you verified and commit the resulting requirements.lock.txt.
+streamlit>=1.66.0,<1.67
+streamlit-folium==0.27.4
+folium>=0.20.0,<0.21
+geopandas
+pandas
+numpy
+shapely
+pyproj
+pyarrow<25
+pyyaml
+pillow>=12.0.0
+openpyxl
+rich
+fpdf2>=2.7.9
+uharfbuzz
+geopy>=2.4.0

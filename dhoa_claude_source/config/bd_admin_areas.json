@@ -1,0 +1,18 @@
+{
+  "Dhaka": ["Adabor","Badda","Cantonment","Dakshinkhan","Demra","Dhamrai","Dhanmondi","Dohar","Gendaria","Gulshan","Hazaribagh","Jatrabari","Kafrul","Keraniganj","Khilgaon","Khilkhet","Kotwali","Lalbagh","Mirpur","Mohakhali","Mohammadpur","Motijheel","Nawabganj","Pallabi","Ramna","Rupnagar","Sabujbagh","Savar","Sher-e-bangla Nagar","Shyampur","Tejgaon","Tejgaon Ind. Area","Turag","Uttara","Uttar Khan","Wari"],
+  "Chittagong": ["Agrabad","Anowara","Banshkhali","Bayejid Bostami","Boalkhali","Chandanaish","Chandgaon","Chawkbazar","Chittagong Port","Double Mooring","Fatikchhari","Halishahar","Hathazari","Khulshi","Kotwali","Karnaphuli","Lohagara","Mirsharai","Pahartali","Panchlaish","Patiya","Patenga","Rangunia","Raozan","Satkania","Sandwip","Sitakunda"],
+  "Gazipur": ["Gazipur Sadar","Joydebpur","Kaliakair","Kaliganj","Kapasia","Pubail","Sreepur","Tongi"],
+  "Rajshahi": ["Bagha","Baghmara","Boalia","Charghat","Durgapur","Godagari","Matihar","Mohanpur","Paba","Puthia","Rajpara","Shah Makhdum","Tanore"],
+  "Chapainawabganj": ["Bholahat","Gomastapur","Nachole","Nawabganj Sadar","Shibganj"],
+  "Narayanganj": ["Araihazar","Bandar","Fatullah","Narayanganj Sadar","Rupganj","Siddhirganj","Sonargaon"],
+  "Narsingdi": ["Belabo","Monohardi","Narsingdi Sadar","Palash","Raipura","Shibpur"],
+  "Manikganj": ["Daulatpur","Ghior","Harirampur","Manikganj Sadar","Saturia","Shibalaya","Singair"],
+  "Munshiganj": ["Gazaria","Louhajang","Munshiganj Sadar","Sirajdikhan","Srinagar","Tongibari"],
+  "Comilla": ["Barura","Brahmanpara","Burichang","Chandina","Chauddagram","Comilla Sadar","Comilla Sadar South","Daudkandi","Debidwar","Homna","Laksam","Meghna","Muradnagar","Nangalkot","Titas"],
+  "Mymensingh": ["Bhaluka","Dhobaura","Fulbaria","Gaffargaon","Gauripur","Haluaghat","Ishwarganj","Muktagacha","Mymensingh Sadar","Nandail","Phulpur","Tarakanda","Trishal"],
+  "Bogura": ["Adamdighi","Bogura Sadar","Dhunat","Dupchanchia","Gabtali","Kahaloo","Nandigram","Sariakandi","Shajahanpur","Sherpur","Shibganj","Sonatala"],
+  "Rangpur": ["Badarganj","Gangachhara","Kaunia","Mithapukur","Pirgacha","Pirganj","Rangpur Sadar","Taraganj"],
+  "Khulna": ["Batiaghata","Dacope","Daulatpur","Dighalia","Dumuria","Khan Jahan Ali","Khalishpur","Khulna Sadar","Koyra","Paikgachha","Phultala","Rupsa","Sonadanga","Terokhada"],
+  "Sylhet": ["Balaganj","Beanibazar","Bishwanath","Companiganj","Fenchuganj","Golapganj","Gowainghat","Jaintiapur","Kanaighat","Osmani Nagar","South Surma","Sylhet Sadar","Zakiganj"],
+  "Barishal": ["Agailjhara","Babuganj","Bakerganj","Banaripara","Barishal Sadar","Gournadi","Hijla","Mehendiganj","Muladi","Wazirpur"]
+}

@@ -1,0 +1,4 @@
+# Streamlit Community Cloud checks the entrypoint directory before the repo root.
+# The root uv.lock is for the full development project; reuse the CPU-only dashboard
+# dependency set here so Cloud doesn't resolve the broader project dependencies.
+-r ../requirements.txt

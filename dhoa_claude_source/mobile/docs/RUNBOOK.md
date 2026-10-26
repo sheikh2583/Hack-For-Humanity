@@ -1,0 +1,220 @@
+# Dhoa Operator Runbook
+
+**Updated:** 2026-10-08. **Scope:** completed local GPU training and the later
+imagery/pilot handoff.
+
+## Current recorded state
+
+- Raw SentinelKilnDB Parquet files are present in
+  `data/raw/sentinelkilndb/{train,val,test}/` and were readable with PyArrow.
+- Converted YOLO-OBB images, labels, YAML, and split report are present in
+  `data/interim/yolo_obb/`. Ultralytics accepted the resolved YAML paths, and
+  split image/label counts and OBB label structure were checked.
+- Pretrained starting weights are present in `data/models/`:
+  `yolov8n-obb.pt` and `yolov8s-obb.pt`; both load as OBB models.
+- Linux run `run_0002` completed on host `NDAG-M-Lab` with an RTX 3090, Python
+  3.12.2, PyTorch 2.14.0+cu130, and Ultralytics 8.4.165. All four stages and
+  one held-out test evaluation completed. See `docs/TRAINING_RUN_HISTORY.md`.
+- The Windows RTX 4070 smoke run completed historically; its first full stage
+  stopped during epoch 7 after six completed validation rows. It was not used
+  to resume `run_0002`.
+- The ADM2 and Bangladesh boundary files are present and pass basic CRS,
+  geometry, field, and required-district checks. Source provenance, licence,
+  and human review still need confirmation before geographic claims are made.
+- The selected trained checkpoint is
+  `results/run_0002/checkpoints/final/best.pt`; held-out metrics are recorded in
+  the tracked `results/run_0002/run.json`. On 2026-10-08,
+  a local pipeline run completed demo inference, Chapainawabganj raster
+  inference, local-PBF OSM extraction for Chapainawabganj and Gazipur, rule
+  checks, and priority scoring. No Earth Engine export was made. The real
+  raster used 512 px inference with a checkpoint trained at 256 px; inspect
+  its detections and geographic placement before relying on them.
+
+## Local Checks
+
+Run from the project root with the project environment active:
+
+```text
+python -m pip check
+python -m pytest -q
+python -m ruff check .
+```
+
+Latest local verification (2026-10-08): `python -m pytest -q` reported 151
+passed and `ruff check .` passed. The test run emitted dependency deprecation
+warnings and expected warnings from tests that exercise unverified rule
+configuration. The full suite includes the ADM2 boundary test when that file
+is present.
+
+## Run the Local Pipeline and Dashboard
+
+From the project root, after the trained checkpoint, prepared test chips,
+exported rasters, and OSM data are available, run:
+
+```bash
+python scripts/run_pipeline.py --weights results/run_0002/checkpoints/final/best.pt --imgsz 512
+```
+
+Start the dashboard from the same project environment. In Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\streamlit.exe run app\streamlit_app.py
+```
+
+On Linux/macOS:
+
+```bash
+.venv/bin/streamlit run app/streamlit_app.py
+```
+
+The first command runs inference, OSM enrichment, rule screening, and priority
+scoring. If a local Bangladesh PBF is present, it is used for OSM layers. The
+second command opens the dashboard against the most recently modified
+`kilns*.parquet` output.
+
+### Dashboard review and exports
+
+In the dashboard, use the sidebar to choose a district and apply type,
+priority, confidence, rule-signal, or new-candidate filters. The left panel is a
+selectable high-priority list; the adjacent map shows every priority band that
+matches the filters. Select a list row or marker to focus the map and show
+candidate details. With a candidate selected, download its PDF from the control
+above the map. The sidebar CSV button exports the full currently filtered set,
+including latitude and longitude. A district summary appears when a specific
+district is selected. See [`DASHBOARD_GUIDE.md`](DASHBOARD_GUIDE.md) for the
+field definitions and responsive layout.
+
+When `temporary doc share/audit_labeled.csv` is present, the pipeline also runs
+`kilnwatch audit-results --labels` on it after scoring and refreshes
+`docs/AUDIT_SUMMARY.md`. To use another labelled audit file, pass
+`--audit-labels path\to\audit_labeled.csv` to `scripts/run_pipeline.py`. The
+audit stage only summarizes labels; it does not change the confidence threshold
+or model outputs.
+
+## Dataset Conversion
+
+The current converted dataset is already available. To regenerate it, review
+the boundary provenance/licence and run:
+
+```powershell
+python -m src.cli explore data/raw/sentinelkilndb
+python -m src.cli convert data/raw/sentinelkilndb `
+  --boundary data/raw/bangladesh_boundary.geojson `
+  --output-dir data/interim/yolo_obb
+```
+
+The converter expects the boundary path above for chip filtering. Keep the
+ADM2 boundary used by AOI and OSM code at the separate path documented in the
+current configuration. Confirm the file CRS, `shapeName` field, and geometry
+coverage before conversion.
+
+## Cross-Platform Setup
+
+For a lightweight source-review, dashboard, and OSM environment, use
+[`SETUP.md`](SETUP.md). It includes separate PowerShell and Linux install
+commands and explains optional inference, compiler, PBF, and Earth Engine
+requirements. The initializer below is for a full CUDA training environment.
+
+GPU runs are user-managed. Do not start or stop training, smoke tests,
+inference, or benchmarks unless the user explicitly asks for that specific
+GPU task. These instructions are for the user to run.
+
+1. After cloning, run the initializer for the operating system:
+
+   Linux:
+
+   ```bash
+   bash scripts/init_linux.sh
+   ```
+
+   Windows PowerShell:
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\scripts\init_windows.ps1
+   ```
+
+   Both scripts use Python 3.11 or 3.12 and install
+   `requirements-gpu-cu130.txt`, project development/inference dependencies,
+   and JupyterLab. They do not start a GPU workload.
+2. If the converted dataset is missing, pass a local converted archive to the
+   initializer or let it download the pinned 3.74 GB source Parquet files from
+   Hugging Face. It obtains Bangladesh ADM0 from geoBoundaries' current gbOpen
+   API when needed, validates the GeoJSON, and runs the project converter.
+   Ultralytics downloads the configured OBB starting weights. Use
+   `--skip-assets` (Linux) or `-SkipAssetSetup` (Windows) to skip these downloads.
+3. Run `bash scripts/train_linux.sh` or `scripts/train_windows.ps1` with no
+   arguments. The one-command launcher runs smoke and, on success, full training.
+   Running it again resumes the current numbered run; `continue` is available
+   as an explicit command.
+4. Run manifests record dataset fingerprint, host, requested GPU, GPU model and
+   VRAM by stage. Transfer the complete `results/run_NNNN/` folder with the
+   matching dataset when continuing on another machine.
+5. The runner archives metric CSVs under `results/run_NNNN/logs/` every 10
+   completed epochs and at normal run end; it stages those files and the
+   manifest automatically. Review and commit them explicitly. Checkpoints
+   remain ignored under `results/run_NNNN/checkpoints/`.
+
+The Linux host and installed CUDA wheel were exercised by `run_0002`. For a
+future run, use the one-command launcher; it runs smoke and proceeds to full
+training only when smoke passes. A completed current run causes the runner to
+allocate the next numbered run rather than overwrite existing outputs.
+
+Colab and Kaggle remain optional alternatives; upload the ignored data folders
+and set the corresponding paths in the notebook when using those runtimes.
+
+## Accounts and External Services by Stage
+
+| Stage | Account or service needed? | Reason/status |
+|---|---|---|
+| SentinelKilnDB download | No separate account for this public dataset | Already downloaded from [Hugging Face](https://huggingface.co/datasets/SustainabilityLabIITGN/SentinelKilnDB); training consumes these local chips. |
+| Pretrained YOLO weights | No account | Both starting checkpoints are already in `data/models/`. |
+| Local detector training | No cloud account | Uses the user's Linux RTX 3090 or Windows RTX 4070, CUDA PyTorch, local dataset, and local checkpoints. |
+| GitHub source collaboration | GitHub account | Already set up for pushing the project repository. |
+| New Sentinel-2 imagery export | Google account plus an authorized Google Cloud project registered for Earth Engine | Earth Engine requires an enabled API, project registration, permissions, and authentication. This is the later inference-data stage, not model training. See Google's [access](https://developers.google.com/earth-engine/guides/access) and [authentication](https://developers.google.com/earth-engine/guides/auth) guides. Export is also gated on resolving the published acquisition-date conflict. |
+| OSM enrichment | Local Bangladesh PBF or network access to Overpass | Place `bangladesh-latest.osm.pbf` at `data/raw/osm/`; it is preferred for offline/restricted networks. Without it, OSMnx queries public Overpass and falls back to a PBF if one exists when a request fails. Install `.[geo]`; no API key is configured or required. Inspect coverage and observe service use policies. |
+| Legal verification | Authoritative Act/gazette sources and human review | No account setup makes unverified thresholds reliable; keep verification flags false until the primary sources are checked. |
+
+The missing steps were not prerequisites to the training stage. This repo
+already has the released satellite-chip dataset, processed training chips,
+and pretrained starting weights. New Sentinel-2 imagery comes later, when
+running inference across an area of interest. Earth Engine access setup and
+date resolution are mandatory before that export, not before training.
+
+Do not treat `yolov8n-obb.pt` or `yolov8s-obb.pt` as kiln-trained models.
+
+## Earth Engine Pilot
+
+Do not enable export while `config/preprocessing.yaml` has
+`preprocessing_verified: false`. The published SentinelKilnDB acquisition
+periods conflict. A human must confirm the intended dates with the dataset
+authors, record the evidence in `docs/PROGRESS.md`, and only then update the
+verification flag. Authenticate Earth Engine and run a small pilot before a
+full district export.
+
+## Inference and Review
+
+After a trained checkpoint and exported GeoTIFFs exist:
+
+```powershell
+python -m src.cli infer path\to\best.pt `
+  --raster-dir data/interim/s2_composites `
+  --output data/processed/kilns.parquet `
+  --imgsz <training-image-size>
+```
+
+Then fetch or load reviewed OSM caches, run rules and scoring, and generate an
+audit CSV. Inspect detections, coordinate placement, OSM coverage, and the
+screening outputs before sharing results. Distances are measured to mapped
+features, which may not be legally controlling boundaries; see
+[`screening_provenance.md`](screening_provenance.md) for traceability fields
+and review-state definitions. The dashboard operator flow and export fields
+are described in [`DASHBOARD_GUIDE.md`](DASHBOARD_GUIDE.md).
+
+## Explicitly Not Automatable Here
+
+- Legal threshold verification and changing `verified` flags.
+- Resolving the SentinelKilnDB date conflict.
+- Earth Engine credentials and export approval.
+- GPU training and judging model quality.
+- Visual inspection of detections and OSM completeness.
+- Claims about enforcement, compliance, or field suitability.

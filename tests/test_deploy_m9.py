@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
-
-import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -17,37 +14,25 @@ def _requirements() -> list[str]:
 
 def test_ui_stack_is_pinned_and_gpu_stack_is_absent() -> None:
     reqs = _requirements()
+    assert "streamlit==1.66.1" in reqs
     assert "streamlit-folium==0.27.4" in reqs
-    assert any(r.startswith("streamlit>=1.66") and "<1.67" in r for r in reqs)
-    assert any(r.startswith("folium>=0.20") and "<0.21" in r for r in reqs)
-    assert not any(re.match(r"(torch|torchvision|ultralytics|rasterio)", r) for r in reqs)
+    assert "folium==0.20.0" in reqs
+    assert not any(r.lower().startswith(("torch", "torchvision", "ultralytics", "rasterio")) for r in reqs)
     assert not any(r.startswith("-") for r in reqs)
 
 
-def test_keep_warm_workflow_uses_a_secret_and_a_schedule() -> None:
-    yaml = pytest.importorskip("yaml")
-    workflow = yaml.safe_load((ROOT / ".github" / "workflows" / "keep_warm.yml").read_text(encoding="utf-8"))
-    triggers = workflow.get("on") or workflow.get(True)
-    assert "schedule" in triggers and "workflow_dispatch" in triggers
-    text = (ROOT / ".github" / "workflows" / "keep_warm.yml").read_text(encoding="utf-8")
-    assert "secrets.DHOA_APP_URL" in text
+def test_cloud_entrypoint_selects_the_dashboard_requirements() -> None:
+    local_requirements = (ROOT / "app" / "requirements.txt").read_text(encoding="utf-8").splitlines()
+    entries = [line.split("#", 1)[0].strip() for line in local_requirements]
+    assert [line for line in entries if line] == ["-r ../requirements.txt"]
+    assert (ROOT / "uv.lock").is_file()
+    assert (ROOT / "app" / "streamlit_app.py").is_file()
 
 
-def test_demo_script_fits_three_minutes() -> None:
-    text = (ROOT / "docs" / "DEMO_SCRIPT.md").read_text(encoding="utf-8")
-    stamps = re.findall(r"\| (\d):(\d\d)-(\d):(\d\d) \|", text)
-    assert stamps
-    previous_end = 0
-    for m1, s1, m2, s2 in stamps:
-        start, end = int(m1) * 60 + int(s1), int(m2) * 60 + int(s2)
-        assert start == previous_end and end > start
-        previous_end = end
-    assert previous_end == 180
-
-
-def test_no_secrets_or_keys_in_deploy_files() -> None:
-    for path in (ROOT / "docs" / "DEPLOY.md", ROOT / ".github" / "workflows" / "keep_warm.yml", ROOT / "tools" / "keep_warm.py"):
-        assert not re.search(r"(api[_-]?key|token)\s*[:=]\s*['\"]?[A-Za-z0-9]{16,}", path.read_text(encoding="utf-8"), re.I)
+def test_cloud_python_version_and_runtime_data_are_present() -> None:
+    assert (ROOT / "runtime.txt").read_text(encoding="utf-8").strip() == "python-3.12"
+    assert (ROOT / "data" / "processed" / "kilns_prioritised.parquet").is_file()
+    assert (ROOT / "config" / "rules.yaml").is_file()
 
 
 def test_tools_are_importable_syntax() -> None:

@@ -1,0 +1,3 @@
+# Backward-compatible filename. Shared Windows/Linux GPU requirements live in
+# requirements-gpu-cu130.txt so both operating systems use the same versions.
+-r requirements-gpu-cu130.txt
