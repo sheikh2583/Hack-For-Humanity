@@ -928,7 +928,7 @@ def _render_community_results(gdf: pd.DataFrame, place: cm.Place | None) -> None
         return
 
     report_name = place.name
-    list_column, map_column = st.columns([2, 3], gap="medium")
+    map_column, list_column = st.columns([3, 2], gap="medium")  # map left, like the Map view
     with list_column:
         st.subheader(T.C_LIST_TITLE)
         _render_community_table(nearby, show_distance=radius_m is not None)
@@ -2404,6 +2404,9 @@ def main() -> None:
     try:
         get_projected_crs(centroid_longitude)
         mode = render_header(gdf)
+        # Always render the sidebar (even in Home/About, where it only holds the contact line) so
+        # Streamlit never adds/removes it between views and the page does not jump sideways.
+        filters = render_sidebar(gdf, mode)
         if mode == "overview":
             render_overview(gdf)
             render_footer()
@@ -2412,7 +2415,6 @@ def main() -> None:
             render_about(gdf)
             render_footer()
             return
-        filters = render_sidebar(gdf, mode)
         if mode == "community":
             render_community_view(gdf)
             render_footer()
