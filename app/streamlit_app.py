@@ -1888,7 +1888,7 @@ def _reset_inspector_filters() -> None:
     st.session_state["filter_upazila"] = ALL_AREAS
     st.session_state["filter_priority"] = ["High", "Medium", "Low"]
     st.session_state["filter_kiln_type"] = ALL_KILN_TYPES
-    _drop_widget_state(*_FORM_FILTERS)
+    _drop_widget_state("filter_district", *_FORM_FILTERS)
 
 
 @st.cache_data(show_spinner=False, max_entries=32)
@@ -2540,6 +2540,11 @@ def render_map(
         return
     tile = _current_tile()
     map_key = _map_key("dhoa_map", tuple(_inspector_filter_key()), tile)
+    focus = st.session_state.pop("dhoa_report_focus", None)
+    if isinstance(focus, (list, tuple)) and len(focus) == 2:
+        st.session_state["dhoa_map_view"] = {
+            "map_key": map_key, "center": [float(focus[0]), float(focus[1])], "zoom": SELECTED_ZOOM,
+        }
     selected_id = st.session_state.get("selected_kiln_id")
     if selected_id is not None and (
         "kiln_id" not in visible.columns
@@ -2701,6 +2706,8 @@ def render_map(
                 st.session_state["dhoa_list_selection_token"] = None
                 _rerun_local()
             _render_selected_candidate(selected.iloc[0])
+            if roles.is_staff():
+                _render_work_controls(selected.iloc[0])
 
 
 # Selecting a kiln reruns only this fragment, not the header, sidebar or data layer.
@@ -2748,9 +2755,18 @@ def render_footer() -> None:
 _PORTAL_TABS: tuple[str, ...] = ("dashboard", "map", "work", "reports")
 
 
+def _work_store() -> public_storage.SQLiteReportStore:
+    """Staff-only visit and note store; input/output follows ``app.storage`` schemas."""
+    return public_storage.SQLiteReportStore(APP_DB_PATH)
+
+
 def _open_report_count() -> int:
-    """Number of open public reports (reports arrive in a later module, so none yet)."""
-    return 0
+    """Count new and reviewed reports for the staff-only navigation badge."""
+    try:
+        return sum(report.status in {"new", "reviewed"} for report in _work_store().list_reports())
+    except Exception:
+        logging.exception("Could not load inspector report count")
+        return 0
 
 
 def _portal_tab_label(tab: str) -> str:
@@ -2806,7 +2822,7 @@ def render_portal_bar() -> str:
         st.session_state["dhoa_portal_tab"] = "map"
     _seed("dhoa_portal_tab", st.session_state["dhoa_portal_tab"])
     with st.container(key="dhoa_portal_bar"):
-        tabs_col, who_col, out_col = st.columns([6, 3, 1.6], vertical_alignment="center", gap="small")
+        tabs_col, badge_col, who_col, out_col = st.columns([5.5, 1.4, 2.5, 1.6], vertical_alignment="center", gap="small")
         with tabs_col:
             chosen = st.segmented_control(
                 T.PORTAL_TABS_LABEL, list(_PORTAL_TABS), format_func=_portal_tab_label,
@@ -2815,6 +2831,8 @@ def render_portal_bar() -> str:
             )
         if chosen in _PORTAL_TABS:
             st.session_state["dhoa_portal_tab"] = chosen
+        open_count = _open_report_count()
+        badge_col.caption("🔔 " + T.PORTAL_OPEN_REPORTS_FMT.format(open_count))
         who_col.caption(T.PORTAL_SIGNED_IN_FMT.format(roles.staff_name()))
         out_col.button(T.PORTAL_SIGN_OUT, key="dhoa_portal_signout", width="stretch",
                        on_click=_sign_out_staff)
@@ -2833,6 +2851,153 @@ def render_portal_dashboard(gdf: gpd.GeoDataFrame) -> None:
     )):
         column.metric(label, value)
     render_overview_charts(gdf)
+
+
+_VISIT_STATUS_LABELS = {
+    "not_visited": T.WORK_NOT_VISITED, "assigned": T.WORK_ASSIGNED,
+    "visited": T.WORK_VISITED, "confirmed_active": T.WORK_CONFIRMED_ACTIVE,
+    "not_a_kiln": T.WORK_NOT_A_KILN,
+}
+
+
+def _render_work_controls(row: pd.Series) -> None:
+    """Render staff visit status, assignment and notes for one candidate row."""
+    if not roles.is_staff():
+        return
+    kiln_id = str(row["kiln_id"])
+    store = _work_store()
+    visit = store.get_visit(kiln_id)
+    current = visit.status if visit else "not_visited"
+    assignee = visit.assignee if visit else None
+    with st.container(key="dhoa_visit_controls"):
+        st.markdown(f"**{T.WORK_STATUS}**")
+        with st.form(f"dhoa_visit_form_{hashlib.sha1(kiln_id.encode()).hexdigest()[:10]}"):
+            status = st.selectbox(T.WORK_STATUS, list(_VISIT_STATUS_LABELS),
+                                  index=list(_VISIT_STATUS_LABELS).index(current),
+                                  format_func=lambda value: _VISIT_STATUS_LABELS[value],
+                                  label_visibility="collapsed")
+            assignee_input = st.text_input(T.WORK_CURRENT_ASSIGNEE.format(assignee or "—"), value=assignee or "")
+            save = st.form_submit_button(T.WORK_SAVE_STATUS, width="stretch")
+        assign_col, note_col = st.columns([1, 2], gap="small")
+        if assign_col.button(T.WORK_ASSIGN_TO_ME, key=f"dhoa_assign_{hashlib.sha1(kiln_id.encode()).hexdigest()[:10]}"):
+            store.set_visit(kiln_id, "assigned", roles.staff_name(), roles.staff_name())
+            st.rerun()
+        note_text = note_col.text_input(T.WORK_NOTE_HINT, key=f"dhoa_note_{hashlib.sha1(kiln_id.encode()).hexdigest()[:10]}")
+        if note_col.button(T.WORK_ADD_NOTE, key=f"dhoa_add_note_{hashlib.sha1(kiln_id.encode()).hexdigest()[:10]}"):
+            if note_text.strip():
+                store.add_note(kiln_id, note_text, roles.staff_name())
+                st.rerun()
+        if save:
+            store.set_visit(kiln_id, status, assignee_input.strip() or None, roles.staff_name())
+            st.rerun()
+        notes = store.list_notes(kiln_id)
+        if visit or notes:
+            with st.expander(T.WORK_HISTORY):
+                if visit:
+                    st.text(f"{_VISIT_STATUS_LABELS[visit.status]} · {visit.assignee or '—'} · {visit.updated_by} · {visit.updated_at}")
+                for note in notes:
+                    st.text(f"{note.author} · {note.created_at}\n{note.text}")
+
+
+def _open_kiln_on_map(kiln_id: str, lat: float, lon: float) -> None:
+    """Staff callback to open a kiln or report coordinate on the Inspector Map."""
+    _reset_inspector_filters()
+    st.session_state["selected_kiln_id"] = str(kiln_id) if kiln_id else None
+    st.session_state["selected_lat"] = float(lat)
+    st.session_state["selected_lng"] = float(lon)
+    st.session_state["dhoa_report_focus"] = [float(lat), float(lon)]
+    st.session_state["dhoa_view_mode"] = "inspector"
+    st.session_state["dhoa_portal_tab"] = "map"
+
+
+def render_portal_work(gdf: gpd.GeoDataFrame) -> None:
+    """Render staff assignments with status filtering, data-derived distance sorting and directions."""
+    if not roles.is_staff():
+        return
+    st.markdown(f"<div class='dhoa-section-title'>{html.escape(T.WORK_MY_LIST)}</div>", unsafe_allow_html=True)
+    me = roles.staff_name()
+    visits = _work_store().list_visits(assignee=me)
+    status_codes = list(_VISIT_STATUS_LABELS)
+    status = st.selectbox(T.WORK_STATUS_FILTER, ["all", *status_codes],
+                          format_func=lambda code: T.WORK_ALL if code == "all" else _VISIT_STATUS_LABELS[code])
+    if status != "all":
+        visits = [visit for visit in visits if visit.status == status]
+    sort_mode = st.radio(T.WORK_SORT, ["priority", "distance"], horizontal=True,
+                         format_func=lambda value: T.WORK_SORT_PRIORITY if value == "priority" else T.WORK_SORT_DISTANCE)
+    origin = None
+    if sort_mode == "distance":
+        places = _cached_places(_community_version_key(gdf), gdf)
+        if places:
+            origin = st.selectbox(T.WORK_DISTANCE_ORIGIN, places, format_func=lambda place: place.label)
+    rows = []
+    for visit in visits:
+        found = gdf[gdf["kiln_id"].astype(str).eq(visit.kiln_id)]
+        if found.empty:
+            continue
+        row = found.iloc[0]
+        rows.append((visit, row))
+    if sort_mode == "distance" and origin is not None:
+        distance = {visit.kiln_id: float(kd.distances_from_point_m(
+            [float(row["lat"])], [float(row["lon"])], origin.lat, origin.lon)[0]) for visit, row in rows}
+        rows.sort(key=lambda item: distance[item[0].kiln_id])
+    else:
+        rank = {"High": 0, "Medium": 1, "Low": 2}
+        rows.sort(key=lambda item: (rank.get(str(item[1].get("priority_band", "")), 3), item[0].kiln_id))
+    if not rows:
+        st.info(T.WORK_EMPTY)
+        return
+    for visit, row in rows:
+        title = f"{visit.kiln_id} · {_VISIT_STATUS_LABELS[visit.status]}"
+        with st.container(border=True):
+            st.markdown(f"**{title}** · {row.get('priority_band', '')}")
+            st.caption(f"{row.get('district', '')} · {float(row['lat']):.5f}, {float(row['lon']):.5f}")
+            lat, lon = float(row["lat"]), float(row["lon"])
+            if origin is not None and sort_mode == "distance":
+                st.caption(f"{distance[visit.kiln_id]:,.0f} m")
+            map_col, directions_col = st.columns([1, 1])
+            map_col.button(T.WORK_OPEN_MAP, key=f"dhoa_work_map_{hashlib.sha1(visit.kiln_id.encode()).hexdigest()[:10]}",
+                           on_click=_open_kiln_on_map, args=(visit.kiln_id, lat, lon))
+            directions_col.link_button(T.WORK_DIRECTIONS, f"https://www.google.com/maps/dir/?api=1&destination={lat},{lon}", width="stretch")
+
+
+def render_portal_reports(gdf: gpd.GeoDataFrame) -> None:
+    """Render the staff-only public report inbox and status actions."""
+    if not roles.is_staff():
+        return
+    st.markdown(f"<div class='dhoa-section-title'>{html.escape(T.REPORT_INBOX)}</div>", unsafe_allow_html=True)
+    reports = _work_store().list_reports()
+    if not reports:
+        st.info(T.REPORT_EMPTY)
+        return
+    labels = {"new": T.REPORT_NEW, "reviewed": T.REPORT_REVIEWED, "resolved": T.REPORT_RESOLVED}
+    for report in reversed(reports):
+        with st.container(border=True):
+            st.markdown(f"**{labels.get(report.status, report.status)} · {report.reason}**")
+            st.caption(f"{report.created_at} · {report.lat:.5f}, {report.lon:.5f}")
+            st.text(report.note)
+            if report.contact:
+                st.text(report.contact)
+            if report.photo_ref:
+                photo = APP_DB_PATH.parent / report.photo_ref
+                if photo.is_file():
+                    st.image(str(photo), width=260)
+            cols = st.columns([2, 1, 1])
+            digest = hashlib.sha1(report.id.encode()).hexdigest()[:10]
+            cols[0].button(T.REPORT_OPEN_MAP, key=f"dhoa_report_map_{digest}",
+                           on_click=_open_kiln_on_map,
+                           args=(report.kiln_id or "", report.lat, report.lon), width="stretch")
+            if report.status != "reviewed":
+                cols[1].button(T.REPORT_MARK_REVIEWED, key=f"dhoa_report_review_{digest}",
+                               on_click=_set_report_status, args=(report.id, "reviewed"), width="stretch")
+            if report.status != "resolved":
+                cols[2].button(T.REPORT_MARK_RESOLVED, key=f"dhoa_report_resolve_{digest}",
+                               on_click=_set_report_status, args=(report.id, "resolved"), width="stretch")
+
+
+def _set_report_status(report_id: str, status: str) -> None:
+    """Staff-only status callback for one inbox record."""
+    if roles.is_staff():
+        _work_store().set_report_status(report_id, status, roles.staff_name())
 
 
 def main() -> None:
@@ -2883,6 +3048,10 @@ def main() -> None:
         if mode == "inspector" and portal_tab != "map":
             if portal_tab == "dashboard":
                 render_portal_dashboard(gdf)
+            elif portal_tab == "work":
+                render_portal_work(gdf)
+            elif portal_tab == "reports":
+                render_portal_reports(gdf)
             else:
                 st.markdown(trust.state_html("empty", T.PORTAL_SOON_TITLE, T.PORTAL_SOON_BODY),
                             unsafe_allow_html=True)

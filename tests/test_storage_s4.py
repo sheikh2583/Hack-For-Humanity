@@ -1,8 +1,8 @@
-"""S4 report-storage and coordinate validation tests.
+"""S4/S5 storage and coordinate validation tests.
 
 Input schema: tiny synthetic latitude/longitude frames and report values.
 Output schema: coordinates bounded by the source frame and report rows that
-survive a new SQLite storage instance.
+survive a new SQLite storage instance, including synthetic staff visit records.
 """
 
 from __future__ import annotations
@@ -62,3 +62,24 @@ def test_optional_photo_keeps_its_bytes_and_a_relative_reference(tmp_path: Path)
     assert record.id == record_id
     assert record.photo_ref is not None and record.photo_ref.startswith("reports/")
     assert (tmp_path / record.photo_ref).read_bytes() == b"tiny-png-fixture"
+
+
+def test_staff_visits_notes_and_report_handling_persist(tmp_path: Path) -> None:
+    """Tiny synthetic staff records persist and use only the defined status values."""
+    database = tmp_path / "app.db"
+    store = SQLiteReportStore(database)
+    assert store.list_visits() == []
+    store.set_visit("synthetic-1", "assigned", "Inspector A", "Inspector A")
+    store.set_visit("synthetic-2", "visited", "Inspector A", "Inspector A")
+    store.add_note("synthetic-1", "Gate was closed", "Inspector A")
+    assert [visit.kiln_id for visit in store.list_visits(assignee="Inspector A", status="assigned")] == ["synthetic-1"]
+    assert store.get_visit("synthetic-1").updated_by == "Inspector A"
+    assert store.list_notes("synthetic-1")[0].text == "Gate was closed"
+    report_id = store.create_report(NewReport(
+        kind="not_on_map", kiln_id=None, lat=23.7, lon=90.3,
+        reason="not_on_map", note="Synthetic inbox row",
+    ))
+    store.set_report_status(report_id, "reviewed", "Inspector A")
+    reopened = SQLiteReportStore(database)
+    assert reopened.list_reports()[0].status == "reviewed"
+    assert reopened.list_reports()[0].handled_by == "Inspector A"

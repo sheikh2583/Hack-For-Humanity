@@ -1,8 +1,9 @@
-"""Storage boundary for public reports.
+"""Storage boundary for public reports and staff visit workflows.
 
-Input schema: ``NewReport`` values using the agreed reports fields and optional
-image bytes. Output schema: ``ReportRecord`` values persisted by a replaceable
-``ReportStore`` implementation; the initial implementation uses SQLite.
+Input schema: ``NewReport`` values using the reports fields and optional image
+bytes, plus visit/note status values. Output schema: ``ReportRecord``,
+``VisitRecord`` and ``NoteRecord`` values persisted by SQLite with the agreed
+``reports``, ``visits`` and ``notes`` table columns.
 """
 
 from __future__ import annotations
@@ -64,6 +65,31 @@ class ReportRecord:
     handled_at: str | None
 
 
+VISIT_STATUSES = ("not_visited", "assigned", "visited", "confirmed_active", "not_a_kiln")
+REPORT_STATUSES = ("new", "reviewed", "resolved")
+
+
+@dataclass(frozen=True)
+class VisitRecord:
+    """Current visit assignment for one kiln; mirrors the visits table columns."""
+
+    kiln_id: str
+    status: str
+    assignee: str | None
+    updated_by: str
+    updated_at: str
+
+
+@dataclass(frozen=True)
+class NoteRecord:
+    """One appended staff note; rowid provides history order without extra fields."""
+
+    kiln_id: str
+    text: str
+    author: str
+    created_at: str
+
+
 class ReportStore(Protocol):
     """Replaceable interface used by public submission and the future inbox."""
 
@@ -72,6 +98,19 @@ class ReportStore(Protocol):
 
     def list_reports(self) -> list[ReportRecord]:
         """Return stored reports ordered by creation time, oldest first."""
+
+    def set_report_status(self, report_id: str, status: str, handled_by: str) -> None:
+        """Update an inbox status and record its handler and handling time."""
+
+
+class WorkStore(Protocol):
+    """Persistence interface for staff-only kiln visits and notes."""
+
+    def get_visit(self, kiln_id: str) -> VisitRecord | None: ...
+    def list_visits(self, assignee: str | None = None, status: str | None = None) -> list[VisitRecord]: ...
+    def set_visit(self, kiln_id: str, status: str, assignee: str | None, updated_by: str) -> None: ...
+    def add_note(self, kiln_id: str, text: str, author: str) -> None: ...
+    def list_notes(self, kiln_id: str) -> list[NoteRecord]: ...
 
 
 def extent_from_frame(frame: pd.DataFrame) -> DataExtent | None:
@@ -154,6 +193,23 @@ class SQLiteReportStore:
                     handled_at TEXT
                 )"""
             )
+            connection.execute(
+                """CREATE TABLE IF NOT EXISTS visits (
+                    kiln_id TEXT PRIMARY KEY,
+                    status TEXT NOT NULL,
+                    assignee TEXT,
+                    updated_by TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )"""
+            )
+            connection.execute(
+                """CREATE TABLE IF NOT EXISTS notes (
+                    kiln_id TEXT NOT NULL,
+                    text TEXT NOT NULL,
+                    author TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )"""
+            )
             yield connection
             connection.commit()
         except Exception:
@@ -208,3 +264,71 @@ class SQLiteReportStore:
                 "SELECT * FROM reports ORDER BY created_at, id"
             ).fetchall()
         return [ReportRecord(**dict(row)) for row in rows]
+
+    def set_report_status(self, report_id: str, status: str, handled_by: str) -> None:
+        """Set an inbox status and record who handled it and when."""
+        if status not in REPORT_STATUSES:
+            raise ValueError("unsupported report status")
+        with self._connect() as connection:
+            result = connection.execute(
+                "UPDATE reports SET status=?, handled_by=?, handled_at=? WHERE id=?",
+                (status, handled_by.strip(), datetime.now(UTC).isoformat(), report_id),
+            )
+            if result.rowcount != 1:
+                raise KeyError(report_id)
+
+    def get_visit(self, kiln_id: str) -> VisitRecord | None:
+        """Return one kiln's latest assignment, or None when not yet tracked."""
+        with self._connect() as connection:
+            row = connection.execute("SELECT * FROM visits WHERE kiln_id=?", (str(kiln_id),)).fetchone()
+        return VisitRecord(**dict(row)) if row else None
+
+    def list_visits(self, assignee: str | None = None, status: str | None = None) -> list[VisitRecord]:
+        """List current assignments, optionally filtered by assignee and status."""
+        if status is not None and status not in VISIT_STATUSES:
+            raise ValueError("unsupported visit status")
+        clauses: list[str] = []
+        values: list[str] = []
+        if assignee is not None:
+            clauses.append("assignee=?")
+            values.append(assignee)
+        if status is not None:
+            clauses.append("status=?")
+            values.append(status)
+        where = " WHERE " + " AND ".join(clauses) if clauses else ""
+        with self._connect() as connection:
+            rows = connection.execute("SELECT * FROM visits" + where + " ORDER BY updated_at DESC, kiln_id", values).fetchall()
+        return [VisitRecord(**dict(row)) for row in rows]
+
+    def set_visit(self, kiln_id: str, status: str, assignee: str | None, updated_by: str) -> None:
+        """Create or update the current visit status/assignee for a kiln."""
+        if status not in VISIT_STATUSES:
+            raise ValueError("unsupported visit status")
+        if not str(kiln_id).strip() or not updated_by.strip():
+            raise ValueError("kiln id and updater are required")
+        with self._connect() as connection:
+            connection.execute(
+                """INSERT INTO visits (kiln_id,status,assignee,updated_by,updated_at)
+                   VALUES (?,?,?,?,?) ON CONFLICT(kiln_id) DO UPDATE SET
+                   status=excluded.status, assignee=excluded.assignee,
+                   updated_by=excluded.updated_by, updated_at=excluded.updated_at""",
+                (str(kiln_id), status, assignee or None, updated_by.strip(), datetime.now(UTC).isoformat()),
+            )
+
+    def add_note(self, kiln_id: str, text: str, author: str) -> None:
+        """Append a non-empty staff note to a kiln's history."""
+        if not str(kiln_id).strip() or not text.strip() or not author.strip():
+            raise ValueError("kiln id, note text and author are required")
+        with self._connect() as connection:
+            connection.execute(
+                "INSERT INTO notes (kiln_id,text,author,created_at) VALUES (?,?,?,?)",
+                (str(kiln_id), text.strip(), author.strip(), datetime.now(UTC).isoformat()),
+            )
+
+    def list_notes(self, kiln_id: str) -> list[NoteRecord]:
+        """Return a kiln's notes in append order."""
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT kiln_id,text,author,created_at FROM notes WHERE kiln_id=? ORDER BY rowid", (str(kiln_id),)
+            ).fetchall()
+        return [NoteRecord(**dict(row)) for row in rows]
