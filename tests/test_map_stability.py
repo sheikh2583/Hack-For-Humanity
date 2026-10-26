@@ -38,6 +38,21 @@ def test_every_st_folium_call_returns_only_the_last_click() -> None:
         assert ast.literal_eval(keyword.value) == ["last_object_clicked"]
 
 
+def test_map_tile_selectbox_does_not_duplicate_its_seeded_default(monkeypatch) -> None:
+    """The widget reads the session-state seed without also applying index 0."""
+    state = {"map_tile": "street"}
+    captured: dict[str, object] = {}
+
+    def selectbox(*args: object, **kwargs: object) -> str:
+        captured.update(kwargs)
+        return "street"
+
+    monkeypatch.setattr(dashboard.st, "session_state", state)
+    monkeypatch.setattr(dashboard.st, "selectbox", selectbox)
+    assert dashboard._render_map_type_filter() == "street"
+    assert captured.get("index") is None
+
+
 def test_zoom_and_bounds_are_not_persisted() -> None:
     """The snap-back state (map_center/map_zoom/bounds) is gone from the app."""
     strings = {node.value for node in ast.walk(TREE) if isinstance(node, ast.Constant) and isinstance(node.value, str)}

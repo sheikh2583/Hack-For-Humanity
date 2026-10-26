@@ -32,6 +32,9 @@ def test_public_result_cards_show_place_distance_type_and_directions(monkeypatch
         def link_button(self, label, url, **kwargs):
             captured.extend((label, url))
 
+        def button(self, label, **kwargs):
+            captured.append(label)
+
     monkeypatch.setattr(dashboard, "st", FakeStreamlit())
     frame = pd.DataFrame([{
         "lat": 23.8, "lon": 90.2, "ui_type": "Zigzag", "ui_area": "Savar",

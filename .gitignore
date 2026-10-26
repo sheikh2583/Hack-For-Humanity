@@ -38,6 +38,10 @@ data/processed/*
 !data/processed/.gitkeep
 !data/processed/kilns_prioritised.parquet
 !data/processed/kilns_scored.parquet
+data/app.db
+data/app.db-shm
+data/app.db-wal
+data/reports/
 
 # Model weights and training outputs
 *.pt

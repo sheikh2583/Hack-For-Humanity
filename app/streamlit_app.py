@@ -28,7 +28,10 @@ if str(_ROOT) not in sys.path:
 if str(_ROOT / "app") not in sys.path:
     sys.path.insert(0, str(_ROOT / "app"))
 
-from app import storage as public_storage  # noqa: E402
+try:  # works both as a package import and when Streamlit puts app/ on sys.path
+    from app import storage as public_storage  # noqa: E402
+except ImportError:  # pragma: no cover - Streamlit script execution
+    import storage as public_storage  # type: ignore[no-redef]  # noqa: E402
 from app import strings as T  # noqa: E402
 
 DASHBOARD_TITLE = unicodedata.normalize("NFC", T.APP_TITLE)
@@ -73,7 +76,7 @@ BASE_DIR = Path(__file__).parent.parent
 CONFIG_DIR = BASE_DIR / "config"
 DATA_DIR = Path(os.environ.get("DHOA_DATA_DIR") or BASE_DIR / "data" / "processed")  # env override: hermetic tests
 DATA_PATH = DATA_DIR / "kilns_prioritised.parquet"
-APP_DB_PATH = BASE_DIR / "data" / "app.db"
+APP_DB_PATH = Path(os.environ.get("DHOA_APP_DB") or BASE_DIR / "data" / "app.db")
 _ADMIN_AREAS_PATH = _pathlib.Path(__file__).parent.parent / "config" / "bd_admin_areas.json"
 try:
     BD_ADMIN_AREAS: dict = _json.loads(_ADMIN_AREAS_PATH.read_text(encoding="utf-8"))
@@ -446,6 +449,7 @@ def _render_map_type_filter() -> str:
     selected_tile = st.selectbox(
         T.MAP_TYPE,
         ["street", "satellite"],
+        index=None,
         format_func=lambda value: T.STREET_MAP if value == "street" else T.SATELLITE_IMAGERY,
         label_visibility="collapsed",
         key=widget_key,
@@ -1148,6 +1152,13 @@ def _render_community_results(gdf: pd.DataFrame, place: cm.Place | None) -> None
         except Exception:
             logging.exception("Community PDF generation failed")
             st.error(T.REPORT_GENERATION_FAILED_PLEASE_TRY_AGAI)
+    selected_report_id = st.session_state.get("dhoa_report_candidate_id")
+    if selected_report_id is not None:
+        candidate = nearby[nearby["kiln_id"].astype(str).eq(str(selected_report_id))]
+        if candidate.empty:
+            st.session_state.pop("dhoa_report_candidate_id", None)
+        else:
+            _render_existing_candidate_report(candidate.iloc[0])
 
 
 def _debug_details(exc: BaseException) -> None:
@@ -1234,9 +1245,14 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
     choices list every kiln), 3) a summary, list, map and PDF/CSV downloads,
     or a clear next step when nothing is found. No page reload anywhere.
     """
+    st.markdown(
+        "<style>div[class*='st-key-dhoa_report_trap_']{display:none!important}</style>",
+        unsafe_allow_html=True,
+    )
     st.markdown(f"<div class='dhoa-section-title'>{T.FIND_KILNS_NEAR_YOU}</div>", unsafe_allow_html=True)
     place = _render_community_inputs(gdf)
     _render_community_results(gdf, place)
+    _render_missing_kiln_report(gdf)
 
 
 def _popup_content(row: Mapping[str, object]) -> dict[str, Any]:
