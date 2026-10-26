@@ -869,7 +869,7 @@ def _render_community_inputs(gdf: pd.DataFrame) -> cm.Place | None:
             help=T.C_PLACE_HELP,
             key="community_search_query",
             on_change=_on_community_search,
-        )
+        ) or ""  # st.text_input returns str | None; guard all downstream .strip() calls
         origin = st.session_state.get("community_origin")
         selected_local = st.session_state.get("community_place_key") in places
         selected_geocoded = (
