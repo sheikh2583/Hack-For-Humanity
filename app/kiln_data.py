@@ -715,6 +715,12 @@ def prepare_public_frame(frame: pd.DataFrame, version: str) -> pd.DataFrame:
     ``attrs["dhoa_data_version"]`` carries ``-public`` so staff and public caches never mix.
     """
     result = public_view(frame)
+    # Map dots may encode the existing priority band visually; scores and rule
+    # signals remain excluded from the public frame.
+    result["ui_marker_band"] = (
+        frame["priority_band"].astype(str).to_numpy()
+        if "priority_band" in frame.columns else [""] * len(frame)
+    )
     if "detection_status" not in result.columns:
         result["detection_status"] = "Known"
     result = with_public_display_columns(result)
@@ -723,11 +729,11 @@ def prepare_public_frame(frame: pd.DataFrame, version: str) -> pd.DataFrame:
 
 
 def public_marker_payload(frame: pd.DataFrame) -> dict[str, Any]:
-    """Pack kilns into the public map structure: position, type and area only.
+    """Pack public map markers as position, display band, type and area.
 
-    Output: ``{"rows": [[lat, lon, type_index, area_index], ...], "types": [...],
-    "areas": [...]}``; labels are HTML-escaped. There is no band, colour class or
-    rule-signal field, so nothing about priority can be read from the page.
+    Output: ``{"rows": [[lat, lon, band_index, type_index, area_index], ...],
+    "bands": [...], "types": [...], "areas": [...]}``. Band is a display-only
+    value; no score or rule signal is included.
     """
     frame = with_public_display_columns(frame)
     lat = numeric_column(frame, ("lat",))
@@ -738,8 +744,11 @@ def public_marker_payload(frame: pd.DataFrame) -> dict[str, Any]:
     type_pos: dict[str, int] = {}
     area_pos: dict[str, int] = {}
     rows: list[list[Any]] = []
-    for ok, la, lo, kind, area in zip(
-        valid.tolist(), lat.tolist(), lon.tolist(), frame["ui_type"].tolist(), frame["ui_area"].tolist()
+    band_indices = [{"High": 0, "Medium": 1, "Low": 2}.get(str(value), 3)
+                    for value in frame.get("ui_marker_band", pd.Series([""] * len(frame))).tolist()]
+    for ok, la, lo, band, kind, area in zip(
+        valid.tolist(), lat.tolist(), lon.tolist(), band_indices,
+        frame["ui_type"].tolist(), frame["ui_area"].tolist()
     ):
         if not ok:
             continue
@@ -749,8 +758,11 @@ def public_marker_payload(frame: pd.DataFrame) -> dict[str, Any]:
         area_i = area_pos.setdefault(area, len(area_pos))
         if area_i == len(areas):
             areas.append(html.escape(area))
-        rows.append([round(la, 5), round(lo, 5), kind_i, area_i])
-    return {"rows": rows, "types": types, "areas": areas}
+        rows.append([round(la, 5), round(lo, 5), band, kind_i, area_i])
+    return {
+        "rows": rows, "bands": [T.HIGH, T.MEDIUM, T.LOW, T.UNCLASSIFIED],
+        "types": types, "areas": areas,
+    }
 
 
 # --------------------------------------------------------------------------

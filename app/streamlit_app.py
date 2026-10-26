@@ -1077,7 +1077,8 @@ def _render_existing_candidate_report(row: pd.Series) -> None:
         with st.form(f"dhoa_report_existing_{key}"):
             reason_label = st.selectbox(
                 T.C_REPORT_EXISTING_REASON,
-                [T.C_REPORT_REASON_LOCATION, T.C_REPORT_REASON_NOT_KILN, T.C_REPORT_REASON_OTHER],
+                [T.C_REPORT_REASON_LOCATION, T.C_REPORT_REASON_NOT_KILN,
+                 T.C_REPORT_REASON_CONCERN, T.C_REPORT_REASON_OTHER],
                 key=f"dhoa_report_reason_{key}",
             )
             note = st.text_area(T.C_REPORT_NOTE, key=f"dhoa_report_note_{key}", height=90)
@@ -1089,6 +1090,7 @@ def _render_existing_candidate_report(row: pd.Series) -> None:
             reason_code = {
                 T.C_REPORT_REASON_LOCATION: "wrong_location",
                 T.C_REPORT_REASON_NOT_KILN: "not_a_kiln",
+                T.C_REPORT_REASON_CONCERN: "environmental_concern",
                 T.C_REPORT_REASON_OTHER: "other",
             }[reason_label]
             result = _record_public_report(
@@ -1191,12 +1193,13 @@ def _render_community_results(gdf: pd.DataFrame, place: cm.Place | None) -> None
 
     report_name = place.name
     selected_report_id = st.session_state.get("dhoa_report_candidate_id")
+    selected_report = None
     if selected_report_id is not None:
         candidate = nearby[nearby["kiln_id"].astype(str).eq(str(selected_report_id))]
         if candidate.empty:
             st.session_state.pop("dhoa_report_candidate_id", None)
         else:
-            _render_existing_candidate_report(candidate.iloc[0])
+            selected_report = candidate.iloc[0]
     map_column, list_column = st.columns([3, 2], gap="medium")  # map left, like the Map view
     with map_column:
         st.subheader(T.AREA_MAP)
@@ -1206,6 +1209,10 @@ def _render_community_results(gdf: pd.DataFrame, place: cm.Place | None) -> None
             else T.C_MAP_CAPTION_RADIUS_FMT.format(place.name, radius_m / 1000)
         )
         with st.container(border=True):
+            st.markdown(
+                ins.legend_html(T.PRIORITY, {"High": T.HIGH, "Medium": T.MEDIUM, "Low": T.LOW}, ""),
+                unsafe_allow_html=True,
+            )
             _render_community_map_fragment(
                 nearby, gdf, place.lat, place.lon, radius_m, place.name, place.key
             )
@@ -1213,6 +1220,8 @@ def _render_community_results(gdf: pd.DataFrame, place: cm.Place | None) -> None
         st.subheader(T.C_LIST_TITLE)
         with st.container(key="dhoa_community_list"):
             _render_community_cards(nearby, show_distance=radius_m is not None)
+        if selected_report is not None:
+            _render_existing_candidate_report(selected_report)
         try:
             st.download_button(
                 T.DOWNLOAD_REPORT, _community_report(report_name, nearby, radius_m or 0),
@@ -2183,6 +2192,11 @@ def _render_public_candidate(row: pd.Series) -> None:
             columns[0].link_button(T.DIRECTIONS_2, f"https://www.google.com/maps/dir/?api=1&destination={lat:.6f},{lon:.6f}&travelmode=driving", width="stretch")
             columns[1].link_button(T.STREET_VIEW, f"https://www.google.com/maps/@{lat:.6f},{lon:.6f},3a,90y,0h,90t/data=!3m1!1e3", width="stretch")
             columns[2].link_button(T.GOOGLE_EARTH, f"https://earth.google.com/web/@{lat:.6f},{lon:.6f},500a,500d,35y", width="stretch")
+        report_key = hashlib.sha256(candidate_id.encode("utf-8")).hexdigest()[:16]
+        st.button(
+            T.C_REPORT_CARD_ACTION, key=f"dhoa_report_selected_{report_key}", width="stretch",
+            on_click=_select_candidate_report, args=(candidate_id,),
+        )
 
 
 def _render_report_download(row: pd.Series) -> None:
@@ -2321,17 +2335,20 @@ return m;};})()"""
 
 
 def _public_marker_callback_js(payload: Mapping[str, Any], radius: int = 8) -> str:
-    """Return the JS factory for the PUBLIC map: one neutral marker shape and colour.
+    """Return the JS factory for the PUBLIC map with priority-band marker styling.
 
-    Input: ``kiln_data.public_marker_payload`` output (rows are ``[lat, lon, type, area]``).
+    Input: ``kiln_data.public_marker_payload`` output (rows are
+    ``[lat, lon, band, type, area]``).
     Output: a JS function expression for ``FastMarkerCluster``. Each marker has a hover
-    tooltip (type | area) and, on click, a light popup (type, area, coordinates, Google Maps
-    directions / map / Earth links) built in the browser. No band, colour class or
-    rule-signal field exists in the payload or in this script.
+    tooltip (band | type | area) and, on click, a light popup (type, area, coordinates,
+    Google Maps directions / map / Earth links) built in the browser. No priority score
+    or rule-signal field exists in the payload or in this script.
     """
     lookups = json.dumps(
         {
-            "color": DESIGN_COLORS["unclassified"],
+            "colors": [PRIORITY_COLORS["High"], PRIORITY_COLORS["Medium"],
+                       PRIORITY_COLORS["Low"], DESIGN_COLORS["unclassified"]],
+            "bands": payload.get("bands", [T.HIGH, T.MEDIUM, T.LOW, T.UNCLASSIFIED]),
             "outline": DESIGN_COLORS["marker_outline"],
             "halo": DESIGN_COLORS["marker_halo"],
             "types": payload["types"],
@@ -2346,15 +2363,15 @@ def _public_marker_callback_js(payload: Mapping[str, Any], radius: int = 8) -> s
         ensure_ascii=False,
     )
     factory = r"""(function(){var D=__LOOKUPS__;
-return function(row){var S=__SIZE__;
+return function(row){var S=__SIZE__,c=D.colors[row[2]];
 var ic=L.divIcon({className:'dhoa-pin',iconSize:[S,S],iconAnchor:[S/2,S/2],
-html:"<svg width='"+S+"' height='"+S+"' viewBox='0 0 22 22'><circle cx='11' cy='11' r='9' fill='none' stroke='"+D.halo+"' stroke-width='3.6'/><circle cx='11' cy='11' r='9' fill='"+D.color+"' stroke='"+D.outline+"' stroke-width='1.3'/></svg>"});
+html:"<svg width='"+S+"' height='"+S+"' viewBox='0 0 22 22'><circle cx='11' cy='11' r='9' fill='none' stroke='"+D.halo+"' stroke-width='3.6'/><circle cx='11' cy='11' r='9' fill='"+c+"' stroke='"+D.outline+"' stroke-width='1.3'/></svg>"});
 var m=L.marker([row[0],row[1]],{icon:ic,riseOnHover:true});
-m.bindTooltip(D.types[row[2]]+" | "+D.areas[row[3]],{sticky:true});
+ m.bindTooltip(D.bands[row[2]]+" | "+D.types[row[3]]+" | "+D.areas[row[4]],{sticky:true});
 var la=row[0],lo=row[1],q=la.toFixed(6)+','+lo.toFixed(6),g='https://www.google.com/maps',
-h="<div class='dhoa-popup'><div class='badges'><span class='badge'>"+D.types[row[2]]+"</span></div>"
-+"<strong>"+D.labels.kiln+" · "+D.areas[row[3]]+"</strong><hr>"
-+"📍 "+D.labels.area+": "+D.areas[row[3]]+"<br>"+la.toFixed(5)+", "+lo.toFixed(5)+"<hr>"
+h="<div class='dhoa-popup'><div class='badges'><span class='badge'>"+D.types[row[3]]+"</span></div>"
++"<strong>"+D.labels.kiln+" · "+D.areas[row[4]]+"</strong><hr>"
++"📍 "+D.labels.area+": "+D.areas[row[4]]+"<br>"+la.toFixed(5)+", "+lo.toFixed(5)+"<hr>"
 +"<div class='popup-actions'>"
 +"<a href='"+g+"/dir/?api=1&destination="+q+"&travelmode=driving' target='_blank' rel='noopener'>🗺️ "+D.labels.directions+"</a>"
 +"<a href='"+g+"?q="+q+"' target='_blank' rel='noopener'>📍 "+D.labels.map+"</a>"
@@ -3225,10 +3242,26 @@ def render_portal_reports(gdf: gpd.GeoDataFrame) -> None:
         st.info(T.REPORT_EMPTY)
         return
     labels = {"new": T.REPORT_NEW, "reviewed": T.REPORT_REVIEWED, "resolved": T.REPORT_RESOLVED}
+    reason_labels = {
+        "wrong_location": T.C_REPORT_REASON_LOCATION,
+        "not_a_kiln": T.C_REPORT_REASON_NOT_KILN,
+        "environmental_concern": T.C_REPORT_REASON_CONCERN,
+        "other": T.C_REPORT_REASON_OTHER,
+    }
     for report in reversed(reports):
         with st.container(border=True):
-            st.markdown(f"**{labels.get(report.status, report.status)} · {report.reason}**")
+            st.markdown(
+                f"**{labels.get(report.status, report.status)} · "
+                f"{reason_labels.get(report.reason, report.reason)}**"
+            )
             st.caption(f"{report.created_at} · {report.lat:.5f}, {report.lon:.5f}")
+            if report.kiln_id:
+                kiln_rows = gdf[gdf["kiln_id"].astype(str).eq(str(report.kiln_id))]
+                if not kiln_rows.empty:
+                    kiln = kiln_rows.iloc[0]
+                    st.caption(
+                        f"{report.kiln_id} · {kd.priority_badge(kiln.get('priority_band'))}"
+                    )
             st.text(report.note)
             if report.contact:
                 st.text(report.contact)
