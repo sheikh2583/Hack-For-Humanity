@@ -1,7 +1,7 @@
 """Create the multi-page community "Near me" PDF without writing files.
 
 Input schema: a place label, a DataFrame with optional ``distance_m``, ``class``,
-``priority_band``, ``lat``, ``lon``, ``upazila``, ``district`` columns, and a radius in
+``lat``, ``lon``, ``upazila``, ``district`` columns, and a radius in
 metres (``0`` = the whole named area). Output schema: A4 PDF bytes in ``lang``
 ("bn" or "en"), or ``None`` when generation fails. The table repeats its header on every
 page and every page shows "page x / y".
@@ -16,7 +16,7 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-_COLUMN_WIDTHS = (11.0, 20.0, 52.0, 32.0, 22.0, 43.0)  # no, distance, area, type, priority, coords
+_COLUMN_WIDTHS = (11.0, 20.0, 74.0, 32.0, 43.0)  # no, distance, area, type, coords (no priority)
 _ROW_LINE = 4.6
 
 
@@ -33,7 +33,7 @@ def _text(value: object) -> str:
 
 
 def _row_cells(row: pd.Series, number: int, radius_m: int, table: dict[str, str]) -> list[str]:
-    """Format one table row (no, distance, area, type, priority, coordinates)."""
+    """Format one table row (no, distance, area, type, coordinates); priority is never printed."""
     from src.eval import pdf_kit as kit
 
     distance = pd.to_numeric(pd.Series([row.get("distance_m")]), errors="coerce").iloc[0]
@@ -49,7 +49,6 @@ def _row_cells(row: pd.Series, number: int, radius_m: int, table: dict[str, str]
     return [
         str(number), distance_text, area,
         kit.name_text(table, _text(row.get("class"))),
-        kit.name_text(table, _text(row.get("priority_band"))),
         coords,
     ]
 
@@ -81,7 +80,7 @@ def _build(
         pdf.set_fill_color(*kit.BAND)
         pdf.rect(margin, y - 1.2, width, 7.4, style="F")
         x = margin
-        for w, key in zip(_COLUMN_WIDTHS, ("col_no", "col_distance", "col_area", "col_type", "col_priority", "col_coords")):
+        for w, key in zip(_COLUMN_WIDTHS, ("col_no", "col_distance", "col_area", "col_type", "col_coords")):
             kit.put(pdf, x + 1.5, y, kit.fit_text(pdf, table[key], w - 3, 8.5, True), 8.5, True, kit.MUTED)
             x += w
         return y + 8
