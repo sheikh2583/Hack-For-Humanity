@@ -13,6 +13,7 @@ import os
 import pathlib as _pathlib
 import sys
 import time
+import textwrap
 import unicodedata
 from collections.abc import Mapping
 from datetime import UTC, datetime
@@ -2839,7 +2840,8 @@ def render_staff_signin() -> None:
         st.markdown(f"<div class='dhoa-section-title'>{html.escape(T.PORTAL_SIGNIN_TITLE)}</div>",
                     unsafe_allow_html=True)
         st.markdown(
-            """<style>
+            textwrap.dedent("""
+            <style>
             .dhoa-portal-preview{filter:blur(5px);opacity:.48;pointer-events:none;
               user-select:none;margin:.5rem auto 1rem;max-width:42rem}
             .dhoa-portal-preview-head{height:1.1rem;width:38%;border-radius:8px;
@@ -2856,7 +2858,8 @@ def render_staff_signin() -> None:
               <div class="dhoa-portal-preview-cards"><div class="dhoa-portal-preview-card"></div>
                 <div class="dhoa-portal-preview-card"></div><div class="dhoa-portal-preview-card"></div></div>
               <div class="dhoa-portal-preview-map"></div>
-            </div>""",
+            </div>
+            """),
             unsafe_allow_html=True,
         )
         if not roles.signin_available():
