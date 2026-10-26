@@ -83,6 +83,10 @@ _geolocate = components.declare_component(
     "dhoa_geolocate",
     path=str(_ROOT / "app" / "components" / "geolocate"),
 )
+_voice_player = components.declare_component(
+    "dhoa_voice_guide",
+    path=str(_ROOT / "app" / "components" / "voice_guide"),
+)
 DESIGN_COLORS = {
     key: tokens.COLORS[key]
     for key in (
@@ -965,13 +969,14 @@ def _debug_details(exc: BaseException) -> None:
         pass
 
 
-def render_voice_guide(view: str, transcript: bool = False) -> None:
+def render_voice_guide(view: str, where: str, transcript: bool = False) -> None:
     """Spoken "how to use" guide for ``view`` ("inspector" or "community"), in the active language.
 
-    Plays the pre-rendered AI voice file when it matches the current script; otherwise shows a
-    "Read aloud" button that uses the browser's own voice (and says so if none exists), and as a
-    last resort the plain text. This helper never raises: a decorative extra must not be able to
-    break the header or the view it sits in.
+    Plays the pre-rendered AI voice file when it matches the current script; otherwise a
+    "Read aloud" button (browser voice) is shown, and says so if the browser has no voice for the
+    language. ``where`` keeps the widget key unique per placement. ``transcript`` prints the spoken
+    text under the player. This helper never raises: a decorative extra must not be able to break
+    the header or the view it sits in.
     """
     try:
         lang = T.get_language()
@@ -984,23 +989,16 @@ def render_voice_guide(view: str, transcript: bool = False) -> None:
         if audio is not None:
             st.audio(str(audio), format="audio/mpeg")
         else:
-            page = voice.speech_html(script, lang, T.VOICE_READ_ALOUD, T.VOICE_STOP, T.VOICE_NO_VOICE)
-            try:
-                components.html(page, height=96)  # same call the geolocate/list components era used
-            except Exception:
-                st.iframe(page, height=96)  # trusted: built only from our own catalogue text
+            _voice_player(
+                text=script, lang=voice.speech_lang(lang), read=T.VOICE_READ_ALOUD, stop=T.VOICE_STOP,
+                none=T.VOICE_NO_VOICE, key=f"dhoa_voice_{view}_{where}_{lang}", default=None,
+            )
     except Exception as exc:  # noqa: BLE001
-        logging.getLogger(__name__).exception("Voice guide player failed; showing text instead")
+        logging.getLogger(__name__).exception("Voice guide player failed")
         _debug_details(exc)
-        try:
-            st.write(script)
-        except Exception:
-            return
-        return
     if transcript:
         try:
-            with st.expander(T.VOICE_TRANSCRIPT):
-                st.write(script)
+            st.markdown(script)
         except Exception:
             logging.getLogger(__name__).exception("Voice transcript failed")
 
@@ -1017,7 +1015,7 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
     """
     st.markdown(f"<div class='dhoa-section-title'>{T.FIND_KILNS_NEAR_YOU}</div>", unsafe_allow_html=True)
     with st.expander(T.LISTEN_TO_THE_GUIDE):  # first thing a citizen sees, before step 1
-        render_voice_guide("community", transcript=True)
+        render_voice_guide("community", "page", transcript=True)
     place = _render_community_inputs(gdf)
     _render_community_results(gdf, place)
 
@@ -1323,7 +1321,7 @@ def render_header(gdf: gpd.GeoDataFrame) -> str:
             if selected_mode in ("inspector", "community"):
                 with st.popover(T.HOW_TO_USE, icon=":material/help:", width="stretch"):
                     st.markdown(T.HELP_COMMUNITY if selected_mode == "community" else T.HELP_INSPECTOR)
-                    render_voice_guide(selected_mode)
+                    render_voice_guide(selected_mode, "popover")
         with lang_col:
             _render_language_toggle()
     if selected_mode not in ("inspector", "community"):
@@ -2391,6 +2389,8 @@ def main() -> None:
             render_footer()
             return
         visible = filters["visible"]  # computed once in render_sidebar
+        with st.expander(T.LISTEN_TO_THE_GUIDE):  # same guide entry point as the Community view
+            render_voice_guide("inspector", "page", transcript=True)
         _render_summary_strip(visible)
         render_map_fragment(gdf, filters, visible)
         render_footer()
