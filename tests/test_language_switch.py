@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 import app.streamlit_app as dashboard
-import strings as app_strings  # the module the app imports (same file as app.strings)
+app_strings = dashboard.T  # use the exact catalogue instance rendered by the dashboard
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = (ROOT / "app" / "streamlit_app.py").read_text(encoding="utf-8")
@@ -18,6 +18,23 @@ def test_notices_are_stored_as_codes_and_every_code_exists_in_both_languages() -
         for language in app_strings.LANGUAGES:
             assert isinstance(app_strings.text(name, language), str) and app_strings.text(name, language), (code, language)
     assert app_strings.text("C_GPS_OK", "bn") != app_strings.text("C_GPS_OK", "en")
+
+
+def test_area_search_labels_survive_a_stale_cloud_catalogue(monkeypatch) -> None:
+    """New search labels remain available during a Cloud source/catalogue rebuild skew."""
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(app_strings, "_CATALOGUES", {"bn": SimpleNamespace(), "en": SimpleNamespace()})
+    expected = {
+        "C_PLACE_SUGGESTIONS": ("মিল থাকা এলাকা", "Matching areas"),
+        "C_PLACE_SUGGESTION_PLACEHOLDER": (
+            "মিল থাকা এলাকা বেছে নিন", "Choose a matching area",
+        ),
+        "C_GEO_SUGGESTION_FMT": ("বাংলাদেশে “{0}” খুঁজুন", "Search Bangladesh for “{0}”"),
+    }
+    for name, values in expected.items():
+        assert app_strings.text(name, "bn") == values[0]
+        assert app_strings.text(name, "en") == values[1]
 
 
 def test_gps_origin_label_follows_the_active_language(monkeypatch) -> None:

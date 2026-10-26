@@ -28,6 +28,13 @@ LANGUAGE_NAMES = {"bn": "বাংলা", "en": "English"}
 _CATALOGUES = {"bn": strings_bn, "en": strings_en}
 _COMPATIBILITY_TEXT = {
     "NAV_INSPECTOR": {"bn": "🔒 পরিদর্শক পোর্টাল", "en": "🔒 Inspector Portal"},
+    "C_PLACE_SUGGESTIONS": {"bn": "মিল থাকা এলাকা", "en": "Matching areas"},
+    "C_PLACE_SUGGESTION_PLACEHOLDER": {
+        "bn": "মিল থাকা এলাকা বেছে নিন", "en": "Choose a matching area",
+    },
+    "C_GEO_SUGGESTION_FMT": {
+        "bn": "বাংলাদেশে “{0}” খুঁজুন", "en": "Search Bangladesh for “{0}”",
+    },
     "PUB_HERO_MISSION": {
         "bn": "স্যাটেলাইট ছবি থেকে শনাক্ত করা ইটভাটার প্রার্থী, মানচিত্রে দেখানো।",
         "en": "Brick kiln candidates found in satellite images and shown on a map.",
