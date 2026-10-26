@@ -969,15 +969,15 @@ def _debug_details(exc: BaseException) -> None:
         pass
 
 
-def render_voice_guide(view: str, where: str = "popover") -> None:
-    """Spoken "how to use" guide for ``view``.
+def render_voice_guide(view: str, where: str = "popover", transcript: bool = False) -> None:
+    """Spoken "how to use" guide for ``view`` (DHOA-VOICE-GUIDE v2).
 
-    Order of preference: (1) a pre-rendered AI voice file in ``app/static/audio`` whose hash
-    matches the current script, played with Streamlit's audio player; (2) otherwise the
-    "Read aloud" component, which uses the browser's own voice; (3) always the written script
-    as a text transcript, so the guide is still usable when the browser has no voice for the
-    language. Never raises, so it cannot break the header or the view.
+    Always shows the heading and the written script. Audio: the pre-rendered mp3 when it matches the
+    current script (``app/static/audio``); otherwise the browser "Read aloud" button. A problem is shown
+    as a short visible note (details with ``?debug=1``), never silently hidden and never raised.
     """
+    import logging as _logging
+
     try:
         lang = T.get_language()
         script = T.VOICE_COMMUNITY_SCRIPT if view == "community" else T.VOICE_INSPECTOR_SCRIPT
@@ -997,9 +997,20 @@ def render_voice_guide(view: str, where: str = "popover") -> None:
             )
         with st.expander(T.VOICE_TRANSCRIPT):
             st.markdown(script)
-    except Exception as exc:  # noqa: BLE001
-        logging.getLogger(__name__).exception("Voice guide failed")
-        _debug_details(exc)
+        if str(st.query_params.get("debug", "")) == "1" and audio is None:
+            stale = (voice.AUDIO_DIR / voice.audio_name(view, lang)).is_file()
+            st.caption(
+                "debug: the mp3 is out of date for the current script - re-run tools/generate_voice_guides.py"
+                if stale
+                else "debug: no mp3 found in app/static/audio for this view and language"
+            )
+    except Exception as exc:  # noqa: BLE001 - must never break the page
+        _logging.getLogger(__name__).exception("Voice guide failed")
+        try:
+            debug = str(st.query_params.get("debug", "")) == "1"
+            st.caption(f"Voice guide unavailable ({type(exc).__name__}" + (f": {exc})" if debug else ")"))
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def render_community_view(gdf: gpd.GeoDataFrame) -> None:
