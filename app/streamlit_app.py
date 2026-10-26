@@ -984,7 +984,15 @@ def render_voice_guide(view: str, where: str = "popover", transcript: bool = Fal
     def _t(name: str, default: str) -> str:
         try:
             return str(getattr(T, name))
-        except Exception:  # noqa: BLE001 - missing catalogue name
+        except Exception:  # noqa: BLE001 - missing catalogue name: use app/voice_scripts.py
+            pass
+        try:
+            try:
+                from app import voice_scripts as _vs
+            except ImportError:
+                import voice_scripts as _vs  # type: ignore[no-redef]
+            return _vs.TEXTS.get(T.get_language(), _vs.TEXTS["bn"]).get(name, default)
+        except Exception:  # noqa: BLE001
             return default
 
     try:
