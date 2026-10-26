@@ -1,58 +1,56 @@
-﻿# ৩ মিনিটের লাইভ ডেমো স্ক্রিপ্ট
+# Dhoa public report-to-staff demo
 
-**সময়:** প্রায় ৩ মিনিট। **শুরু:** Dhoa অ্যাপ ইতিমধ্যে ব্রাউজারে খোলা এবং লোড সম্পন্ন। কোনো ফিল্টার বা অনুসন্ধান আগে থেকে সেট করা লাগবে না। প্রতিটি ধাপে বলা বাক্যটি ইংরেজিতে পড়ুন।
+Two timed versions below show the same public-to-staff flow. Each takes about
+60 seconds. Use the current app labels and switch language before the relevant
+run. Select a place and candidate that appear in the loaded dataset; the
+example place name below is present in the current processed data.
 
-## Inspector walkthrough — প্রায় ১ মিনিট ৩০ সেকেন্ড
+## Before the demo
 
-### Step 1 — Landing page (0:00–0:15)
-- **ক্লিক/কাজ:** কিছু ক্লিক করবেন না। Inspector landing page-এ KPI, তালিকা ও মানচিত্র দেখা যাচ্ছে কি না নিশ্চিত করুন।
-- **বলুন:** “This is Dhoa, a dashboard for exploring brick-kiln detection candidates across Bangladesh.”
-- **দর্শক দেখবেন:** Dhoa শিরোনাম, Inspector view, KPI সারি, প্রার্থী তালিকা এবং মানচিত্র।
+Run the dashboard with a temporary report database, separate from any shared
+or deployed database. In PowerShell:
 
-### Step 2 — জেলা ফিল্টার (0:15–0:35)
-- **ক্লিক/কাজ:** বাম sidebar-এর `জেলা` dropdown খুলুন। এমন একটি জেলা বাছুন যার জন্য প্রার্থী ফল আসে।
-- **বলুন:** “I’ll narrow the results to one district; the candidate list and map update to the same filtered set.”
-- **দর্শক দেখবেন:** নির্বাচিত জেলা, বদলে যাওয়া তালিকা/সংখ্যা এবং সংশ্লিষ্ট মার্কার।
+```powershell
+$env:DHOA_APP_DB = "$env:TEMP\dhoa-demo\app.db"
+$env:DHOA_DEMO_MODE = "1"
+.\.venv\Scripts\streamlit.exe run app\streamlit_app.py
+```
 
-### Step 3 — উপজেলা ও ব্যাসার্ধ (0:35–0:55)
-- **ক্লিক/কাজ:** `এলাকা (উপজেলা)` dropdown খুলে ওই জেলার একটি ফলযুক্ত উপজেলা বাছুন। `অনুসন্ধান ব্যাসার্ধ` স্লাইডার ১,০০০ মিটারে টানুন।
-- **বলুন:** “Now I’m focusing on one upazila and applying a radius around the average location of its kiln candidates.”
-- **দর্শক দেখবেন:** নির্বাচিত উপজেলা ও ব্যাসার্ধ অনুযায়ী সংকুচিত প্রার্থী তালিকা এবং মানচিত্র।
+Create the temporary directory first if it does not exist. Demo mode enables
+the in-app staff sign-in; it does not create demo reports. Submit only the
+explicitly labelled demo report below. Delete the temporary demo directory
+after the presentation. Do not submit demo records to the shared or deployed
+app.
 
-### Step 4 — শুধু উচ্চ অগ্রাধিকার (0:55–1:15)
-- **ক্লিক/কাজ:** `অগ্রাধিকার` multiselect খুলুন, `মাঝারি` ও `নিম্ন` অপশন সরান, শুধু `উচ্চ` রাখুন।
-- **বলুন:** “The priority filter lets an inspector focus on the high-priority candidates first.”
-- **দর্শক দেখবেন:** শুধু উচ্চ অগ্রাধিকারের সারি ও মার্কার।
+## English run — about 60 seconds
 
-### Step 5 — ভাটার পপআপ (1:15–1:30)
-- **ক্লিক/কাজ:** তালিকার ফলযুক্ত ভাটার মার্কারে একবার ক্লিক করুন। পপআপ খুললে সেটি দৃশ্যমান রাখুন।
-- **বলুন:** “Clicking a marker opens the candidate’s location, kiln type, confidence, priority, and mapped signals.”
-- **দর্শক দেখবেন:** খোলা marker popup এবং নির্বাচিত প্রার্থীর বিস্তারিত।
+| Time | Action | Say |
+|---|---|---|
+| 0:00–0:12 | Open the public search. Search for `Block C` using the place picker, then show the results. | “I can search for a place and explore the kiln candidates shown nearby.” |
+| 0:12–0:25 | Open the report action on one result. Choose a reason and enter `DEMO ONLY — example report for the presentation` as the note. Submit. | “A community member can send a report to the staff inbox. This sample is clearly marked and stored only in the temporary demo database.” |
+| 0:25–0:38 | Open Inspector Portal and choose **Continue as demo**. Open Reports and point out the new-report count and submitted item. | “Staff can see the new report and open its location on the map.” |
+| 0:38–0:55 | Open the report location on the map. In the candidate's work controls, choose **Assign to me**, set status to **Visited**, save, then add the note `DEMO ONLY — presentation record`. | “Staff can assign the candidate, record a visit, and add a note.” |
+| 0:55–1:00 | Sign out of the portal. | “That completes the public report-to-staff workflow.” |
 
-## Community walkthrough — প্রায় ১ মিনিট ৩০ সেকেন্ড
+If `Block C` is no longer offered by the loaded dataset, choose a place from
+the live picker instead. Do not type a guessed location or coordinates.
 
-### Step 6 — Community view-তে যান (1:30–1:40)
-- **ক্লিক/কাজ:** পৃষ্ঠার view selector-এ `কমিউনিটি ভিউ` ক্লিক করুন.
-- **বলুন:** “The Community view starts with a place-name search instead of coordinates.”
-- **দর্শক দেখবেন:** Community view-এর স্থান অনুসন্ধান ফর্ম।
+## বাংলা রান — প্রায় ৬০ সেকেন্ড
 
-### Step 7 — কাছাকাছি ভাটা খুঁজুন (1:40–2:05)
-- **ক্লিক/কাজ:** `নাম লিখুন` ঘরে `Ashulia` লিখুন এবং `🔎 অনুসন্ধান করুন` বোতাম ক্লিক করুন। ফল না এলে অন্য একটি পরিচিত বাংলাদেশি স্থানের নাম লিখে আবার অনুসন্ধান করুন। অন্তত একটি ফল না আসা পর্যন্ত Community `অনুসন্ধানের ব্যাসার্ধ` স্লাইডার বাড়ান।
-- **বলুন:** “Dhoa geocodes the place name, then shows candidates within the selected search radius.”
-- **দর্শক দেখবেন:** ফলের সংখ্যা, দূরত্ব ও এলাকা-সহ তালিকা, directions link এবং অনুসন্ধান বৃত্তসহ মানচিত্র।
+| সময় | কাজ | বলুন |
+|---|---|---|
+| ০:০০–০:১২ | সাধারণ ব্যবহারকারীর খোঁজার পাতায় যান। স্থানের তালিকায় `Block C` খুঁজে ফলাফল দেখান। | “এখানে কোনো স্থানের নাম দিয়ে খুঁজে কাছের ইটভাটার প্রার্থীগুলো দেখা যায়।” |
+| ০:১২–০:২৫ | একটি ফলের রিপোর্ট অপশন খুলুন। কারণ বেছে নোটে লিখুন `DEMO ONLY — presentation-এর নমুনা রিপোর্ট`। জমা দিন। | “সাধারণ ব্যবহারকারী কর্মীদের ইনবক্সে রিপোর্ট পাঠাতে পারেন। এটি শুধু ডেমোর নমুনা, অস্থায়ী ডেটাবেসেই থাকবে।” |
+| ০:২৫–০:৩৮ | পরিদর্শক পোর্টাল খুলে **ডেমো হিসেবে চালিয়ে যান** বাছুন। প্রতিবেদন অংশে নতুন রিপোর্টের সংখ্যা ও জমা দেওয়া রিপোর্ট দেখান। | “কর্মীরা নতুন রিপোর্ট দেখতে এবং তার অবস্থান মানচিত্রে খুলতে পারেন।” |
+| ০:৩৮–০:৫৫ | রিপোর্টের অবস্থান মানচিত্রে খুলুন। প্রার্থীর কাজের নিয়ন্ত্রণে **আমাকে দায়িত্ব দিন** চাপুন, অবস্থা **পরিদর্শন হয়েছে** করে সংরক্ষণ করুন, তারপর `DEMO ONLY — presentation record` নোট যোগ করুন। | “কর্মীরা দায়িত্ব নিতে, পরিদর্শনের অবস্থা লিখতে এবং নোট যোগ করতে পারেন।” |
+| ০:৫৫–১:০০ | পোর্টাল থেকে সাইন আউট করুন। | “এতেই সাধারণ ব্যবহারকারীর রিপোর্ট থেকে কর্মীদের কাজের ধাপটি শেষ।” |
 
-### Step 8 — রিপোর্ট টেক্সট প্রস্তুত (2:05–2:40)
-- **ক্লিক/কাজ:** ফলের নিচে `ভাটা রিপোর্ট করুন` শিরোনাম খুঁজুন। `⚠️ এই ভাটাটি রিপোর্ট করুন` expander খুলুন। ভাটা নির্বাচনের dropdown থেকে একটি ফল বাছুন। `📋 রিপোর্ট টেক্সট কপি করুন` ক্লিক করুন।
-- **বলুন:** “Selecting a kiln fills a report template with its area, nearest place, approximate location, priority, and signal count. The code block can be copied manually.”
-- **দর্শক দেখবেন:** pre-filled read-only report text এবং বোতাম ক্লিকের পরে copyable code block।
+`Block C` তালিকায় না থাকলে অ্যাপে দেখানো অন্য কোনো স্থান বেছে নিন। অনুমান করে
+কোনো স্থান বা স্থানাঙ্ক লিখবেন না।
 
-### Step 9 — হেল্পলাইন তথ্য (2:40–3:00)
-- **ক্লিক/কাজ:** রিপোর্ট expander-এর নিচের info box দেখান; প্রয়োজনে সামান্য নিচে scroll করুন।
-- **বলুন:** “The page also displays the 333, then 4 helpline information. Please confirm current official instructions before acting on them.”
-- **দর্শক দেখবেন:** `সরকারি পরিবেশ হেল্পলাইন: 333 → 4 চাপুন` info box।
+## Demo record handling
 
-## ডেমো শেষে
-
-- **ক্লিক/কাজ:** আর কোনো submit বা report send করবেন না; এটি কেবল কপি করার ডেমো।
-- **বলুন:** “That concludes the walkthrough: location-based inspection, community search, and a user-controlled report text flow.”
-- **দর্শক দেখবেন:** Community ফল ও হেল্পলাইন তথ্য।
+The report and visit note are intentionally labelled `DEMO ONLY`. They are
+created in the temporary database path configured above. Do not use personal
+contact information or upload a real person's photo. The temporary records
+are presentation fixtures, not real community reports.

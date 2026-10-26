@@ -13,10 +13,11 @@ from src.eval.generate_community_report import generate_community_report
 
 ROOT = Path(__file__).resolve().parents[1]
 NEW = (
-    "HOTLINE_LINE_FMT", "DOE_WEB_LINE", "FOOTER_WEB_LABEL", "CONTACT_CALL", "CONTACT_SMS", "HOW_TITLE",
+    "HOTLINE_LINE_FMT", "DOE_WEB_LINE", "FOOTER_WEB_LABEL", "CONTACT_CALL", "CONTACT_SMS", "METRIC_LAST_UPDATED", "HOW_TITLE",
     "HOW_1_HEAD", "HOW_1_BODY", "HOW_2_HEAD", "HOW_2_BODY", "HOW_3_HEAD", "HOW_3_BODY", "HOW_4_HEAD",
     "HOW_4_BODY", "ABOUT_DATA_TITLE", "ABOUT_DATA_DATE", "ABOUT_SOURCES", "ABOUT_SOURCES_VALUE",
-    "ABOUT_COVERAGE", "ABOUT_COVERAGE_FMT", "ABOUT_TEAM", "ABOUT_METHODOLOGY", "STATE_RETRY",
+    "ABOUT_COVERAGE", "ABOUT_COVERAGE_FMT", "ABOUT_TEAM", "ABOUT_METHODOLOGY", "ABOUT_METHODS_TITLE",
+    "ABOUT_METHODS_BODY", "ABOUT_PRIVACY_TITLE", "ABOUT_PRIVACY_BODY", "STATE_RETRY",
     "STATE_ERROR_TITLE", "STATE_ERROR_BODY", "STATE_DATA_TITLE", "STATE_DATA_BODY", "STATE_LOADING",
     "LIST_ARIA_LABEL", "LIST_ARIA_SELECT_FMT",
 )
@@ -76,6 +77,11 @@ def test_new_strings_exist_in_both_languages_and_are_neutral() -> None:
     banned = ("violation", "hazardous", "illegal", "advisory", "লঙ্ঘন", "বিপজ্জনক")
     T.set_language("en")
     assert not any(word in getattr(T, name).lower() for name in NEW for word in banned)
+    for lang in ("bn", "en"):
+        T.set_language(lang)
+        assert "priority" not in T.ABOUT_BODY.lower()
+        assert "rule" not in T.ABOUT_BODY.lower()
+        assert T.METRIC_LAST_UPDATED in {"Data as of", "তথ্য যে তারিখ পর্যন্ত"}
 
 
 def test_community_pdf_hotline_line_follows_flag() -> None:
@@ -120,6 +126,9 @@ def test_about_page_has_how_it_works_data_and_no_unverified_hotline(
     assert not at.exception
     body = _body(at)
     assert "dhoa-steps" in body and "dhoa-facts" in body
+    assert "Data as of" in body if lang == "en" else "তথ্য যে তারিখ পর্যন্ত" in body
+    assert "Privacy" in body if lang == "en" else "গোপনীয়তা" in body
+    assert "Methods and limits" in body if lang == "en" else "পদ্ধতি ও সীমাবদ্ধতা" in body
     assert "16131" not in body and "১৬১৩১" not in body and "tel:" not in body
     assert "doe.gov.bd" in body
 

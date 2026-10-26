@@ -32,7 +32,28 @@ offline-testable diagnostic is documented in
 [docs/DATE_FORENSICS.md](docs/DATE_FORENSICS.md); it requires the user's own
 Earth Engine credentials when run and does not establish a date range by itself.
 
-## Quick start
+## Dashboard quick start
+
+This opens the dashboard from the existing processed dataset. It does not run
+the detection pipeline or model inference. The expected file is
+`data/processed/kilns_prioritised.parquet`.
+
+On Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\streamlit.exe run app\streamlit_app.py
+```
+
+On Linux/macOS:
+
+```bash
+.venv/bin/streamlit run app/streamlit_app.py
+```
+
+See [docs/SETUP.md](docs/SETUP.md) for environment setup. Pipeline preparation
+and execution details are documented separately below.
+
+## Pipeline setup
 
 After the trained checkpoint, exported rasters in `data/raw/exports/`, and
 required local data are ready, run the pipeline and then open the dashboard. The

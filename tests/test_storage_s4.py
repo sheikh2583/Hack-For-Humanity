@@ -1,4 +1,4 @@
-"""S4/S5 storage and coordinate validation tests.
+"""S4/S5/S6 storage and coordinate validation tests.
 
 Input schema: tiny synthetic latitude/longitude frames and report values.
 Output schema: coordinates bounded by the source frame and report rows that
@@ -83,3 +83,24 @@ def test_staff_visits_notes_and_report_handling_persist(tmp_path: Path) -> None:
     reopened = SQLiteReportStore(database)
     assert reopened.list_reports()[0].status == "reviewed"
     assert reopened.list_reports()[0].handled_by == "Inspector A"
+
+
+def test_s6_saved_filters_activity_and_visit_photos_are_scoped_and_persistent(tmp_path: Path) -> None:
+    """Synthetic S6 records persist, stay scoped to a display name and retain photo bytes."""
+    database = tmp_path / "app.db"
+    store = SQLiteReportStore(database)
+    filters = {"district": "Synthetic District", "upazila": "Synthetic Area",
+               "priorities": ["High"], "kiln_type": "Synthetic Type"}
+    store.save_filter("Inspector A", "Savar high", filters)
+    store.save_filter("Inspector B", "Other", {"district": "Other"})
+    assert [saved.name for saved in store.list_saved_filters("Inspector A")] == ["Savar high"]
+    assert store.list_saved_filters("Inspector A")[0].filters == filters
+    photo_id = store.add_visit_photo("synthetic-1", b"tiny-image", "image/jpeg", "Inspector A")
+    photo = store.list_visit_photos("synthetic-1")[0]
+    assert photo.id == photo_id and (tmp_path / photo.photo_ref).read_bytes() == b"tiny-image"
+    store.set_visit("synthetic-1", "visited", "Inspector A", "Inspector A")
+    actions = [item.action for item in SQLiteReportStore(database).list_activity()]
+    assert "visit_photo_added" in actions and "visit_updated" in actions
+    assert "saved_filter_saved" in actions
+    store.delete_saved_filter("Inspector A", "Savar high")
+    assert SQLiteReportStore(database).list_saved_filters("Inspector A") == []

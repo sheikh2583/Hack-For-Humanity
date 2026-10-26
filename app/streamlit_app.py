@@ -63,6 +63,7 @@ import voice
 import styles
 import kiln_data as kd
 import inspector as ins
+import staff_tools
 import overview as ov
 from dashboard_filters import (
     add_priority_bands,
@@ -1743,6 +1744,13 @@ def render_about(gdf: pd.DataFrame | None = None) -> None:
     if names:
         rows.append((T.ABOUT_TEAM, ", ".join(names)))
     st.markdown(trust.facts_html(T.ABOUT_DATA_TITLE, rows), unsafe_allow_html=True)
+    st.markdown(
+        f"<section class='dhoa-about-methods'><h3>{html.escape(T.ABOUT_METHODS_TITLE)}</h3>"
+        f"<p>{html.escape(T.ABOUT_METHODS_BODY)}</p></section>"
+        f"<section class='dhoa-about-privacy'><h3>{html.escape(T.ABOUT_PRIVACY_TITLE)}</h3>"
+        f"<p>{html.escape(T.ABOUT_PRIVACY_BODY)}</p></section>",
+        unsafe_allow_html=True,
+    )
     link = trust.methodology_url(config)
     if link:
         st.link_button(T.ABOUT_METHODOLOGY, link, width="content")
@@ -2860,6 +2868,112 @@ _VISIT_STATUS_LABELS = {
 }
 
 
+def _save_current_filter(display_name: str, name: str) -> None:
+    """Persist current Inspector sidebar values under the signed-in name."""
+    if not roles.is_staff():
+        return
+    values: dict[str, object] = {
+        "district": st.session_state.get("filter_district", ALL_DISTRICTS),
+        "upazila": st.session_state.get("filter_upazila", ALL_AREAS),
+        "priorities": list(st.session_state.get("filter_priority", ["High", "Medium", "Low"])),
+        "kiln_type": st.session_state.get("filter_kiln_type", ALL_KILN_TYPES),
+    }
+    _work_store().save_filter(display_name, name, values)
+
+
+def _apply_saved_filter(name: str) -> None:
+    """Restore a saved Inspector filter and navigate to the staff map."""
+    if not roles.is_staff():
+        return
+    records = _work_store().list_saved_filters(roles.staff_name())
+    record = next((item for item in records if item.name == name), None)
+    if record is None:
+        return
+    values = record.filters
+    st.session_state["filter_district"] = values.get("district", ALL_DISTRICTS)
+    st.session_state["filter_upazila"] = values.get("upazila", ALL_AREAS)
+    st.session_state["filter_priority"] = values.get("priorities", ["High", "Medium", "Low"])
+    st.session_state["filter_kiln_type"] = values.get("kiln_type", ALL_KILN_TYPES)
+    _drop_widget_state("filter_district", *_FORM_FILTERS)
+    st.session_state["dhoa_view_mode"] = "inspector"
+    st.session_state["dhoa_portal_tab"] = "map"
+
+
+def _delete_saved_filter(name: str) -> None:
+    """Remove one saved filter from the signed-in display name's collection."""
+    if roles.is_staff():
+        _work_store().delete_saved_filter(roles.staff_name(), name)
+
+
+def _render_saved_filters(store: public_storage.SQLiteReportStore, display_name: str) -> None:
+    """Render staff filter save, apply and delete actions in the Work section."""
+    st.markdown(f"**{T.SAVED_FILTERS}**")
+    district = st.session_state.get("filter_district", ALL_DISTRICTS)
+    upazila = st.session_state.get("filter_upazila", ALL_AREAS)
+    priorities = st.session_state.get("filter_priority", ["High", "Medium", "Low"])
+    kiln_type = st.session_state.get("filter_kiln_type", ALL_KILN_TYPES)
+    priority_labels = {"High": T.HIGH, "Medium": T.MEDIUM, "Low": T.LOW}
+    st.caption(T.SAVED_FILTER_CURRENT_FMT.format(
+        T.ALL_DISTRICTS if district == ALL_DISTRICTS else _district_label(str(district)),
+        T.ALL_AREAS if upazila == ALL_AREAS else str(upazila),
+        ", ".join(priority_labels.get(str(value), str(value)) for value in priorities),
+        T.ALL_TYPES if kiln_type == ALL_KILN_TYPES else _type_label(str(kiln_type)),
+    ))
+    with st.form("dhoa_saved_filter_form"):
+        name = st.text_input(T.SAVED_FILTER_NAME, key="dhoa_saved_filter_name")
+        submitted = st.form_submit_button(T.SAVED_FILTER_SAVE, width="stretch")
+    if submitted:
+        if name.strip():
+            _save_current_filter(display_name, name)
+            st.success(T.SAVED_FILTER_SAVED)
+        else:
+            st.warning(T.SAVED_FILTER_NAME_REQUIRED)
+    records = store.list_saved_filters(display_name)
+    if not records:
+        st.caption(T.SAVED_FILTER_NONE)
+        return
+    chosen = st.selectbox(T.SAVED_FILTER_SELECT, records, format_func=lambda item: item.name,
+                          key="dhoa_saved_filter_choice")
+    apply_col, delete_col = st.columns([2, 1])
+    apply_col.button(T.SAVED_FILTER_APPLY, key="dhoa_saved_filter_apply",
+                     on_click=_apply_saved_filter, args=(chosen.name,), width="stretch")
+    delete_col.button(T.SAVED_FILTER_DELETE, key="dhoa_saved_filter_delete",
+                      on_click=_delete_saved_filter, args=(chosen.name,), width="stretch")
+
+
+def _render_activity_log(store: public_storage.SQLiteReportStore) -> None:
+    """Show recent staff changes with actor, target, localized action and time."""
+    action_labels = {
+        "visit_updated": T.WORK_ACTIVITY_VISIT,
+        "note_added": T.WORK_ACTIVITY_NOTE,
+        "visit_photo_added": T.WORK_ACTIVITY_PHOTO,
+        "saved_filter_saved": T.WORK_ACTIVITY_FILTER_SAVED,
+        "saved_filter_deleted": T.WORK_ACTIVITY_FILTER_DELETED,
+        "report_status_changed": T.WORK_ACTIVITY_REPORT,
+    }
+    with st.expander(T.WORK_ACTIVITY):
+        entries = store.list_activity(50)
+        if not entries:
+            st.caption(T.WORK_EMPTY)
+            return
+        for entry in entries:
+            description = action_labels.get(entry.action, entry.action)
+            if entry.action == "visit_updated":
+                new_values = entry.details.get("to") or {}
+                status_code = str(new_values.get("status", ""))
+                status_label = _VISIT_STATUS_LABELS.get(status_code, status_code)
+                description += " · " + T.WORK_ACTIVITY_STATUS_FMT.format(
+                    status_label, new_values.get("assignee") or "—"
+                )
+            elif entry.action == "report_status_changed":
+                to_status = str(entry.details.get("to", ""))
+                description += " · " + {
+                    "new": T.REPORT_NEW, "reviewed": T.REPORT_REVIEWED,
+                    "resolved": T.REPORT_RESOLVED,
+                }.get(to_status, to_status)
+            st.text(f"{entry.created_at} · {entry.actor} · {description} · {entry.entity_id}")
+
+
 def _render_work_controls(row: pd.Series) -> None:
     """Render staff visit status, assignment and notes for one candidate row."""
     if not roles.is_staff():
@@ -2890,6 +3004,25 @@ def _render_work_controls(row: pd.Series) -> None:
         if save:
             store.set_visit(kiln_id, status, assignee_input.strip() or None, roles.staff_name())
             st.rerun()
+        uploaded = st.file_uploader(
+            T.WORK_VISIT_PHOTO, type=["jpg", "jpeg", "png", "webp"],
+            key=f"dhoa_visit_photo_upload_{hashlib.sha1(kiln_id.encode()).hexdigest()[:10]}",
+        )
+        if st.button(T.WORK_ATTACH_PHOTO,
+                     key=f"dhoa_visit_photo_save_{hashlib.sha1(kiln_id.encode()).hexdigest()[:10]}"):
+            if uploaded is None:
+                st.warning(T.WORK_PHOTO_INVALID)
+            else:
+                try:
+                    store.add_visit_photo(kiln_id, uploaded.getvalue(), uploaded.type or "", roles.staff_name())
+                    st.success(T.WORK_PHOTO_SAVED)
+                    st.rerun()
+                except ValueError:
+                    st.warning(T.WORK_PHOTO_INVALID)
+        for photo in store.list_visit_photos(kiln_id):
+            image_path = APP_DB_PATH.parent / photo.photo_ref
+            if image_path.is_file():
+                st.image(str(image_path), caption=f"{photo.author} · {photo.created_at}", width=260)
         notes = store.list_notes(kiln_id)
         if visit or notes:
             with st.expander(T.WORK_HISTORY):
@@ -2916,7 +3049,9 @@ def render_portal_work(gdf: gpd.GeoDataFrame) -> None:
         return
     st.markdown(f"<div class='dhoa-section-title'>{html.escape(T.WORK_MY_LIST)}</div>", unsafe_allow_html=True)
     me = roles.staff_name()
-    visits = _work_store().list_visits(assignee=me)
+    store = _work_store()
+    _render_saved_filters(store, me)
+    visits = store.list_visits(assignee=me)
     status_codes = list(_VISIT_STATUS_LABELS)
     status = st.selectbox(T.WORK_STATUS_FILTER, ["all", *status_codes],
                           format_func=lambda code: T.WORK_ALL if code == "all" else _VISIT_STATUS_LABELS[code])
@@ -2945,7 +3080,18 @@ def render_portal_work(gdf: gpd.GeoDataFrame) -> None:
         rows.sort(key=lambda item: (rank.get(str(item[1].get("priority_band", "")), 3), item[0].kiln_id))
     if not rows:
         st.info(T.WORK_EMPTY)
+        _render_activity_log(store)
         return
+    route_links = staff_tools.google_maps_route_links(
+        [(float(row["lat"]), float(row["lon"])) for _, row in rows]
+    )
+    st.markdown(f"**{T.WORK_ROUTES}**")
+    st.caption(T.WORK_ROUTE_NOTE)
+    for link in route_links:
+        st.link_button(
+            T.WORK_ROUTE_FMT.format(link.first_stop, link.first_stop, link.last_stop),
+            link.url, width="stretch",
+        )
     for visit, row in rows:
         title = f"{visit.kiln_id} · {_VISIT_STATUS_LABELS[visit.status]}"
         with st.container(border=True):
@@ -2958,6 +3104,7 @@ def render_portal_work(gdf: gpd.GeoDataFrame) -> None:
             map_col.button(T.WORK_OPEN_MAP, key=f"dhoa_work_map_{hashlib.sha1(visit.kiln_id.encode()).hexdigest()[:10]}",
                            on_click=_open_kiln_on_map, args=(visit.kiln_id, lat, lon))
             directions_col.link_button(T.WORK_DIRECTIONS, f"https://www.google.com/maps/dir/?api=1&destination={lat},{lon}", width="stretch")
+    _render_activity_log(store)
 
 
 def render_portal_reports(gdf: gpd.GeoDataFrame) -> None:

@@ -272,3 +272,46 @@ def test_staff_dashboard_keeps_the_high_series_and_type_split(data_dir: Path) ->
     text = _page_text(at)
     assert "dhoa-bar-high" in text and "dhoa-split" in text
     assert any(T.text("METRIC_HIGH_PRIORITY_KILNS", "bn") in str(m.label) for m in at.metric)
+
+
+def test_s6_staff_work_tools_render_only_after_staff_sign_in(
+    data_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Synthetic app runs keep the new saved filters/activity controls behind the staff role."""
+    from streamlit.testing.v1 import AppTest
+
+    monkeypatch.setenv("DHOA_APP_DB", str(tmp_path / "temporary-app.db"))
+    public = AppTest.from_file(str(ROOT / "app" / "streamlit_app.py"), default_timeout=120)
+    public.session_state["dhoa_lang"] = "en"
+    public.session_state["dhoa_role"] = "public"
+    public.session_state["dhoa_view_mode"] = "inspector"
+    public.run()
+    assert not public.exception
+    public_text = _page_text(public)
+    assert T.text("SAVED_FILTERS", "en") not in public_text
+    assert T.text("WORK_ACTIVITY", "en") not in public_text
+    assert T.text("WORK_VISIT_PHOTO", "en") not in public_text
+    assert T.text("DOWNLOAD_FILTERED_CSV", "en") not in public_text
+    assert T.text("DOWNLOAD_SELECTED_KILN_PDF", "en") not in public_text
+
+    from app.storage import SQLiteReportStore
+
+    synthetic_store = SQLiteReportStore(tmp_path / "temporary-app.db")
+    for index in range(7):
+        synthetic_store.set_visit(f"s{index}", "assigned", "Synthetic Inspector", "Synthetic Inspector")
+
+    staff = AppTest.from_file(str(ROOT / "app" / "streamlit_app.py"), default_timeout=120)
+    staff.session_state["dhoa_lang"] = "en"
+    staff.session_state["dhoa_role"] = "inspector"
+    staff.session_state["dhoa_staff_name"] = "Synthetic Inspector"
+    staff.session_state["dhoa_view_mode"] = "inspector"
+    staff.session_state["dhoa_portal_tab"] = "work"
+    staff.run()
+    assert not staff.exception
+    staff_text = _page_text(staff)
+    assert T.text("SAVED_FILTERS", "en") in staff_text
+    assert T.text("WORK_MY_LIST", "en") in staff_text
+    assert any(item.label == T.text("WORK_ACTIVITY", "en") for item in staff.get("expander"))
+    route_labels = [item.label for item in staff.get("link_button")]
+    assert T.text("WORK_ROUTE_FMT", "en").format(1, 1, 5) in route_labels
+    assert T.text("WORK_ROUTE_FMT", "en").format(5, 5, 7) in route_labels
