@@ -26,6 +26,30 @@ DEFAULT_LANGUAGE = "bn"
 LANGUAGE_KEY = "dhoa_lang"
 LANGUAGE_NAMES = {"bn": "বাংলা", "en": "English"}
 _CATALOGUES = {"bn": strings_bn, "en": strings_en}
+_COMPATIBILITY_TEXT = {
+    "NAV_INSPECTOR": {"bn": "🔒 পরিদর্শক পোর্টাল", "en": "🔒 Inspector Portal"},
+    "PUB_HERO_MISSION": {
+        "bn": "স্যাটেলাইট ছবি থেকে শনাক্ত করা ইটভাটার প্রার্থী, মানচিত্রে দেখানো।",
+        "en": "Brick kiln candidates found in satellite images and shown on a map.",
+    },
+    "PUB_HERO_SUB": {
+        "bn": "আপনার বাড়ি বা গ্রামের কাছের ইটভাটার প্রার্থীগুলো খুঁজে নিন।",
+        "en": "Find the kiln candidates near your home or village.",
+    },
+    "PUB_OV_DISTRICTS_HINT": {
+        "bn": "জেলার নামে চাপলে সেই জেলার ইটভাটার প্রার্থী দেখা যাবে।",
+        "en": "Select a district name to see its kiln candidates.",
+    },
+    "PUB_OV_OPEN_DISTRICT_FMT": {
+        "bn": "{0}-এর ইটভাটার প্রার্থী দেখুন",
+        "en": "See kiln candidates in {0}",
+    },
+    "PUB_HOW_3_HEAD": {"bn": "কাছের ভাটা খোঁজা", "en": "Find near you"},
+    "PUB_HOW_3_BODY": {
+        "bn": "প্রার্থীদের মানচিত্রে দেখানো হয়, যাতে কোনো এলাকার কাছের ভাটাগুলো খুঁজে নেওয়া যায়।",
+        "en": "Candidates are shown on a map, so you can look up the ones near a place.",
+    },
+}
 
 
 def get_language() -> str:
@@ -57,6 +81,8 @@ def text(name: str, language: str | None = None) -> str:
     catalogue = _CATALOGUES[code]
     if hasattr(catalogue, name):
         return getattr(catalogue, name)
+    if name in _COMPATIBILITY_TEXT:
+        return _COMPATIBILITY_TEXT[name][code]
     return getattr(strings_bn, name)
 
 
@@ -74,7 +100,7 @@ def __getattr__(name: str) -> str:
     """Module attribute hook: ``strings.NAME`` is the active-language text."""
     if name.startswith("_") or not name.isupper():
         raise AttributeError(name)
-    if not hasattr(strings_bn, name):
+    if not hasattr(strings_bn, name) and name not in _COMPATIBILITY_TEXT:
         raise AttributeError(f"module 'strings' has no attribute {name!r}")
     return text(name)
 

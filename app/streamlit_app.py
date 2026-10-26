@@ -212,7 +212,17 @@ def _public_data(path_text: str, mtime_ns: int, size: int, lang: str) -> gpd.Geo
     prepared = _prepared_data(path_text, mtime_ns, size, lang)  # reuse the cached load: no second read
     if prepared is None:
         return None
-    return kd.prepare_public_frame(prepared, version=str(prepared.attrs.get("dhoa_data_version", mtime_ns)))
+    version = str(prepared.attrs.get("dhoa_data_version", mtime_ns))
+    prepare_public = getattr(kd, "prepare_public_frame", None)
+    if callable(prepare_public):
+        return prepare_public(prepared, version=version)
+    public_view = getattr(kd, "public_view", None)
+    public_display = getattr(kd, "with_public_display_columns", None)
+    if not callable(public_view) or not callable(public_display):
+        raise AttributeError("kiln_data must provide public frame preparation helpers")
+    result = public_display(public_view(prepared))
+    result.attrs["dhoa_data_version"] = f"{version}-public"
+    return result
 
 
 def get_public_data(path: Path = DATA_PATH) -> gpd.GeoDataFrame | None:
@@ -1303,9 +1313,23 @@ def _render_language_toggle() -> None:
 def _nav_label(view: str) -> str:
     """Translated top-navigation label for a view key."""
     return {
-        "overview": T.NAV_OVERVIEW, "inspector": T.NAV_INSPECTOR,
+        "overview": T.NAV_OVERVIEW,
+        "inspector": getattr(T, "NAV_INSPECTOR", "🔒 পরিদর্শক পোর্টাল"),
         "community": T.NAV_NEAR_ME, "about": T.NAV_ABOUT,
     }[view]
+
+
+def _public_text(name: str) -> str:
+    """Return a public label with compatibility text for older Cloud catalogues."""
+    fallbacks = {
+        "PUB_HERO_MISSION": "স্যাটেলাইট ছবি থেকে শনাক্ত করা ইটভাটার প্রার্থী, মানচিত্রে দেখানো।",
+        "PUB_HERO_SUB": "আপনার বাড়ি বা গ্রামের কাছের ইটভাটার প্রার্থীগুলো খুঁজে নিন।",
+        "PUB_OV_DISTRICTS_HINT": "জেলার নামে চাপলে সেই জেলার ইটভাটার প্রার্থী দেখা যাবে।",
+        "PUB_OV_OPEN_DISTRICT_FMT": "{0}-এর ইটভাটার প্রার্থী দেখুন",
+        "PUB_HOW_3_HEAD": "কাছের ভাটা খোঁজা",
+        "PUB_HOW_3_BODY": "প্রার্থীদের মানচিত্রে দেখানো হয়, যাতে কোনো এলাকার কাছের ভাটাগুলো খুঁজে নেওয়া যায়।",
+    }
+    return getattr(T, name, fallbacks[name])
 
 
 def _go_to_view(view: str) -> None:
@@ -1372,7 +1396,10 @@ def render_overview(frame: pd.DataFrame) -> None:
         (f"{counts['districts']:,}", T.HERO_METRIC_DISTRICTS),
         (_data_date_label(dashboard_kilns_file()), METRIC_LABELS["last_updated"]),
     )
-    st.markdown(hero.hero_html(T.PUB_HERO_MISSION, T.PUB_HERO_SUB, metrics), unsafe_allow_html=True)
+    st.markdown(
+        hero.hero_html(_public_text("PUB_HERO_MISSION"), _public_text("PUB_HERO_SUB"), metrics),
+        unsafe_allow_html=True,
+    )
     with st.container(key="dhoa_action_row"):
         if roles.is_staff():
             left, right = st.columns(2, gap="small")
@@ -1397,13 +1424,13 @@ def render_public_districts(frame: pd.DataFrame) -> None:
         if stats.empty:
             st.caption(T.OV_NO_DATA)
             return
-        st.caption(T.PUB_OV_DISTRICTS_HINT)
+        st.caption(_public_text("PUB_OV_DISTRICTS_HINT"))
         maximum = int(stats["total"].max())
         for row in stats.to_dict("records"):
             name_col, bar_col = st.columns([2, 5], vertical_alignment="center", gap="small")
             name_col.button(
                 _district_label(row["district"]), key=f"dhoa_ov_open_{row['district']}",
-                help=T.PUB_OV_OPEN_DISTRICT_FMT.format(_district_label(row["district"])),
+                help=_public_text("PUB_OV_OPEN_DISTRICT_FMT").format(_district_label(row["district"])),
                 width="stretch", on_click=_open_district_near_me, args=(str(row["district"]),),
             )
             bar_col.markdown(
@@ -1491,7 +1518,7 @@ def _how_it_works_html(public: bool = False) -> str:
     if public:
         return trust.steps_html(T.HOW_TITLE, (
             (T.HOW_1_HEAD, T.HOW_1_BODY), (T.HOW_2_HEAD, T.HOW_2_BODY),
-            (T.PUB_HOW_3_HEAD, T.PUB_HOW_3_BODY),
+            (_public_text("PUB_HOW_3_HEAD"), _public_text("PUB_HOW_3_BODY")),
         ))
     return trust.steps_html(T.HOW_TITLE, (
         (T.HOW_1_HEAD, T.HOW_1_BODY), (T.HOW_2_HEAD, T.HOW_2_BODY),
