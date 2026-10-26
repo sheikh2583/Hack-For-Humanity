@@ -956,27 +956,53 @@ def _render_community_results(gdf: pd.DataFrame, place: cm.Place | None) -> None
             )
 
 
+def _debug_details(exc: BaseException) -> None:
+    """Show the traceback only when the URL has ``?debug=1`` (otherwise users see the friendly card)."""
+    try:
+        if str(st.query_params.get("debug", "")) == "1":
+            st.exception(exc)
+    except Exception:  # noqa: BLE001 - debugging aid must never raise
+        pass
+
+
 def render_voice_guide(view: str, transcript: bool = False) -> None:
     """Spoken "how to use" guide for ``view`` ("inspector" or "community"), in the active language.
 
     Plays the pre-rendered AI voice file when it matches the current script; otherwise shows a
-    "Read aloud" button that uses the browser's own voice (and says so if none exists).
-    ``transcript`` adds the spoken text for people who prefer to read it.
+    "Read aloud" button that uses the browser's own voice (and says so if none exists), and as a
+    last resort the plain text. This helper never raises: a decorative extra must not be able to
+    break the header or the view it sits in.
     """
-    lang = T.get_language()
-    script = T.VOICE_COMMUNITY_SCRIPT if view == "community" else T.VOICE_INSPECTOR_SCRIPT
-    audio = voice.current_audio(view, lang, script)
-    if audio is not None:
-        st.audio(str(audio), format="audio/mpeg")
-    else:
-        page = voice.speech_html(script, lang, T.VOICE_READ_ALOUD, T.VOICE_STOP, T.VOICE_NO_VOICE)
-        if hasattr(st, "iframe"):  # st.components.v1.html is deprecated in streamlit >= 1.66
-            st.iframe(page, height=96)  # trusted: built only from our own catalogue text
+    try:
+        lang = T.get_language()
+        script = T.VOICE_COMMUNITY_SCRIPT if view == "community" else T.VOICE_INSPECTOR_SCRIPT
+    except Exception:
+        logging.getLogger(__name__).exception("Voice guide strings unavailable")
+        return
+    try:
+        audio = voice.current_audio(view, lang, script)
+        if audio is not None:
+            st.audio(str(audio), format="audio/mpeg")
         else:
-            components.html(page, height=96)
-    if transcript:
-        with st.expander(T.VOICE_TRANSCRIPT):
+            page = voice.speech_html(script, lang, T.VOICE_READ_ALOUD, T.VOICE_STOP, T.VOICE_NO_VOICE)
+            try:
+                components.html(page, height=96)  # same call the geolocate/list components era used
+            except Exception:
+                st.iframe(page, height=96)  # trusted: built only from our own catalogue text
+    except Exception as exc:  # noqa: BLE001
+        logging.getLogger(__name__).exception("Voice guide player failed; showing text instead")
+        _debug_details(exc)
+        try:
             st.write(script)
+        except Exception:
+            return
+        return
+    if transcript:
+        try:
+            with st.expander(T.VOICE_TRANSCRIPT):
+                st.write(script)
+        except Exception:
+            logging.getLogger(__name__).exception("Voice transcript failed")
 
 
 def render_community_view(gdf: gpd.GeoDataFrame) -> None:
@@ -1296,8 +1322,8 @@ def render_header(gdf: gpd.GeoDataFrame) -> str:
         with help_col:
             if selected_mode in ("inspector", "community"):
                 with st.popover(T.HOW_TO_USE, icon=":material/help:", width="stretch"):
-                    render_voice_guide(selected_mode)
                     st.markdown(T.HELP_COMMUNITY if selected_mode == "community" else T.HELP_INSPECTOR)
+                    render_voice_guide(selected_mode)
         with lang_col:
             _render_language_toggle()
     if selected_mode not in ("inspector", "community"):
@@ -2307,12 +2333,15 @@ def _render_summary_strip(visible: pd.DataFrame) -> None:
 
 def render_footer() -> None:
     """Render the shared contact footer at the end of every view (website only until verified)."""
-    st.markdown(
-        trust.contact_footer_html(
-            _contact(), T.HOTLINE_LABEL, T.FOOTER_WEB_LABEL, T.CONTACT_CALL, T.CONTACT_SMS, T.get_language()
-        ),
-        unsafe_allow_html=True,
-    )
+    try:
+        st.markdown(
+            trust.contact_footer_html(
+                _contact(), T.HOTLINE_LABEL, T.FOOTER_WEB_LABEL, T.CONTACT_CALL, T.CONTACT_SMS, T.get_language()
+            ),
+            unsafe_allow_html=True,
+        )
+    except Exception:  # noqa: BLE001 - a footer problem must not blank the view
+        logging.getLogger(__name__).exception("Footer failed")
 
 
 def main() -> None:
@@ -2328,10 +2357,11 @@ def main() -> None:
     try:
         load_config()
         gdf = get_prepared_data()
-    except Exception:
+    except Exception as _load_exc:
         logging.getLogger(__name__).exception("Dashboard data/configuration load failed")
         placeholder.empty()
         st.markdown(trust.state_html("error", T.STATE_DATA_TITLE, T.STATE_DATA_BODY), unsafe_allow_html=True)
+        _debug_details(_load_exc)
         if st.button(T.STATE_RETRY, key="dhoa_retry_data_load"):
             st.rerun()
         return
@@ -2367,6 +2397,7 @@ def main() -> None:
     except Exception as _exc:
         logging.getLogger(__name__).exception("Dashboard view rendering failed")
         st.markdown(trust.state_html("error", T.STATE_ERROR_TITLE, T.STATE_ERROR_BODY), unsafe_allow_html=True)
+        _debug_details(_exc)
         if st.button(T.STATE_RETRY, key="dhoa_retry_render"):
             st.rerun()
 if __name__ == "__main__":
