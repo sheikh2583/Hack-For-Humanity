@@ -419,6 +419,7 @@ C_PLACE_PLACEHOLDER = 'এলাকার নাম লিখুন (যেম�
 C_PLACE_HELP = 'এলাকা খুঁজতে কয়েকটি অক্ষর লিখুন, অথবা স্থানের নাম লিখে Enter চাপুন।'
 C_PLACE_SUGGESTIONS = 'মিল থাকা এলাকা'
 C_PLACE_SUGGESTION_PLACEHOLDER = 'মিল থাকা এলাকা বেছে নিন'
+C_GEO_SUGGESTION_FMT = 'বাংলাদেশে “{0}” খুঁজুন'
 C_PLACE_LABEL_FMT = '{name} · {count}টি ভাটা'
 C_GPS_LABEL = '📍 আমার অবস্থান ব্যবহার করুন'
 C_GPS_BUSY = 'অবস্থান খোঁজা হচ্ছে…'

@@ -698,6 +698,19 @@ def _community_place_suggestions(places: dict[str, cm.Place], query: str) -> lis
     return [place.key for place in matches[:12]]
 
 
+_COMMUNITY_GEOCODE_OPTION_PREFIX = "__dhoa_geocode_place__:"
+
+
+def _community_geocode_option(query: str) -> str | None:
+    """Return a namespaced suggestion for a typed name outside local matches.
+
+    Input schema: typed place name. Output: one selectbox option to geocode on
+    selection, or ``None`` for blank input.
+    """
+    text = " ".join(query.split())
+    return f"{_COMMUNITY_GEOCODE_OPTION_PREFIX}{text}" if text else None
+
+
 def _community_place(gdf: pd.DataFrame) -> cm.Place | None:
     """Resolve the active search origin from session state.
 
@@ -722,8 +735,15 @@ def _community_result(gdf: pd.DataFrame) -> cm.SearchResult | None:
 
 
 def _on_community_pick(gdf: pd.DataFrame) -> None:
-    """Apply a covered-area choice or geocode a new name entered in the picker."""
+    """Apply a matched area or queue geocoding of the typed search option."""
     selected = st.session_state.get(_wkey("community_suggestion"))
+    if isinstance(selected, str) and selected.startswith(_COMMUNITY_GEOCODE_OPTION_PREFIX):
+        st.session_state["community_place_key"] = None
+        st.session_state["community_origin"] = None
+        st.session_state.pop("community_notice", None)
+        st.session_state["community_selected_kiln_id"] = None
+        st.session_state["community_pending_geocode"] = selected[len(_COMMUNITY_GEOCODE_OPTION_PREFIX):]
+        return
     st.session_state["community_place_key"] = None
     st.session_state["community_origin"] = None
     st.session_state.pop("community_notice", None)
@@ -733,9 +753,16 @@ def _on_community_pick(gdf: pd.DataFrame) -> None:
     place = _community_places(gdf).get(selected) if isinstance(selected, str) else None
     if place is not None:
         st.session_state["community_place_key"] = place.key
+        st.session_state["community_search_query"] = place.name
         return
-    if isinstance(selected, str):
-        st.session_state["community_pending_geocode"] = selected
+
+
+def _on_community_search() -> None:
+    """Clear the old result as soon as the user starts a different search."""
+    st.session_state["community_place_key"] = None
+    st.session_state["community_origin"] = None
+    st.session_state.pop("community_notice", None)
+    st.session_state["community_selected_kiln_id"] = None
 
 
 def _set_community_radius(radius_m: int) -> None:
@@ -750,6 +777,7 @@ def _set_community_origin(name: str | None, lat: float, lon: float) -> None:
     }
     if name is None:
         st.session_state["community_picker_reset"] = True
+        st.session_state["community_search_reset"] = True
     st.session_state["community_selected_kiln_id"] = None
 
 
@@ -824,6 +852,8 @@ def _render_community_inputs(gdf: pd.DataFrame) -> cm.Place | None:
     if st.session_state.pop("community_picker_reset", False):
         st.session_state["community_place_key"] = None
         st.session_state.pop(_wkey("community_suggestion"), None)
+    if st.session_state.pop("community_search_reset", False):
+        st.session_state["community_search_query"] = ""
     places = _community_places(gdf)
     if st.session_state.get("community_radius_m") not in cm.RADIUS_CHOICES_M:
         st.session_state["community_radius_m"] = cm.DEFAULT_RADIUS_M
@@ -833,22 +863,39 @@ def _render_community_inputs(gdf: pd.DataFrame) -> cm.Place | None:
 
     with st.container(border=True, key="dhoa_community_step1"):
         st.markdown(f"**{T.C_STEP1}**")
-        picker_key = _wkey("community_suggestion")
-        if picker_key not in st.session_state:
-            st.session_state[picker_key] = st.session_state["community_place_key"]
-        st.selectbox(
+        query = st.text_input(
             T.C_PLACE_LABEL,
-            options=list(places),
-            index=None,
-            format_func=lambda value: places[value].label if value in places else str(value),
             placeholder=T.C_PLACE_PLACEHOLDER,
             help=T.C_PLACE_HELP,
-            key=picker_key,
-            on_change=_on_community_pick,
-            args=(gdf,),
-            accept_new_options=True,
-            filter_mode="fuzzy",
+            key="community_search_query",
+            on_change=_on_community_search,
         )
+        origin = st.session_state.get("community_origin")
+        selected_local = st.session_state.get("community_place_key") in places
+        selected_geocoded = (
+            isinstance(origin, dict)
+            and not origin.get("gps")
+            and query.strip().casefold() == str(origin.get("name", "")).strip().casefold()
+        )
+        suggestions = [] if selected_local or selected_geocoded else _community_place_suggestions(places, query)
+        geocode_option = _community_geocode_option(query) if query.strip() and not suggestions else None
+        if suggestions or geocode_option:
+            _seed("community_suggestion", None)
+            options = suggestions + ([geocode_option] if geocode_option else [])
+            st.selectbox(
+                T.C_PLACE_SUGGESTIONS,
+                options,
+                index=None,
+                format_func=lambda value: (
+                    T.C_GEO_SUGGESTION_FMT.format(value[len(_COMMUNITY_GEOCODE_OPTION_PREFIX):])
+                    if value.startswith(_COMMUNITY_GEOCODE_OPTION_PREFIX)
+                    else places[value].label
+                ),
+                placeholder=T.C_PLACE_SUGGESTION_PLACEHOLDER,
+                key=_wkey("community_suggestion"),
+                on_change=_on_community_pick,
+                args=(gdf,),
+            )
         pending_geocode = st.session_state.pop("community_pending_geocode", None)
         if isinstance(pending_geocode, str):
             _submit_community_geocode(pending_geocode)
