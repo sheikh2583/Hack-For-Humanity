@@ -41,9 +41,9 @@ def test_geocoded_origin_keeps_the_typed_name_in_any_language(monkeypatch) -> No
 
 
 def test_widget_selections_are_canonical_values_not_labels() -> None:
-    # priority, picker keys, view mode and radius are language-neutral values
+    # Filter and suggestion widget values stay canonical while labels are localized.
     assert 'key=_wkey("filter_priority")' in SOURCE and '_priority_opts = ["High", "Medium", "Low"]' in SOURCE
-    assert "_wkey(\"community_place_key\")" in SOURCE and "format_func=lambda key: places[key].label" in SOURCE
+    assert 'key=_wkey("community_suggestion")' in SOURCE and "format_func=lambda key: places[key].label" in SOURCE
 
 
 def test_widget_keys_change_with_language_so_option_text_remounts(monkeypatch) -> None:

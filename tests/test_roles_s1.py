@@ -30,18 +30,20 @@ def test_default_is_public_and_sign_in_needs_the_passcode(monkeypatch: pytest.Mo
 
 def test_without_a_configured_passcode_nobody_can_sign_in(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("DHOA_STAFF_PASSCODE", raising=False)
-    monkeypatch.delenv("DHOA_DEMO_MODE", raising=False)
+    monkeypatch.setenv("DHOA_DEMO_MODE", "1")
     state: dict = {}
     assert not roles.signin_available()
     assert not roles.sign_in("", "x", state) and not roles.sign_in("anything", "x", state)
-    assert not roles.demo_sign_in(state) and roles.get_role(state) == "public"
+    assert roles.demo_enabled() and roles.get_role(state) == "public"
 
 
 def test_demo_mode_is_opt_in(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("DHOA_STAFF_PASSCODE", raising=False)
+    monkeypatch.setenv("DHOA_STAFF_PASSCODE", "public-demo-passcode")
     monkeypatch.setenv("DHOA_DEMO_MODE", "1")
     state: dict = {}
-    assert roles.demo_sign_in(state) and roles.staff_name(state) == roles.DEMO_NAME
+    assert roles.demo_enabled() and roles.signin_available()
+    assert roles.sign_in("public-demo-passcode", roles.DEMO_NAME, state)
+    assert roles.staff_name(state) == roles.DEMO_NAME
 
 
 def test_blank_name_and_long_name_are_cleaned() -> None:
@@ -95,6 +97,21 @@ def test_public_sees_the_sign_in_instead_of_the_staff_map(data_dir: Path, monkey
     markdown = " ".join(m.value for m in at.markdown if not m.value.lstrip().startswith("<style"))
     assert "dhoa-summary" not in markdown and not any(b.key == "dhoa_portal_signout" for b in at.button)
     assert not any(s.key and s.key.startswith("w_filter_district") for s in at.selectbox)
+
+
+def test_demo_button_fills_dummy_credentials_without_signing_in(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("DHOA_STAFF_PASSCODE", "public-demo-passcode")
+    monkeypatch.setenv("DHOA_DEMO_MODE", "1")
+    at = _app(dhoa_view_mode="inspector").run()
+    assert not at.exception and at.button(key="dhoa_fill_demo_credentials")
+    at.button(key="dhoa_fill_demo_credentials").click().run()
+    assert at.text_input(key="dhoa_signin_passcode").value == "public-demo-passcode"
+    assert at.text_input(key="dhoa_signin_name").value == roles.DEMO_NAME
+    assert "dhoa_role" not in at.session_state
+    at.button(key="dhoa_signin_submit").click().run()
+    assert not at.exception and roles.staff_name(at.session_state) == roles.DEMO_NAME
 
 
 def test_wrong_passcode_is_rejected_and_the_right_one_opens_the_portal(

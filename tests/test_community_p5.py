@@ -1,7 +1,6 @@
-"""P5 tests: the "Try an example" origin, its wiring and string parity.
+"""P5 tests: community search suggestions and matching localized copy.
 
-Input: a tiny synthetic frame. Output: the example origin is data-derived
-(Savar when present, else the busiest upazila) and the app uses it via a callback.
+Input: a tiny synthetic frame. Output: case-insensitive, prefix-ranked area suggestions.
 """
 
 from __future__ import annotations
@@ -13,9 +12,10 @@ from pathlib import Path
 import pandas as pd
 
 import app.community as cm
+import app.streamlit_app as dashboard
 
 ROOT = Path(__file__).resolve().parent.parent
-NEW = ("C_EXAMPLE_BUTTON", "C_EXAMPLE_HELP")
+NEW = ("C_PLACE_SUGGESTIONS", "C_PLACE_SUGGESTION_PLACEHOLDER")
 
 
 def _frame(rows: list[tuple[str, str, float, float]]) -> pd.DataFrame:
@@ -54,10 +54,20 @@ def test_strings_in_both_languages_with_matching_fields() -> None:
         assert re.findall(r"\{[^}]*\}", bn[name]) == re.findall(r"\{[^}]*\}", en[name])
 
 
-def test_app_wires_example_button_through_a_callback() -> None:
-    source = (ROOT / "app" / "streamlit_app.py").read_text(encoding="utf-8")
-    assert "on_click=_apply_community_example" in source and 'key="community_example"' in source
-    tree = ast.parse(source)
-    fn = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "_apply_community_example")
-    text = ast.unparse(fn)
-    assert "cm.example_origin" in text and "DEFAULT_RADIUS_M" in text and "st.rerun" not in text
+def test_typed_area_suggestions_are_case_insensitive_and_prefix_ranked() -> None:
+    frame = pd.DataFrame([
+        ("Gazipur", "Tongi", "Tongi Bazaar", 24.0, 90.4),
+        ("Gazipur", "Tongi", "Tongi Bazaar", 24.1, 90.5),
+        ("Dhaka", "Savar", "Tongi Road", 23.8, 90.2),
+    ], columns=["district", "upazila", "nearest_place", "lat", "lon"])
+    places = {place.key: place for place in cm.build_places(frame)}
+
+    suggestions = dashboard._community_place_suggestions(places, "tOn")
+
+    assert suggestions
+    assert all("ton" in places[key].name.casefold()
+               or "ton" in places[key].district.casefold()
+               or "ton" in places[key].upazila.casefold()
+               or "ton" in places[key].label.casefold() for key in suggestions)
+    assert places[suggestions[0]].name.casefold().startswith("ton")
+    assert dashboard._community_place_suggestions(places, " ") == []

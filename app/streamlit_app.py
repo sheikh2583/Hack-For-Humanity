@@ -680,6 +680,23 @@ def _community_places(gdf: pd.DataFrame) -> dict[str, cm.Place]:
     return {place.key: place for place in _cached_places(_community_version_key(gdf), gdf)}
 
 
+def _community_place_suggestions(places: dict[str, cm.Place], query: str) -> list[str]:
+    """Match typed text against place names; return at most 12 ranked place keys.
+
+    Input schema: dataset place keys and ``Place`` values plus user-entered text.
+    Output schema: matching keys ordered by name-prefix match, then label.
+    """
+    needle = query.strip().casefold()
+    if not needle:
+        return []
+    matches = [
+        place for place in places.values()
+        if needle in " ".join((place.name, place.district, place.upazila, place.label)).casefold()
+    ]
+    matches.sort(key=lambda place: (not place.name.casefold().startswith(needle), place.label.casefold()))
+    return [place.key for place in matches[:12]]
+
+
 def _community_place(gdf: pd.DataFrame) -> cm.Place | None:
     """Resolve the active search origin from session state.
 
@@ -703,9 +720,22 @@ def _community_result(gdf: pd.DataFrame) -> cm.SearchResult | None:
     return cm.search(gdf, place, radius)
 
 
-def _on_community_pick() -> None:
-    """A list choice replaces any GPS/geocoded origin and old notices."""
-    _commit("community_place_key")
+def _on_community_pick(gdf: pd.DataFrame) -> None:
+    """A suggestion replaces any GPS/geocoded origin and old notices."""
+    selected = st.session_state.get(_wkey("community_suggestion"))
+    st.session_state["community_place_key"] = selected
+    if selected:
+        place = _community_places(gdf).get(selected)
+        if place is not None:
+            st.session_state["community_search_query"] = place.name
+    st.session_state["community_origin"] = None
+    st.session_state.pop("community_notice", None)
+    st.session_state["community_selected_kiln_id"] = None
+
+
+def _on_community_search() -> None:
+    """Clear a previous origin when a user starts searching for another place."""
+    st.session_state["community_place_key"] = None
     st.session_state["community_origin"] = None
     st.session_state.pop("community_notice", None)
     st.session_state["community_selected_kiln_id"] = None
@@ -722,6 +752,7 @@ def _set_community_origin(name: str | None, lat: float, lon: float) -> None:
         "name": name or "", "gps": name is None, "lat": float(lat), "lon": float(lon),
     }
     st.session_state["community_picker_reset"] = True
+    st.session_state["community_search_reset"] = True
     st.session_state["community_selected_kiln_id"] = None
 
 
@@ -768,16 +799,6 @@ def _handle_gps_event(event: object) -> None:
     st.rerun()
 
 
-def _apply_community_example(gdf: pd.DataFrame) -> None:
-    """Button callback: fill in a worked example (Savar, Dhaka, 5 km) without a reload."""
-    origin = cm.example_origin(list(_community_places(gdf).values()))
-    if origin is None:
-        return
-    st.session_state.pop("community_notice", None)
-    _set_community_origin(origin.name, origin.lat, origin.lon)
-    st.session_state["community_radius_m"] = cm.DEFAULT_RADIUS_M
-
-
 def _submit_community_geocode(query: str) -> None:
     """Run the optional free-text fallback and store the outcome in session state."""
     text = " ".join(query.split())
@@ -806,6 +827,8 @@ def _render_community_inputs(gdf: pd.DataFrame) -> cm.Place | None:
     """Render steps 1 and 2 and return the chosen origin (or None)."""
     if st.session_state.pop("community_picker_reset", False):
         st.session_state["community_place_key"] = None
+    if st.session_state.pop("community_search_reset", False):
+        st.session_state["community_search_query"] = ""
     places = _community_places(gdf)
     if st.session_state.get("community_radius_m") not in cm.RADIUS_CHOICES_M:
         st.session_state["community_radius_m"] = cm.DEFAULT_RADIUS_M
@@ -816,23 +839,26 @@ def _render_community_inputs(gdf: pd.DataFrame) -> cm.Place | None:
 
     with st.container(border=True, key="dhoa_community_step1"):
         st.markdown(f"**{T.C_STEP1}**")
-        st.selectbox(
+        query = st.text_input(
             T.C_PLACE_LABEL,
-            list(places),
-            index=None,
-            format_func=lambda key: places[key].label if key in places else str(key),
             placeholder=T.C_PLACE_PLACEHOLDER,
             help=T.C_PLACE_HELP,
-            key=_wkey("community_place_key"),
-            on_change=_on_community_pick,
+            key="community_search_query",
+            on_change=_on_community_search,
         )
-        st.button(
-            T.C_EXAMPLE_BUTTON,
-            key="community_example",
-            help=T.C_EXAMPLE_HELP,
-            on_click=_apply_community_example,
-            args=(gdf,),
-        )
+        suggestions = _community_place_suggestions(places, query)
+        if suggestions:
+            _seed("community_suggestion", None)
+            st.selectbox(
+                T.C_PLACE_SUGGESTIONS,
+                suggestions,
+                index=None,
+                format_func=lambda key: places[key].label,
+                placeholder=T.C_PLACE_SUGGESTION_PLACEHOLDER,
+                key=_wkey("community_suggestion"),
+                on_change=_on_community_pick,
+                args=(gdf,),
+            )
         event = _geolocate(
             label=T.C_GPS_LABEL, busy_label=T.C_GPS_BUSY, key="community_gps", default=None
         )
@@ -2799,11 +2825,40 @@ def _sign_out_staff() -> None:
     st.session_state.pop("dhoa_portal_tab", None)
 
 
+def _fill_demo_credentials() -> None:
+    """Fill the configured demo passcode and display name into the sign-in fields."""
+    if not roles.demo_enabled() or not roles.configured_passcode():
+        return
+    st.session_state["dhoa_signin_passcode"] = roles.configured_passcode()
+    st.session_state["dhoa_signin_name"] = roles.DEMO_NAME
+
+
 def render_staff_signin() -> None:
     """Sign-in page shown in place of the portal while the session is public."""
     with st.container(key="dhoa_signin"):
         st.markdown(f"<div class='dhoa-section-title'>{html.escape(T.PORTAL_SIGNIN_TITLE)}</div>",
                     unsafe_allow_html=True)
+        st.markdown(
+            """<style>
+            .dhoa-portal-preview{filter:blur(5px);opacity:.48;pointer-events:none;
+              user-select:none;margin:.5rem auto 1rem;max-width:42rem}
+            .dhoa-portal-preview-head{height:1.1rem;width:38%;border-radius:8px;
+              background:#9aa7b4;margin:0 0 .8rem}
+            .dhoa-portal-preview-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem}
+            .dhoa-portal-preview-card{height:4.2rem;border:1px solid #64748b;border-radius:10px;
+              background:linear-gradient(135deg,#243447,#17212b)}
+            .dhoa-portal-preview-map{height:7rem;margin-top:.6rem;border:1px solid #64748b;
+              border-radius:10px;background:radial-gradient(circle at 42% 45%,#5b7180 0 2px,transparent 3px),
+              radial-gradient(circle at 66% 60%,#5b7180 0 2px,transparent 3px),#18232e}
+            </style>
+            <div class="dhoa-portal-preview" aria-hidden="true">
+              <div class="dhoa-portal-preview-head"></div>
+              <div class="dhoa-portal-preview-cards"><div class="dhoa-portal-preview-card"></div>
+                <div class="dhoa-portal-preview-card"></div><div class="dhoa-portal-preview-card"></div></div>
+              <div class="dhoa-portal-preview-map"></div>
+            </div>""",
+            unsafe_allow_html=True,
+        )
         if not roles.signin_available():
             st.info(T.PORTAL_SIGNIN_UNAVAILABLE)
             return
@@ -2812,16 +2867,22 @@ def render_staff_signin() -> None:
             with st.form("dhoa_signin_form", clear_on_submit=False):
                 passcode = st.text_input(T.PORTAL_PASSCODE, type="password", key="dhoa_signin_passcode")
                 name = st.text_input(T.PORTAL_NAME, key="dhoa_signin_name", max_chars=60)
-                submitted = st.form_submit_button(T.PORTAL_SIGN_IN, type="primary")
+                submitted = st.form_submit_button(
+                    T.PORTAL_SIGN_IN, type="primary", key="dhoa_signin_submit"
+                )
             if submitted:
                 if roles.sign_in(passcode, name):
                     st.session_state["dhoa_portal_tab"] = "map"
                     st.rerun()
                 st.error(T.PORTAL_WRONG_PASSCODE)
-        if roles.demo_enabled() and st.button(T.PORTAL_DEMO_SIGN_IN, key="dhoa_signin_demo"):
-            roles.demo_sign_in()
-            st.session_state["dhoa_portal_tab"] = "map"
-            st.rerun()
+        if roles.demo_enabled():
+            st.caption(T.PORTAL_DEMO_CREDENTIALS_HINT)
+            st.button(
+                T.PORTAL_FILL_DEMO_CREDENTIALS,
+                key="dhoa_fill_demo_credentials",
+                on_click=_fill_demo_credentials,
+                type="secondary",
+            )
 
 
 def render_portal_bar() -> str:

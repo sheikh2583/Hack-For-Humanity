@@ -5,7 +5,7 @@ the role string ``"public"`` (default) or ``"inspector"``. One shared staff pass
 from ``st.secrets["staff_passcode"]`` (or the ``DHOA_STAFF_PASSCODE`` environment variable);
 it is never stored, logged or shown. Without a configured passcode sign-in is disabled and
 everyone stays public. An optional ``demo_mode = true`` secret (or ``DHOA_DEMO_MODE=1``)
-enables a one-click demo sign-in for presentations.
+enables a button that fills the configured passcode and demo name into the form.
 """
 
 from __future__ import annotations
@@ -48,8 +48,8 @@ def demo_enabled() -> bool:
 
 
 def signin_available() -> bool:
-    """Whether staff can sign in at all (a passcode is configured, or demo mode is on)."""
-    return bool(configured_passcode()) or demo_enabled()
+    """Whether staff sign-in is available (requires a configured passcode)."""
+    return bool(configured_passcode())
 
 
 def passcode_matches(supplied: str, expected: str) -> bool:
@@ -95,16 +95,6 @@ def sign_in(passcode: str, name: str | None, state: MutableMapping | None = None
     session = _state(state)
     session[ROLE_KEY] = INSPECTOR
     session[NAME_KEY] = clean_name(name)
-    return True
-
-
-def demo_sign_in(state: MutableMapping | None = None) -> bool:
-    """Sign in as the demo user when demo mode is on."""
-    if not demo_enabled():
-        return False
-    session = _state(state)
-    session[ROLE_KEY] = INSPECTOR
-    session[NAME_KEY] = DEMO_NAME
     return True
 
 

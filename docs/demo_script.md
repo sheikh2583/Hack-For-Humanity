@@ -13,11 +13,13 @@ or deployed database. In PowerShell:
 ```powershell
 $env:DHOA_APP_DB = "$env:TEMP\dhoa-demo\app.db"
 $env:DHOA_DEMO_MODE = "1"
+$env:DHOA_STAFF_PASSCODE = "dhoa-demo-only"
 .\.venv\Scripts\streamlit.exe run app\streamlit_app.py
 ```
 
-Create the temporary directory first if it does not exist. Demo mode enables
-the in-app staff sign-in; it does not create demo reports. Submit only the
+Create the temporary directory first if it does not exist. Demo mode adds a
+button that fills the configured dummy passcode and Demo name; it does not
+sign in automatically or create demo reports. Submit only the
 explicitly labelled demo report below. Delete the temporary demo directory
 after the presentation. Do not submit demo records to the shared or deployed
 app.
@@ -28,7 +30,7 @@ app.
 |---|---|---|
 | 0:00–0:12 | Open the public search. Search for `Block C` using the place picker, then show the results. | “I can search for a place and explore the kiln candidates shown nearby.” |
 | 0:12–0:25 | Open the report action on one result. Choose a reason and enter `DEMO ONLY — example report for the presentation` as the note. Submit. | “A community member can send a report to the staff inbox. This sample is clearly marked and stored only in the temporary demo database.” |
-| 0:25–0:38 | Open Inspector Portal and choose **Continue as demo**. Open Reports and point out the new-report count and submitted item. | “Staff can see the new report and open its location on the map.” |
+| 0:25–0:38 | Open Inspector Portal, click **Fill demo credentials**, then click **Sign in**. Open Reports and point out the new-report count and submitted item. | “Staff can see the new report and open its location on the map.” |
 | 0:38–0:55 | Open the report location on the map. In the candidate's work controls, choose **Assign to me**, set status to **Visited**, save, then add the note `DEMO ONLY — presentation record`. | “Staff can assign the candidate, record a visit, and add a note.” |
 | 0:55–1:00 | Sign out of the portal. | “That completes the public report-to-staff workflow.” |
 

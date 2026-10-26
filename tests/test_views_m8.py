@@ -36,7 +36,8 @@ def _run(view: str):
 
 
 def _picker_index(at, needle: str) -> int:
-    options = at.selectbox(key="w_community_place_key@bn").options
+    at.text_input(key="community_search_query").set_value(needle).run()
+    options = at.selectbox(key="w_community_suggestion@bn").options
     return next(i for i, label in enumerate(options) if needle in label)
 
 
@@ -60,7 +61,8 @@ def test_community_prompts_then_answers_for_each_kind_of_choice(data_dir: Path) 
     at = _run("community")
     assert not at.exception and any(i.value == T.C_PICK_PROMPT for i in at.info)
     for needle in ("Savar", "Tongi", REMOTE_PLACE):
-        at.selectbox(key="w_community_place_key@bn").select_index(_picker_index(at, needle)).run()
+        index = _picker_index(at, needle)
+        at.selectbox(key="w_community_suggestion@bn").select_index(index).run()
         assert not at.exception, needle
         assert not any(i.value == T.C_PICK_PROMPT for i in at.info), needle
 
@@ -68,7 +70,8 @@ def test_community_prompts_then_answers_for_each_kind_of_choice(data_dir: Path) 
 def test_community_empty_state_offers_one_click_widen(data_dir: Path) -> None:
     at = _run("community")
     at.session_state["community_radius_m"] = 1000
-    at.selectbox(key="w_community_place_key@bn").select_index(_picker_index(at, REMOTE_PLACE)).run()
+    index = _picker_index(at, REMOTE_PLACE)
+    at.selectbox(key="w_community_suggestion@bn").select_index(index).run()
     assert not at.exception
     assert any("কিমি" in i.value and "কোনো ভাটা পাওয়া যায়নি" in i.value for i in at.info)
     widen = [b for b in at.button if b.key == "community_widen"]

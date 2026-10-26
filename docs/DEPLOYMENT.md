@@ -45,6 +45,25 @@ connected and authorized. Follow Streamlit's current
 4. Choose Python 3.12 in Advanced settings if available, deploy, and confirm
    the startup check finds the parquet in the cloud checkout.
 
+### Inspector Portal sign-in
+
+Staff sign-in is disabled until a credential is configured. To enable private
+staff access on Community Cloud, open the app's **Settings → Secrets** and add:
+
+```toml
+staff_passcode = "replace-with-a-long-private-passcode"
+```
+
+Save the secret and reboot the app. The sign-in form then appears in the
+Inspector Portal. Keep this value private and do not add it to the repository.
+
+For a public presentation demo, set `staff_passcode` to a dummy passcode and
+also add `demo_mode = true`. The portal shows a **Fill demo credentials**
+button; clicking it fills the dummy passcode and Demo display name, and the
+user still presses **Sign in**. Anyone visiting the public app can use this
+button and gets full Inspector write access, so never use a real staff
+passcode or enable this on a production portal.
+
 The app does not generate the parquet at startup. `app/startup.py` only checks
 for it and prints clear setup instructions. Community Cloud runs the app from
 the repository root; keep paths and required source/config files in that

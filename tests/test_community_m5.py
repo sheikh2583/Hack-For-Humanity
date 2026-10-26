@@ -156,11 +156,13 @@ def test_community_apptest_prompts_before_a_place_is_chosen() -> None:
 
 def test_community_apptest_every_upazila_choice_gives_a_result_or_next_step() -> None:
     at = _apptest()
-    picker = at.selectbox(key="w_community_place_key@bn")
+    at.text_input(key="community_search_query").set_value("Dhaka").run()
+    picker = at.selectbox(key="w_community_suggestion@bn")
     upazilas = [i for i, label in enumerate(picker.options) if label.endswith("টি ভাটা") and "," in label][:6]
     assert upazilas
     for index in upazilas:
-        picker.select_index(index).run()
+        at.text_input(key="community_search_query").set_value("Dhaka").run()
+        at.selectbox(key="w_community_suggestion@bn").select_index(index).run()
         assert not at.exception
         assert not any(i.value == T.C_PICK_PROMPT for i in at.info)
         assert any("dhoa_community_summary" == c.key for c in at.get("container")) or at.markdown
@@ -168,7 +170,6 @@ def test_community_apptest_every_upazila_choice_gives_a_result_or_next_step() ->
 
 def test_community_apptest_empty_radius_offers_one_click_widen() -> None:
     at = _apptest()
-    picker = at.selectbox(key="w_community_place_key@bn")
-    named = [i for i, label in enumerate(picker.options) if label]  # any place
-    picker.select_index(named[0]).run()
+    at.text_input(key="community_search_query").set_value("Savar").run()
+    at.selectbox(key="w_community_suggestion@bn").select_index(0).run()
     assert not at.exception
