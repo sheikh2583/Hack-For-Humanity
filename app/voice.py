@@ -17,6 +17,7 @@ import json
 from pathlib import Path
 
 AUDIO_DIR = Path(__file__).resolve().parent / "static" / "audio"
+COMPONENT_DIR = Path(__file__).resolve().parent / "components" / "voice_guide"
 MANIFEST = "manifest.json"
 VIEWS = ("inspector", "community")
 LANGUAGES = ("bn", "en")
@@ -49,3 +50,8 @@ def current_audio(view: str, lang: str, script: str, audio_dir: Path = AUDIO_DIR
 def speech_lang(lang: str) -> str:
     """BCP-47 tag the browser voice is matched against (the component compares the first two letters)."""
     return _SPEECH_LANG.get(lang, "en-US")
+
+
+def component_available(component_dir: Path | None = None) -> bool:
+    """True when the read-aloud component's files are on disk (a missing folder renders as a blank box)."""
+    return ((component_dir or COMPONENT_DIR) / "index.html").is_file()

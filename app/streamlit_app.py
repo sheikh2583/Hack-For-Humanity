@@ -988,6 +988,9 @@ def render_voice_guide(view: str, where: str, transcript: bool = False) -> None:
         audio = voice.current_audio(view, lang, script)
         if audio is not None:
             st.audio(str(audio), format="audio/mpeg")
+        elif not voice.component_available():
+            logging.getLogger(__name__).error("app/components/voice_guide is missing; copy the whole folder")
+            st.caption(T.VOICE_NO_VOICE)
         else:
             _voice_player(
                 text=script, lang=voice.speech_lang(lang), read=T.VOICE_READ_ALOUD, stop=T.VOICE_STOP,
@@ -1014,8 +1017,6 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
     or a clear next step when nothing is found. No page reload anywhere.
     """
     st.markdown(f"<div class='dhoa-section-title'>{T.FIND_KILNS_NEAR_YOU}</div>", unsafe_allow_html=True)
-    with st.expander(T.LISTEN_TO_THE_GUIDE):  # first thing a citizen sees, before step 1
-        render_voice_guide("community", "page", transcript=True)
     place = _render_community_inputs(gdf)
     _render_community_results(gdf, place)
 
@@ -1321,6 +1322,7 @@ def render_header(gdf: gpd.GeoDataFrame) -> str:
             if selected_mode in ("inspector", "community"):
                 with st.popover(T.HOW_TO_USE, icon=":material/help:", width="stretch"):
                     st.markdown(T.HELP_COMMUNITY if selected_mode == "community" else T.HELP_INSPECTOR)
+                    st.markdown(f"**{T.LISTEN_TO_THE_GUIDE}**")  # voice sits under the written guide
                     render_voice_guide(selected_mode, "popover")
         with lang_col:
             _render_language_toggle()
@@ -2389,8 +2391,6 @@ def main() -> None:
             render_footer()
             return
         visible = filters["visible"]  # computed once in render_sidebar
-        with st.expander(T.LISTEN_TO_THE_GUIDE):  # same guide entry point as the Community view
-            render_voice_guide("inspector", "page", transcript=True)
         _render_summary_strip(visible)
         render_map_fragment(gdf, filters, visible)
         render_footer()
