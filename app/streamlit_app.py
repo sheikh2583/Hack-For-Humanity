@@ -128,18 +128,6 @@ INSPECTOR_CSV_COLUMNS = T.LazySequence(
         ("breach_count", T.COL_BREACH_COUNT),
     ]
 )
-COMMUNITY_CSV_COLUMNS = T.LazySequence(
-    lambda: [
-        ("kiln_id", T.COL_KILN_ID),
-        ("lat", T.COL_LATITUDE),
-        ("lon", T.COL_LONGITUDE),
-        ("district", T.DISTRICT),
-        ("upazila", T.COL_UPAZILA),
-        ("nearest_place", T.COL_NEAREST_PLACE),
-        ("nearest_place_dist_m", T.COL_DISTANCE_M),
-        ("priority_band", T.PRIORITY),
-    ]
-)
 METRIC_LABELS = T.LazyMapping(
     lambda: {
         "total_kilns": T.METRIC_TOTAL_KILNS,
@@ -209,6 +197,30 @@ def _prepared_data(path_text: str, mtime_ns: int, size: int, lang: str) -> gpd.G
     return kd.prepare_display_frame(
         add_priority_bands(gdf), _siting_rules(), version=f"{mtime_ns}-{size}-{len(gdf)}-{lang}"
     )
+
+
+@st.cache_resource(show_spinner=False)
+def _public_data(path_text: str, mtime_ns: int, size: int, lang: str) -> gpd.GeoDataFrame | None:
+    """Build the PUBLIC dataset once per data file version and language.
+
+    Input: data path plus its mtime/size and the language (cache key). Output: the loaded
+    frame passed through ``kd.public_view`` (no priority, rule or distance column, no staff
+    display column) with only ``ui_area``/``ui_type`` added; ``attrs["dhoa_data_version"]``
+    ends in ``-public`` so every cache keyed by it is separate from the staff data. The
+    object is shared by every session and must be treated as read-only.
+    """
+    gdf = load_data(Path(path_text))
+    if gdf is None:
+        return None
+    return kd.prepare_public_frame(gdf, version=f"{mtime_ns}-{size}-{len(gdf)}-{lang}")
+
+
+def get_public_data(path: Path = DATA_PATH) -> gpd.GeoDataFrame | None:
+    """Return the cached public dataset (what Overview, Kilns near me and About may use)."""
+    if not path.is_file():
+        return None
+    stat = path.stat()
+    return _public_data(str(path), stat.st_mtime_ns, stat.st_size, T.get_language())
 
 
 def get_prepared_data(path: Path = DATA_PATH) -> gpd.GeoDataFrame | None:
@@ -519,7 +531,7 @@ def community_alert_pdf(
 
 
 _PDF_COLUMNS = (
-    ("distance_m", None), ("class", "Unknown"), ("priority_band", "Unknown"), ("lat", None), ("lon", None),
+    ("distance_m", None), ("class", "Unknown"), ("lat", None), ("lon", None),
     ("upazila", ""), ("district", ""),
 )
 
@@ -570,10 +582,10 @@ def _render_community_map(
     )
     version = _data_version(source)
     if version is None:
-        map_view = _marker_map(nearby, tile, bounds, radius=7)
+        map_view = _marker_map(nearby, tile, bounds, radius=7, public=True)
     else:
-        payload = _cached_marker_payload(version, ("community", *fingerprint), nearby)
-        map_view = _marker_map(nearby, tile, bounds, radius=7, payload=payload)
+        payload = _cached_public_marker_payload(version, ("community", "public", *fingerprint), nearby)
+        map_view = _marker_map(nearby, tile, bounds, radius=7, payload=payload, public=True)
     groups: list[folium.FeatureGroup] = []
     if radius_m:
         overlay = folium.FeatureGroup(name="dhoa_search")
@@ -617,7 +629,7 @@ def _render_community_map(
     if selected.empty:
         st.caption(T.TAP_ANY_KILN_MARKER_ON_THE_MAP_TO_VIEW_D)
     else:
-        _render_selected_candidate(selected.iloc[0])
+        _render_public_candidate(selected.iloc[0])
 
 
 _render_community_map_fragment = st.fragment(_render_community_map)
@@ -873,7 +885,6 @@ def _render_community_table(nearby: pd.DataFrame, show_distance: bool) -> None:
         )
     columns[T.AREA] = nearby["ui_area"].tolist()
     columns[T.KILN_TYPE] = nearby["ui_type"].tolist()
-    columns[T.PRIORITY] = nearby["ui_priority"].tolist()
     columns[T.DIRECTIONS] = directions
     st.dataframe(
         pd.DataFrame(columns), hide_index=True, width="stretch",
@@ -882,7 +893,7 @@ def _render_community_table(nearby: pd.DataFrame, show_distance: bool) -> None:
 
 
 def _render_community_summary(result: cm.SearchResult) -> None:
-    """Summary card: how many kilns, and how many are high priority."""
+    """Summary card: how many kilns were found (a plain count; nothing about priority)."""
     counts = result.summary
     if result.radius_m is None:
         headline = T.C_SUMMARY_AREA_FMT.format(result.place.name, counts["total"])
@@ -890,15 +901,8 @@ def _render_community_summary(result: cm.SearchResult) -> None:
         headline = T.C_SUMMARY_RADIUS_FMT.format(
             result.radius_m / 1000, result.place.name, counts["total"]
         )
-    glyphs = kd.PRIORITY_GLYPHS
     with st.container(border=True, key="dhoa_community_summary"):
         st.markdown(f"#### {headline}")
-        st.markdown(T.C_SUMMARY_HIGH_FMT.format(counts["high"]))
-        st.caption(
-            f"{glyphs['High']} {T.SUMMARY_HIGH}: {counts['high']:,} · "
-            f"{glyphs['Medium']} {T.SUMMARY_MEDIUM}: {counts['medium']:,} · "
-            f"{glyphs['Low']} {T.SUMMARY_LOW}: {counts['low']:,}"
-        )
 
 
 def _render_community_results(gdf: pd.DataFrame, place: cm.Place | None) -> None:
@@ -918,7 +922,7 @@ def _render_community_results(gdf: pd.DataFrame, place: cm.Place | None) -> None
         st.info(T.C_PICK_PROMPT)
         return
     st.session_state.pop("community_centroid", None)
-    nearby = kd.with_display_columns(result.rows, _siting_rules())
+    nearby = kd.with_public_display_columns(result.rows)
     radius_m = result.radius_m
     _render_community_summary(result)
     if nearby.empty:
@@ -942,12 +946,6 @@ def _render_community_results(gdf: pd.DataFrame, place: cm.Place | None) -> None
         except Exception:
             logging.exception("Community PDF generation failed")
             st.error(T.REPORT_GENERATION_FAILED_PLEASE_TRY_AGAI)
-        st.download_button(
-            T.DOWNLOAD_COMMUNITY_CSV,
-            make_download_csv(nearby, COMMUNITY_CSV_COLUMNS),
-            "dhoa_community_candidates.csv", "text/csv",
-            width="stretch", key="community_candidates_csv_download",
-        )
     with map_column:
         st.subheader(T.AREA_MAP)
         st.caption(
@@ -1360,16 +1358,21 @@ def render_header(gdf: gpd.GeoDataFrame) -> str:
     return selected_mode
 
 
-def render_overview(gdf: gpd.GeoDataFrame) -> None:
-    """Landing view: mission line, four real headline numbers and two next-step buttons."""
-    counts = hero.hero_counts(gdf)
+def render_overview(frame: pd.DataFrame) -> None:
+    """Public landing view: mission line, three numbers, the Kilns near me button, "How it works"
+    and a plain district list.
+
+    Input: the PUBLIC frame (``get_public_data``). Output: the hero (kiln candidates, districts
+    covered, data date), one primary button (staff also get a shortcut to the portal map), a
+    collapsed "How it works" and the district counts. No priority, High count or kiln-type split.
+    """
+    counts = hero.hero_counts(frame)
     metrics = (
         (f"{counts['total']:,}", METRIC_LABELS["total_candidates"]),
-        (f"{counts['high']:,}", METRIC_LABELS["high_priority_kilns"]),
         (f"{counts['districts']:,}", T.HERO_METRIC_DISTRICTS),
         (_data_date_label(dashboard_kilns_file()), METRIC_LABELS["last_updated"]),
     )
-    st.markdown(hero.hero_html(T.HERO_MISSION, T.HERO_SUB, metrics), unsafe_allow_html=True)
+    st.markdown(hero.hero_html(T.PUB_HERO_MISSION, T.PUB_HERO_SUB, metrics), unsafe_allow_html=True)
     with st.container(key="dhoa_action_row"):
         if roles.is_staff():
             left, right = st.columns(2, gap="small")
@@ -1380,10 +1383,42 @@ def render_overview(gdf: gpd.GeoDataFrame) -> None:
         else:
             st.button(T.HERO_CTA_NEAR_ME, key="dhoa_hero_near", type="primary", width="stretch",
                       on_click=_go_to_view, args=("community",))
-    st.caption(T.PRIORITY_NOTE)
     with st.expander(T.HOW_TITLE, expanded=False):
-        st.markdown(_how_it_works_html(), unsafe_allow_html=True)
-    render_overview_charts(gdf)
+        st.markdown(_how_it_works_html(public=True), unsafe_allow_html=True)
+    render_public_districts(frame)
+
+
+def render_public_districts(frame: pd.DataFrame) -> None:
+    """Public Overview body: one count per district; each name opens Kilns near me for it."""
+    stats = ov.public_district_counts(frame)
+    with st.container(key="dhoa_overview_charts"):
+        st.markdown(f"<div class='dhoa-section-title'>{html.escape(T.OV_DISTRICTS_TITLE)}</div>",
+                    unsafe_allow_html=True)
+        if stats.empty:
+            st.caption(T.OV_NO_DATA)
+            return
+        st.caption(T.PUB_OV_DISTRICTS_HINT)
+        maximum = int(stats["total"].max())
+        for row in stats.to_dict("records"):
+            name_col, bar_col = st.columns([2, 5], vertical_alignment="center", gap="small")
+            name_col.button(
+                _district_label(row["district"]), key=f"dhoa_ov_open_{row['district']}",
+                help=T.PUB_OV_OPEN_DISTRICT_FMT.format(_district_label(row["district"])),
+                width="stretch", on_click=_open_district_near_me, args=(str(row["district"]),),
+            )
+            bar_col.markdown(
+                ov.public_district_bar_html(row["total"], maximum, T.OV_SERIES_TOTAL),
+                unsafe_allow_html=True,
+            )
+
+
+def _open_district_near_me(district: str) -> None:
+    """``on_click`` callback: open Kilns near me with ``district`` chosen (no page reload)."""
+    st.session_state["community_place_key"] = cm.place_key(cm.KIND_DISTRICT, district)
+    st.session_state["community_origin"] = None
+    st.session_state.pop("community_notice", None)
+    st.session_state["community_selected_kiln_id"] = None
+    st.session_state["dhoa_view_mode"] = "community"
 
 
 def _open_district(district: str) -> None:
@@ -1399,12 +1434,14 @@ def _open_district(district: str) -> None:
 
 
 def render_overview_charts(gdf: pd.DataFrame) -> None:
-    """Overview body: district bars (each opens the map), top upazilas, kiln-type split.
+    """Inspector Dashboard body (staff only): district bars (each opens the portal map), top upazilas, kiln-type split.
 
     Input: the prepared frame. Output: bars with the value printed at the end of every
     bar (colour is never the only cue: High priority also carries the triangle glyph), a
     plain table and a share bar. Every number is a groupby of the frame (see ``overview``).
     """
+    if not roles.is_staff():  # High series, upazila table and type split are staff-only
+        return
     stats = ov.district_stats(gdf)
     with st.container(key="dhoa_overview_charts"):
         st.markdown(f"<div class='dhoa-section-title'>{html.escape(T.OV_DISTRICTS_TITLE)}</div>",
@@ -1449,8 +1486,13 @@ def render_overview_charts(gdf: pd.DataFrame) -> None:
             st.caption(T.OV_NO_DATA)
 
 
-def _how_it_works_html() -> str:
-    """The four-step "How it works" panel (satellite, detection, rule check, ranking)."""
+def _how_it_works_html(public: bool = False) -> str:
+    """The "How it works" panel: four steps for staff; for the public three steps with no rule check or ranking."""
+    if public:
+        return trust.steps_html(T.HOW_TITLE, (
+            (T.HOW_1_HEAD, T.HOW_1_BODY), (T.HOW_2_HEAD, T.HOW_2_BODY),
+            (T.PUB_HOW_3_HEAD, T.PUB_HOW_3_BODY),
+        ))
     return trust.steps_html(T.HOW_TITLE, (
         (T.HOW_1_HEAD, T.HOW_1_BODY), (T.HOW_2_HEAD, T.HOW_2_BODY),
         (T.HOW_3_HEAD, T.HOW_3_BODY), (T.HOW_4_HEAD, T.HOW_4_BODY),
@@ -1465,7 +1507,7 @@ def render_about(gdf: pd.DataFrame | None = None) -> None:
         f"{html.escape(T.ABOUT_TITLE)}</div><p>{html.escape(T.ABOUT_BODY)}</p></div>",
         unsafe_allow_html=True,
     )
-    st.markdown(_how_it_works_html(), unsafe_allow_html=True)
+    st.markdown(_how_it_works_html(public=True), unsafe_allow_html=True)
     counts = hero.hero_counts(gdf) if gdf is not None else {"total": 0, "districts": 0}
     rows = [
         (T.ABOUT_DATA_DATE, _data_date_label(dashboard_kilns_file())),
@@ -1480,7 +1522,6 @@ def render_about(gdf: pd.DataFrame | None = None) -> None:
     link = trust.methodology_url(config)
     if link:
         st.link_button(T.ABOUT_METHODOLOGY, link, width="content")
-    st.caption(T.PRIORITY_NOTE)
 
 
 def render_district_summary(district: str, gdf: gpd.GeoDataFrame) -> None:
@@ -1816,6 +1857,31 @@ def _render_selected_candidate(row: pd.Series) -> None:
         columns[2].link_button(T.GOOGLE_EARTH, f"https://earth.google.com/web/@{lat:.6f},{lon:.6f},500a,500d,35y", width="stretch")
 
 
+def _render_public_candidate(row: pd.Series) -> None:
+    """Public detail card for a clicked kiln: id, type, area, detection status, coordinates, links.
+
+    Input: one row of the PUBLIC frame. Output: a bordered card with no priority, no rule
+    signal, no distance breakdown and no report download.
+    """
+    lat, lon = float(row.lat), float(row.lon)
+    candidate_id = str(row.get("kiln_id", T.NO_DATA))
+    detection = T.STATUS_NEW if row.get("detection_status") == kd.NEW_CANDIDATE_STATUS else T.STATUS_KNOWN
+    with st.container(border=True, key="dhoa_detail_card"):
+        st.subheader(T.SELECTED_KILN_TITLE_FMT.format(candidate_id))
+        left, right = st.columns(2)
+        with left:
+            st.markdown(f"**{T.KILN_TYPE_2}:** {_type_label(row.get('class'))}")
+            st.markdown(f"**{T.AREA}:** {_area_display_name(row)}")
+        with right:
+            st.markdown(f"**{T.DETECTION_STATUS}:** {detection}")
+            st.markdown(f"**{T.COORDINATES}:** {lat:.5f}, {lon:.5f}")
+        with st.container(key="dhoa_action_row"):
+            columns = st.columns(3)
+            columns[0].link_button(T.DIRECTIONS_2, f"https://www.google.com/maps/dir/?api=1&destination={lat:.6f},{lon:.6f}&travelmode=driving", width="stretch")
+            columns[1].link_button(T.STREET_VIEW, f"https://www.google.com/maps/@{lat:.6f},{lon:.6f},3a,90y,0h,90t/data=!3m1!1e3", width="stretch")
+            columns[2].link_button(T.GOOGLE_EARTH, f"https://earth.google.com/web/@{lat:.6f},{lon:.6f},500a,500d,35y", width="stretch")
+
+
 def _render_report_download(row: pd.Series) -> None:
     """Render the one selected-candidate PDF download control."""
     candidate_id = str(row.get("kiln_id", "unknown"))
@@ -1934,6 +2000,52 @@ return m;};})()"""
     )
 
 
+def _public_marker_callback_js(payload: Mapping[str, Any], radius: int = 8) -> str:
+    """Return the JS factory for the PUBLIC map: one neutral marker shape and colour.
+
+    Input: ``kiln_data.public_marker_payload`` output (rows are ``[lat, lon, type, area]``).
+    Output: a JS function expression for ``FastMarkerCluster``. Each marker has a hover
+    tooltip (type | area) and, on click, a light popup (type, area, coordinates, Google Maps
+    directions / map / Earth links) built in the browser. No band, colour class or
+    rule-signal field exists in the payload or in this script.
+    """
+    lookups = json.dumps(
+        {
+            "color": DESIGN_COLORS["unclassified"],
+            "outline": DESIGN_COLORS["marker_outline"],
+            "halo": DESIGN_COLORS["marker_halo"],
+            "types": payload["types"],
+            "areas": payload["areas"],
+            "labels": {
+                "kiln": html.escape(T.KILN_CANDIDATE),
+                "area": html.escape(T.AREA),
+                "directions": html.escape(T.DIRECTIONS),
+                "map": html.escape(T.MAP),
+            },
+        },
+        ensure_ascii=False,
+    )
+    factory = r"""(function(){var D=__LOOKUPS__;
+return function(row){var S=__SIZE__;
+var ic=L.divIcon({className:'dhoa-pin',iconSize:[S,S],iconAnchor:[S/2,S/2],
+html:"<svg width='"+S+"' height='"+S+"' viewBox='0 0 22 22'><circle cx='11' cy='11' r='9' fill='none' stroke='"+D.halo+"' stroke-width='3.6'/><circle cx='11' cy='11' r='9' fill='"+D.color+"' stroke='"+D.outline+"' stroke-width='1.3'/></svg>"});
+var m=L.marker([row[0],row[1]],{icon:ic,riseOnHover:true});
+m.bindTooltip(D.types[row[2]]+" | "+D.areas[row[3]],{sticky:true});
+var la=row[0],lo=row[1],q=la.toFixed(6)+','+lo.toFixed(6),g='https://www.google.com/maps',
+h="<div class='dhoa-popup'><div class='badges'><span class='badge'>"+D.types[row[2]]+"</span></div>"
++"<strong>"+D.labels.kiln+" · "+D.areas[row[3]]+"</strong><hr>"
++"📍 "+D.labels.area+": "+D.areas[row[3]]+"<br>"+la.toFixed(5)+", "+lo.toFixed(5)+"<hr>"
++"<div class='popup-actions'>"
++"<a href='"+g+"/dir/?api=1&destination="+q+"&travelmode=driving' target='_blank' rel='noopener'>🗺️ "+D.labels.directions+"</a>"
++"<a href='"+g+"?q="+q+"' target='_blank' rel='noopener'>📍 "+D.labels.map+"</a>"
++"<a href='https://earth.google.com/web/@"+la.toFixed(6)+","+lo.toFixed(6)+",500a,500d,35y' target='_blank' rel='noopener'>🌍 Google Earth</a>"
++"</div></div>";
+m.on('click',function(e){var mp=e.target._map;if(!mp){return;}
+L.popup({maxWidth:300,autoPan:true}).setLatLng(e.target.getLatLng()).setContent(h).openOn(mp);});
+return m;};})()"""
+    return factory.replace("__LOOKUPS__", lookups).replace("__SIZE__", str(int(radius) * 2 + 8))
+
+
 def _new_map(tile: str, bounds: list[list[float]] | None) -> folium.Map:
     """Create an empty map with the two basemaps, fitted to ``bounds`` when given.
 
@@ -1987,12 +2099,23 @@ def _cached_marker_payload(version: str, key: tuple, _frame: pd.DataFrame) -> di
     return kd.marker_payload(_frame, _siting_rules())
 
 
+@st.cache_data(show_spinner=False, max_entries=32)
+def _cached_public_marker_payload(version: str, key: tuple, _frame: pd.DataFrame) -> dict[str, Any]:
+    """Cache the PUBLIC compact marker rows per (public data version, search key).
+
+    Plain lists/dicts only (never a ``folium.Map``). The key carries ``"public"`` and the
+    version ends in ``-public``, so it can never collide with a staff payload.
+    """
+    return kd.public_marker_payload(_frame)
+
+
 def _marker_map(
     frame: pd.DataFrame,
     tile: str,
     bounds: list[list[float]] | None,
     radius: int = 8,
     payload: dict[str, Any] | None = None,
+    public: bool = False,
 ) -> folium.Map:
     """Build a *fresh* base map with one clustered marker layer for ``frame``.
 
@@ -2000,11 +2123,12 @@ def _marker_map(
     is created on every call because ``st_folium`` mutates the object it renders.
     """
     if payload is None:
-        payload = kd.marker_payload(frame, _siting_rules())
+        payload = kd.public_marker_payload(frame) if public else kd.marker_payload(frame, _siting_rules())
     map_view = _new_map(tile, bounds if bounds is not None else kd.bounds_of(frame))
     if payload["rows"]:
+        callback = _public_marker_callback_js(payload, radius) if public else _marker_callback_js(payload, radius)
         FastMarkerCluster(
-            payload["rows"], callback=_marker_callback_js(payload, radius),
+            payload["rows"], callback=callback,
             options=dict(_MARKER_OPTIONS),
         ).add_to(map_view)
     return map_view
@@ -2458,13 +2582,14 @@ def render_portal_bar() -> str:
 def render_portal_dashboard(gdf: gpd.GeoDataFrame) -> None:
     """Inspector > Dashboard: the headline numbers and the overview charts."""
     counts = hero.hero_counts(gdf)
-    columns = st.columns(3)
+    columns = st.columns(4)
     for column, (label, value) in zip(columns, (
-        (METRIC_LABELS["total_candidates"], counts["total"]),
-        (METRIC_LABELS["high_priority_kilns"], counts["high"]),
-        (T.HERO_METRIC_DISTRICTS, counts["districts"]),
+        (METRIC_LABELS["total_candidates"], f"{counts['total']:,}"),
+        (METRIC_LABELS["high_priority_kilns"], f"{counts['high']:,}"),
+        (T.HERO_METRIC_DISTRICTS, f"{counts['districts']:,}"),
+        (METRIC_LABELS["last_updated"], _data_date_label(dashboard_kilns_file())),
     )):
-        column.metric(label, f"{value:,}")
+        column.metric(label, value)
     render_overview_charts(gdf)
 
 
@@ -2481,6 +2606,7 @@ def main() -> None:
     try:
         load_config()
         gdf = get_prepared_data()
+        public_gdf = get_public_data()
     except Exception as _load_exc:
         logging.getLogger(__name__).exception("Dashboard data/configuration load failed")
         placeholder.empty()
@@ -2490,7 +2616,7 @@ def main() -> None:
             st.rerun()
         return
     placeholder.empty()
-    if gdf is None:
+    if gdf is None or public_gdf is None:
         st.markdown(trust.state_html("empty", T.STATE_DATA_TITLE, T.DASHBOARD_DATA_IS_UNAVAILABLE), unsafe_allow_html=True)
         if st.button(T.STATE_RETRY, key="dhoa_retry_missing_data"):
             st.rerun()
@@ -2520,16 +2646,17 @@ def main() -> None:
                             unsafe_allow_html=True)
             render_footer()
             return
+        # Overview, About and Kilns near me are public paths: they only ever receive the public frame.
         if mode == "overview":
-            render_overview(gdf)
+            render_overview(public_gdf)
             render_footer()
             return
         if mode == "about":
-            render_about(gdf)
+            render_about(public_gdf)
             render_footer()
             return
         if mode == "community":
-            render_community_view(gdf)
+            render_community_view(public_gdf)
             render_footer()
             return
         visible = filters["visible"]  # computed once in render_sidebar

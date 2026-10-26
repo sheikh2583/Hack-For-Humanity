@@ -638,6 +638,122 @@ def prepare_display_frame(
 
 
 # --------------------------------------------------------------------------
+# Public / staff data split (S2)
+# --------------------------------------------------------------------------
+STAFF_ONLY_COLUMNS: tuple[str, ...] = (
+    # priority (src/score/priority.py)
+    "priority", "priority_rank", "priority_band", "exposure", "breach_severity_score",
+    "n_schools", "n_hospitals", "settlement_area",
+    "n_schools_normalized", "n_hospitals_normalized", "settlement_area_normalized",
+    # rule signals (src/rules/engine.py)
+    "breached_rules", "breach_count", "breach_score", "rule_signals_count", "rule_data_notes",
+    "rules_version", "rules_verified", "signal_provenance_json", "technology_flagged",
+    # distance to the nearest mapped feature, including the alias spellings the popup accepts
+    "dist_schools_m", "dist_school_m", "dist_hospitals_m", "dist_hospital_m",
+    "dist_settlements_m", "dist_settlement_m", "dist_rail_m", "dist_railway_m", "dist_railways_m",
+    "dist_government_forest_m", "dist_forest_m", "dist_forests_m", "dist_water_m",
+    # detector score: only the priority score and the staff card use it
+    "confidence",
+)
+"""Pipeline columns that only the Inspector Portal may receive (documented in the pipeline modules)."""
+
+STAFF_ONLY_PREFIXES: tuple[str, ...] = ("priority", "breach", "rule", "dist_", "signal_")
+"""Safety net: any other column starting with these (or ending ``_normalized``) is staff-only too."""
+
+STAFF_ONLY_DISPLAY_COLUMNS: tuple[str, ...] = ("ui_priority", "ui_tooltip", "ui_popup_html")
+"""Display columns derived from staff-only data (priority label, rule-signal popup)."""
+
+PUBLIC_DISPLAY_COLUMNS: tuple[str, ...] = ("ui_area", "ui_type")
+"""Display columns the public frame carries (no priority, no rule signals)."""
+
+
+def is_staff_only_column(name: object) -> bool:
+    """True when column ``name`` must never reach the public side (explicit list, then prefixes)."""
+    text = str(name)
+    lowered = text.lower()
+    return (
+        text in STAFF_ONLY_COLUMNS
+        or text in STAFF_ONLY_DISPLAY_COLUMNS
+        or lowered.startswith(STAFF_ONLY_PREFIXES)
+        or lowered.endswith("_normalized")
+    )
+
+
+def public_view(frame: pd.DataFrame) -> pd.DataFrame:
+    """Return ``frame`` without any staff-only column (a copy; the input is untouched).
+
+    Input: a kiln frame (pandas or geopandas). Output: the same rows minus
+    ``STAFF_ONLY_COLUMNS``, the prefix matches and the staff display columns, so no
+    public payload, table, map or PDF can be built from a priority or rule value.
+    """
+    drop = [name for name in frame.columns if is_staff_only_column(name)]
+    result = frame.drop(columns=drop)
+    result.attrs = {}
+    return result
+
+
+def leaked_columns(frame: pd.DataFrame) -> list[str]:
+    """Names in ``frame`` that are staff-only (empty list for a safe public frame)."""
+    return [str(name) for name in frame.columns if is_staff_only_column(name)]
+
+
+def with_public_display_columns(frame: pd.DataFrame) -> pd.DataFrame:
+    """Return ``frame`` with ``ui_area`` and ``ui_type`` present (same object when they are)."""
+    if all(name in frame.columns for name in PUBLIC_DISPLAY_COLUMNS):
+        return frame
+    result = frame.copy()
+    result["ui_area"] = area_labels(result)
+    result["ui_type"] = [type_label(value) for value in _column_list(result, "class")]
+    return result
+
+
+def prepare_public_frame(frame: pd.DataFrame, version: str) -> pd.DataFrame:
+    """Prepare the public dataset once at load time (read-only afterwards).
+
+    Input: the raw loaded kiln frame and a data-version token. Output: ``public_view`` of it
+    plus a default ``detection_status`` and ``PUBLIC_DISPLAY_COLUMNS``; the cache key in
+    ``attrs["dhoa_data_version"]`` carries ``-public`` so staff and public caches never mix.
+    """
+    result = public_view(frame)
+    if "detection_status" not in result.columns:
+        result["detection_status"] = "Known"
+    result = with_public_display_columns(result)
+    result.attrs["dhoa_data_version"] = f"{version}-public"
+    return result
+
+
+def public_marker_payload(frame: pd.DataFrame) -> dict[str, Any]:
+    """Pack kilns into the public map structure: position, type and area only.
+
+    Output: ``{"rows": [[lat, lon, type_index, area_index], ...], "types": [...],
+    "areas": [...]}``; labels are HTML-escaped. There is no band, colour class or
+    rule-signal field, so nothing about priority can be read from the page.
+    """
+    frame = with_public_display_columns(frame)
+    lat = numeric_column(frame, ("lat",))
+    lon = numeric_column(frame, ("lon",))
+    valid = np.isfinite(lat) & np.isfinite(lon)
+    types: list[str] = []
+    areas: list[str] = []
+    type_pos: dict[str, int] = {}
+    area_pos: dict[str, int] = {}
+    rows: list[list[Any]] = []
+    for ok, la, lo, kind, area in zip(
+        valid.tolist(), lat.tolist(), lon.tolist(), frame["ui_type"].tolist(), frame["ui_area"].tolist()
+    ):
+        if not ok:
+            continue
+        kind_i = type_pos.setdefault(kind, len(type_pos))
+        if kind_i == len(types):
+            types.append(html.escape(kind))
+        area_i = area_pos.setdefault(area, len(area_pos))
+        if area_i == len(areas):
+            areas.append(html.escape(area))
+        rows.append([round(la, 5), round(lo, 5), kind_i, area_i])
+    return {"rows": rows, "types": types, "areas": areas}
+
+
+# --------------------------------------------------------------------------
 # Compact map payload (M3)
 # --------------------------------------------------------------------------
 def popup_signal_codes(

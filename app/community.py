@@ -241,7 +241,8 @@ def search(frame: pd.DataFrame, place: Place, radius_m: int | None) -> SearchRes
     if used_radius is not None:
         rows = rows[rows["distance_m"] <= used_radius]
     rows = rows.sort_values("distance_m", kind="stable")
-    return SearchResult(place, rows, used_radius, kd.priority_summary(rows))
+    summary = kd.priority_summary(rows) if "priority_band" in rows.columns else {"total": int(len(rows))}
+    return SearchResult(place, rows, used_radius, summary)
 
 
 def nearest_beyond(frame: pd.DataFrame, lat: float, lon: float) -> tuple[float, pd.Series] | None:

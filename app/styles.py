@@ -416,9 +416,12 @@ img, svg, iframe { max-width: 100%; }
     }
     .st-key-dhoa_portal_bar [data-testid="stColumn"] { min-width: 0 !important; }
     .st-key-dhoa_portal_bar [data-testid="stColumn"]:nth-child(1) { flex: 1 1 100% !important; }
-    .st-key-dhoa_portal_bar [data-testid="stColumn"]:nth-child(2) { flex: 1 1 50% !important; }
-    .st-key-dhoa_portal_bar [data-testid="stColumn"]:nth-child(3) { flex: 1 1 35% !important; }
-    .st-key-dhoa_portal_bar [data-testid="stCaptionContainer"] { text-align: left; }
+    /* "Signed in: name" takes the free width and wraps; Sign out keeps its full label beside it */
+    .st-key-dhoa_portal_bar [data-testid="stColumn"]:nth-child(2) { flex: 1 1 0 !important; min-width: 0 !important; }
+    .st-key-dhoa_portal_bar [data-testid="stColumn"]:nth-child(3) { flex: 0 0 auto !important; width: auto !important; min-width: 7.5rem !important; }
+    .st-key-dhoa_portal_bar [data-testid="stCaptionContainer"] { text-align: left; overflow-wrap: anywhere; }
+    .st-key-dhoa_portal_bar [data-testid="stColumn"]:nth-child(3) button { white-space: nowrap; }
+    .st-key-dhoa_portal_bar [data-testid="stSegmentedControl"] { overflow: visible; }
     /* the four sections and the portal tabs wrap onto a second line instead of being cut off */
     .st-key-dhoa_portal_bar [data-testid="stButtonGroup"] > div,
     .st-key-dhoa_header_row [data-testid="stButtonGroup"] > div { flex-wrap: wrap !important; overflow: visible !important; }

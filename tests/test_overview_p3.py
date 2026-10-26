@@ -131,6 +131,8 @@ def test_overview_charts_render_and_a_district_button_opens_the_filtered_map(dat
     at = AppTest.from_file(str(ROOT / "app" / "streamlit_app.py"), default_timeout=120)
     at.session_state["dhoa_role"] = "inspector"  # S1: the filtered staff map needs a staff session
     at.session_state["dhoa_staff_name"] = "Test"
+    at.session_state["dhoa_view_mode"] = "inspector"  # S2: the High series and type split live in Inspector > Dashboard
+    at.session_state["dhoa_portal_tab"] = "dashboard"
     at.run()
     assert not at.exception
     markdown = " ".join(m.value for m in at.markdown)

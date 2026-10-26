@@ -49,6 +49,37 @@ def district_stats(frame: pd.DataFrame) -> pd.DataFrame:
                               kind="stable").reset_index(drop=True)[columns]
 
 
+def public_district_counts(frame: pd.DataFrame) -> pd.DataFrame:
+    """Per-district candidate counts for the public Overview: columns ``district``, ``total``.
+
+    Input: the PUBLIC kiln frame. Output: districts ranked by ``total`` desc then name; rows
+    without a district are left out. It never reads a priority column, so it is safe to call
+    on any frame and has no ``high`` series.
+    """
+    columns = ["district", "total"]
+    if "district" not in frame:
+        return pd.DataFrame(columns=columns).astype({"total": "int64"})
+    names = _clean(frame["district"]).dropna()
+    counts = names.groupby(names, sort=False).size().rename("total").reset_index()
+    counts.columns = columns
+    counts["total"] = counts["total"].astype("int64")
+    return counts.sort_values(["total", "district"], ascending=[False, True],
+                              kind="stable").reset_index(drop=True)
+
+
+def public_district_bar_html(total: int, maximum: int, total_label: str) -> str:
+    """One labelled bar (all candidates) for a district row on the public Overview."""
+    total = int(total)
+    return (
+        "<div class='dhoa-bar-block'>"
+        "<div class='dhoa-bar-line'>"
+        f"<span class='dhoa-bar dhoa-bar-total' style='width:{bar_width(total, maximum)}%' "
+        f"role='img' aria-label='{html.escape(total_label, quote=True)}: {total:,}'></span>"
+        f"<span class='dhoa-bar-value'>{total:,}</span></div>"
+        "</div>"
+    )
+
+
 def upazila_stats(frame: pd.DataFrame, limit: int = 10) -> pd.DataFrame:
     """Top ``limit`` upazilas by candidate count.
 

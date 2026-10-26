@@ -123,7 +123,7 @@ HELP_COMMUNITY = """
 
 2. **How far?** Choose 1, 2, 5 or 10 km. If you pick an upazila or district, all kilns in that area are shown.
 
-3. See the **results**, tap a marker on the map, and download the report or the list.
+3. See the **results**, tap a marker on the map, and download the report.
 """
 HELP_INSPECTOR = """
 **Using the Inspector Portal map**
@@ -353,3 +353,11 @@ PORTAL_TAB_REPORTS_FMT = 'Reports ({0})'
 PORTAL_TABS_LABEL = 'Inspector Portal sections'
 PORTAL_SOON_TITLE = 'Coming soon'
 PORTAL_SOON_BODY = 'This section will be available in the next update.'
+
+# S2: public Overview (no priority wording)
+PUB_HERO_MISSION = 'Brick kiln candidates found in satellite images and shown on a map.'
+PUB_HERO_SUB = 'Find the kiln candidates near your home or village.'
+PUB_OV_DISTRICTS_HINT = 'Select a district name to see its kiln candidates.'
+PUB_OV_OPEN_DISTRICT_FMT = 'See kiln candidates in {0}'
+PUB_HOW_3_HEAD = 'Find near you'
+PUB_HOW_3_BODY = 'Candidates are shown on a map, so you can look up the ones near a place.'
