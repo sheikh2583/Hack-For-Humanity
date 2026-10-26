@@ -203,16 +203,16 @@ def _prepared_data(path_text: str, mtime_ns: int, size: int, lang: str) -> gpd.G
 def _public_data(path_text: str, mtime_ns: int, size: int, lang: str) -> gpd.GeoDataFrame | None:
     """Build the PUBLIC dataset once per data file version and language.
 
-    Input: data path plus its mtime/size and the language (cache key). Output: the loaded
-    frame passed through ``kd.public_view`` (no priority, rule or distance column, no staff
+    Input: data path plus its mtime/size and the language (cache key). Output: the cached
+    prepared frame passed through ``kd.public_view`` (no priority, rule or distance column, no staff
     display column) with only ``ui_area``/``ui_type`` added; ``attrs["dhoa_data_version"]``
     ends in ``-public`` so every cache keyed by it is separate from the staff data. The
     object is shared by every session and must be treated as read-only.
     """
-    gdf = load_data(Path(path_text))
-    if gdf is None:
+    prepared = _prepared_data(path_text, mtime_ns, size, lang)  # reuse the cached load: no second read
+    if prepared is None:
         return None
-    return kd.prepare_public_frame(gdf, version=f"{mtime_ns}-{size}-{len(gdf)}-{lang}")
+    return kd.prepare_public_frame(prepared, version=str(prepared.attrs.get("dhoa_data_version", mtime_ns)))
 
 
 def get_public_data(path: Path = DATA_PATH) -> gpd.GeoDataFrame | None:
