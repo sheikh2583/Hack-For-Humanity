@@ -36,7 +36,6 @@ def _run(view: str):
 
 
 def _picker_index(at, needle: str) -> int:
-    at.text_input(key="community_search_query").set_value(needle).run()
     options = at.selectbox(key="w_community_suggestion@bn").options
     return next(i for i, label in enumerate(options) if needle in label)
 

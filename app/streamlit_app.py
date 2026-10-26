@@ -722,24 +722,20 @@ def _community_result(gdf: pd.DataFrame) -> cm.SearchResult | None:
 
 
 def _on_community_pick(gdf: pd.DataFrame) -> None:
-    """A suggestion replaces any GPS/geocoded origin and old notices."""
+    """Apply a covered-area choice or geocode a new name entered in the picker."""
     selected = st.session_state.get(_wkey("community_suggestion"))
-    st.session_state["community_place_key"] = selected
-    if selected:
-        place = _community_places(gdf).get(selected)
-        if place is not None:
-            st.session_state["community_search_query"] = place.name
-    st.session_state["community_origin"] = None
-    st.session_state.pop("community_notice", None)
-    st.session_state["community_selected_kiln_id"] = None
-
-
-def _on_community_search() -> None:
-    """Clear a previous origin when a user starts searching for another place."""
     st.session_state["community_place_key"] = None
     st.session_state["community_origin"] = None
     st.session_state.pop("community_notice", None)
     st.session_state["community_selected_kiln_id"] = None
+    if selected is None:
+        return
+    place = _community_places(gdf).get(selected) if isinstance(selected, str) else None
+    if place is not None:
+        st.session_state["community_place_key"] = place.key
+        return
+    if isinstance(selected, str):
+        st.session_state["community_pending_geocode"] = selected
 
 
 def _set_community_radius(radius_m: int) -> None:
@@ -748,12 +744,12 @@ def _set_community_radius(radius_m: int) -> None:
 
 
 def _set_community_origin(name: str | None, lat: float, lon: float) -> None:
-    """Make a point the origin (``name=None`` = GPS fix); the picker is cleared next run."""
+    """Make a searched place or GPS fix the origin; GPS clears the picker next run."""
     st.session_state["community_origin"] = {
         "name": name or "", "gps": name is None, "lat": float(lat), "lon": float(lon),
     }
-    st.session_state["community_picker_reset"] = True
-    st.session_state["community_search_reset"] = True
+    if name is None:
+        st.session_state["community_picker_reset"] = True
     st.session_state["community_selected_kiln_id"] = None
 
 
@@ -801,7 +797,7 @@ def _handle_gps_event(event: object) -> None:
 
 
 def _submit_community_geocode(query: str) -> None:
-    """Run the optional free-text fallback and store the outcome in session state."""
+    """Geocode a user-submitted name and store the result for the next rerun."""
     text = " ".join(query.split())
     if not text:
         _set_community_notice("warning", "geo_empty")
@@ -821,55 +817,45 @@ def _submit_community_geocode(query: str) -> None:
         return
     st.session_state.pop("community_notice", None)
     _set_community_origin(text, hit[0], hit[1])
-    st.rerun()
 
 
 def _render_community_inputs(gdf: pd.DataFrame) -> cm.Place | None:
     """Render steps 1 and 2 and return the chosen origin (or None)."""
     if st.session_state.pop("community_picker_reset", False):
         st.session_state["community_place_key"] = None
-    if st.session_state.pop("community_search_reset", False):
-        st.session_state["community_search_query"] = ""
+        st.session_state.pop(_wkey("community_suggestion"), None)
     places = _community_places(gdf)
     if st.session_state.get("community_radius_m") not in cm.RADIUS_CHOICES_M:
         st.session_state["community_radius_m"] = cm.DEFAULT_RADIUS_M
     if st.session_state.get("community_place_key") not in places:
         st.session_state["community_place_key"] = None
-    _seed("community_place_key", st.session_state["community_place_key"])
     _seed("community_radius_m", st.session_state["community_radius_m"])
 
     with st.container(border=True, key="dhoa_community_step1"):
         st.markdown(f"**{T.C_STEP1}**")
-        query = st.text_input(
+        picker_key = _wkey("community_suggestion")
+        if picker_key not in st.session_state:
+            st.session_state[picker_key] = st.session_state["community_place_key"]
+        st.selectbox(
             T.C_PLACE_LABEL,
+            options=list(places),
+            index=None,
+            format_func=lambda value: places[value].label if value in places else str(value),
             placeholder=T.C_PLACE_PLACEHOLDER,
             help=T.C_PLACE_HELP,
-            key="community_search_query",
-            on_change=_on_community_search,
+            key=picker_key,
+            on_change=_on_community_pick,
+            args=(gdf,),
+            accept_new_options=True,
+            filter_mode="fuzzy",
         )
-        suggestions = _community_place_suggestions(places, query)
-        if suggestions:
-            _seed("community_suggestion", None)
-            st.selectbox(
-                T.C_PLACE_SUGGESTIONS,
-                suggestions,
-                index=None,
-                format_func=lambda key: places[key].label,
-                placeholder=T.C_PLACE_SUGGESTION_PLACEHOLDER,
-                key=_wkey("community_suggestion"),
-                on_change=_on_community_pick,
-                args=(gdf,),
-            )
+        pending_geocode = st.session_state.pop("community_pending_geocode", None)
+        if isinstance(pending_geocode, str):
+            _submit_community_geocode(pending_geocode)
         event = _geolocate(
             label=T.C_GPS_LABEL, busy_label=T.C_GPS_BUSY, key="community_gps", default=None
         )
-        with st.expander(T.C_GEO_EXPANDER):
-            with st.form("community_geocode_form", border=False):
-                typed = st.text_input(T.C_GEO_INPUT, help=T.C_GEO_HELP, key="community_geocode_text")
-                submitted = st.form_submit_button(T.C_GEO_BUTTON, width="stretch")
         _handle_gps_event(event)
-        if submitted:
-            _submit_community_geocode(typed)
         notice = st.session_state.get("community_notice")
         if notice and notice[1] in _NOTICE_NAMES:
             getattr(st, notice[0], st.info)(T.text(_NOTICE_NAMES[notice[1]]))
@@ -1267,9 +1253,9 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
     """Render the Community view as three steps on one screen.
 
     Input schema: prepared kiln frame (lat/lon, district, upazila, class,
-    priority_band, optional nearest_place). Output schema: 1) a searchable
-    place picker built from the data plus "use my location" and an optional
-    geocoder fallback, 2) radius choices 1/2/5/10 km (default 5; whole-area
+    priority_band, optional nearest_place). Output schema: 1) one searchable
+    place picker with data-backed suggestions and typed-name geocoding, plus
+    "use my location", 2) radius choices 1/2/5/10 km (default 5; whole-area
     choices list every kiln), 3) a summary, list, map and PDF/CSV downloads,
     or a clear next step when nothing is found. No page reload anywhere.
     """
