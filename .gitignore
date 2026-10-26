@@ -61,3 +61,5 @@ wandb
 mobile/node_modules/
 mobile/.env
 data/raw/boundaries/geoBoundaries_BGD_ADM3.geojson
+dhoa_claude_source/
+dashboard-missing-assets-manifest.txt
