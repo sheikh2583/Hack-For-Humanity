@@ -12,9 +12,9 @@ from collections.abc import Sequence
 
 import pandas as pd
 
-#: Top-navigation order. ``overview`` is the landing page, ``inspector`` the map,
-#: ``community`` the "near me" view. (Stored session values keep the older names.)
-VIEW_MODES: tuple[str, ...] = ("overview", "inspector", "community", "about")
+#: Top-navigation order. ``overview`` is the landing page, ``community`` the public "Kilns near me" view,
+#: ``inspector`` the staff-only Inspector Portal. (Stored session values keep the older names.)
+VIEW_MODES: tuple[str, ...] = ("overview", "community", "inspector", "about")
 DEFAULT_VIEW = "overview"
 
 

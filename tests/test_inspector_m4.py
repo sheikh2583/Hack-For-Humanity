@@ -82,6 +82,7 @@ def test_inspector_apptest_renders_summary_strip_and_note() -> None:
 
     at = AppTest.from_file(str(ROOT / "app" / "streamlit_app.py"), default_timeout=180)
     at.session_state["dhoa_view_mode"] = "inspector"  # P2: the default view is now the Overview
+    at.session_state["dhoa_role"] = "inspector"; at.session_state["dhoa_staff_name"] = "Test"
     at.run()
     assert not at.exception
     markdown = " ".join(m.value for m in at.markdown)
@@ -99,6 +100,7 @@ def test_inspector_apptest_empty_filter_shows_reset_state() -> None:
 
     at = AppTest.from_file(str(ROOT / "app" / "streamlit_app.py"), default_timeout=180)
     at.session_state["dhoa_view_mode"] = "inspector"  # P2: the default view is now the Overview
+    at.session_state["dhoa_role"] = "inspector"; at.session_state["dhoa_staff_name"] = "Test"
     at.run()
     # Adabor is a listed Dhaka area with no kilns in the data (empty result, not an error).
     at.selectbox(key="w_filter_district@bn").select("Dhaka").run()

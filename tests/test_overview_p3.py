@@ -128,7 +128,10 @@ def test_overview_charts_render_and_a_district_button_opens_the_filtered_map(dat
     """Not run in the authoring sandbox (no streamlit): bars render; the button filters the map."""
     from streamlit.testing.v1 import AppTest
 
-    at = AppTest.from_file(str(ROOT / "app" / "streamlit_app.py"), default_timeout=120).run()
+    at = AppTest.from_file(str(ROOT / "app" / "streamlit_app.py"), default_timeout=120)
+    at.session_state["dhoa_role"] = "inspector"  # S1: the filtered staff map needs a staff session
+    at.session_state["dhoa_staff_name"] = "Test"
+    at.run()
     assert not at.exception
     markdown = " ".join(m.value for m in at.markdown)
     assert "dhoa-bar-block" in markdown and "dhoa-split" in markdown

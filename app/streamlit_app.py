@@ -50,6 +50,7 @@ from streamlit_folium import st_folium
 
 # isort: off
 import community as cm
+import roles
 import design_tokens as tokens
 import hero
 import trust
@@ -1304,7 +1305,7 @@ def _render_language_toggle() -> None:
 def _nav_label(view: str) -> str:
     """Translated top-navigation label for a view key."""
     return {
-        "overview": T.NAV_OVERVIEW, "inspector": T.NAV_MAP,
+        "overview": T.NAV_OVERVIEW, "inspector": T.NAV_INSPECTOR,
         "community": T.NAV_NEAR_ME, "about": T.NAV_ABOUT,
     }[view]
 
@@ -1330,7 +1331,7 @@ def render_header(gdf: gpd.GeoDataFrame) -> str:
     # header to ~50 px so the map is on screen without scrolling; hero views keep the subtitle.
     with st.container(key="dhoa_header_row"):
         title_col, nav_col, help_col, lang_col = st.columns(
-            [1.5, 5, 1.6, 1.9], vertical_alignment="center", gap="small"
+            [1.1, 7.2, 1.7, 1.8], vertical_alignment="center", gap="small"
         )
         with title_col:
             st.markdown(f"<h1 class='dhoa-brand-title'>{html.escape(DASHBOARD_TITLE)}</h1>", unsafe_allow_html=True)
@@ -1347,7 +1348,7 @@ def render_header(gdf: gpd.GeoDataFrame) -> str:
             st.session_state["dhoa_view_mode"] = mode
         selected_mode = st.session_state["dhoa_view_mode"]
         with help_col:
-            if selected_mode in ("inspector", "community"):
+            if selected_mode == "community" or (selected_mode == "inspector" and roles.is_staff()):
                 with st.popover(T.HOW_TO_USE, icon=":material/help:", width="stretch"):
                     st.markdown(T.HELP_COMMUNITY if selected_mode == "community" else T.HELP_INSPECTOR)
                     render_voice_guide(selected_mode, "popover")
@@ -1370,11 +1371,15 @@ def render_overview(gdf: gpd.GeoDataFrame) -> None:
     )
     st.markdown(hero.hero_html(T.HERO_MISSION, T.HERO_SUB, metrics), unsafe_allow_html=True)
     with st.container(key="dhoa_action_row"):
-        left, right = st.columns(2, gap="small")
-        left.button(T.HERO_CTA_MAP, key="dhoa_hero_map", type="primary", width="stretch",
-                    on_click=_go_to_view, args=("inspector",))
-        right.button(T.HERO_CTA_NEAR_ME, key="dhoa_hero_near", width="stretch",
-                     on_click=_go_to_view, args=("community",))
+        if roles.is_staff():
+            left, right = st.columns(2, gap="small")
+            left.button(T.HERO_CTA_NEAR_ME, key="dhoa_hero_near", type="primary", width="stretch",
+                        on_click=_go_to_view, args=("community",))
+            right.button(T.HERO_CTA_MAP, key="dhoa_hero_map", width="stretch",
+                         on_click=_go_to_view, args=("inspector",))
+        else:
+            st.button(T.HERO_CTA_NEAR_ME, key="dhoa_hero_near", type="primary", width="stretch",
+                      on_click=_go_to_view, args=("community",))
     st.caption(T.PRIORITY_NOTE)
     with st.expander(T.HOW_TITLE, expanded=False):
         st.markdown(_how_it_works_html(), unsafe_allow_html=True)
@@ -1388,6 +1393,9 @@ def _open_district(district: str) -> None:
     _drop_widget_state("filter_upazila", "filter_district")
     st.session_state["selected_kiln_id"] = None
     st.session_state["dhoa_view_mode"] = "inspector"
+    st.session_state["dhoa_portal_tab"] = "map"
+    if not roles.is_staff():  # the staff map is never opened for the public
+        st.session_state["dhoa_view_mode"] = "community"
 
 
 def render_overview_charts(gdf: pd.DataFrame) -> None:
@@ -2371,6 +2379,95 @@ def render_footer() -> None:
         logging.getLogger(__name__).exception("Footer failed")
 
 
+_PORTAL_TABS: tuple[str, ...] = ("dashboard", "map", "work", "reports")
+
+
+def _open_report_count() -> int:
+    """Number of open public reports (reports arrive in a later module, so none yet)."""
+    return 0
+
+
+def _portal_tab_label(tab: str) -> str:
+    """Translated label of an Inspector Portal sub-tab (Reports carries a count badge)."""
+    if tab == "reports":
+        count = _open_report_count()
+        return T.PORTAL_TAB_REPORTS_FMT.format(count) if count else T.PORTAL_TAB_REPORTS
+    return {"dashboard": T.PORTAL_TAB_DASHBOARD, "map": T.PORTAL_TAB_MAP, "work": T.PORTAL_TAB_WORK}[tab]
+
+
+def _commit_portal_tab() -> None:
+    """``on_change`` callback for the portal sub-tabs (a deselect keeps the current tab)."""
+    value = st.session_state.get(_wkey("dhoa_portal_tab"))
+    if value in _PORTAL_TABS:
+        st.session_state["dhoa_portal_tab"] = value
+
+
+def _sign_out_staff() -> None:
+    """``on_click`` callback: end the staff session and return to the Overview."""
+    roles.sign_out()
+    st.session_state["dhoa_view_mode"] = hero.DEFAULT_VIEW
+    st.session_state.pop("dhoa_portal_tab", None)
+
+
+def render_staff_signin() -> None:
+    """Sign-in page shown in place of the portal while the session is public."""
+    with st.container(key="dhoa_signin"):
+        st.markdown(f"<div class='dhoa-section-title'>{html.escape(T.PORTAL_SIGNIN_TITLE)}</div>",
+                    unsafe_allow_html=True)
+        if not roles.signin_available():
+            st.info(T.PORTAL_SIGNIN_UNAVAILABLE)
+            return
+        st.caption(T.PORTAL_SIGNIN_HINT)
+        if roles.configured_passcode():
+            with st.form("dhoa_signin_form", clear_on_submit=False):
+                passcode = st.text_input(T.PORTAL_PASSCODE, type="password", key="dhoa_signin_passcode")
+                name = st.text_input(T.PORTAL_NAME, key="dhoa_signin_name", max_chars=60)
+                submitted = st.form_submit_button(T.PORTAL_SIGN_IN, type="primary")
+            if submitted:
+                if roles.sign_in(passcode, name):
+                    st.session_state["dhoa_portal_tab"] = "map"
+                    st.rerun()
+                st.error(T.PORTAL_WRONG_PASSCODE)
+        if roles.demo_enabled() and st.button(T.PORTAL_DEMO_SIGN_IN, key="dhoa_signin_demo"):
+            roles.demo_sign_in()
+            st.session_state["dhoa_portal_tab"] = "map"
+            st.rerun()
+
+
+def render_portal_bar() -> str:
+    """Second-level navigation under the top bar (staff only); return the active sub-tab key."""
+    if st.session_state.get("dhoa_portal_tab") not in _PORTAL_TABS:
+        st.session_state["dhoa_portal_tab"] = "map"
+    _seed("dhoa_portal_tab", st.session_state["dhoa_portal_tab"])
+    with st.container(key="dhoa_portal_bar"):
+        tabs_col, who_col, out_col = st.columns([6, 3, 1.6], vertical_alignment="center", gap="small")
+        with tabs_col:
+            chosen = st.segmented_control(
+                T.PORTAL_TABS_LABEL, list(_PORTAL_TABS), format_func=_portal_tab_label,
+                key=_wkey("dhoa_portal_tab"), width="stretch", on_change=_commit_portal_tab,
+                label_visibility="collapsed",
+            )
+        if chosen in _PORTAL_TABS:
+            st.session_state["dhoa_portal_tab"] = chosen
+        who_col.caption(T.PORTAL_SIGNED_IN_FMT.format(roles.staff_name()))
+        out_col.button(T.PORTAL_SIGN_OUT, key="dhoa_portal_signout", width="stretch",
+                       on_click=_sign_out_staff)
+    return st.session_state["dhoa_portal_tab"]
+
+
+def render_portal_dashboard(gdf: gpd.GeoDataFrame) -> None:
+    """Inspector > Dashboard: the headline numbers and the overview charts."""
+    counts = hero.hero_counts(gdf)
+    columns = st.columns(3)
+    for column, (label, value) in zip(columns, (
+        (METRIC_LABELS["total_candidates"], counts["total"]),
+        (METRIC_LABELS["high_priority_kilns"], counts["high"]),
+        (T.HERO_METRIC_DISTRICTS, counts["districts"]),
+    )):
+        column.metric(label, f"{value:,}")
+    render_overview_charts(gdf)
+
+
 def main() -> None:
     """Run the shared Dhoa header, sidebar, and selected mode flow.
 
@@ -2404,9 +2501,25 @@ def main() -> None:
     try:
         get_projected_crs(centroid_longitude)
         mode = render_header(gdf)
-        # Always render the sidebar (even in Home/About, where it only holds the contact line) so
-        # Streamlit never adds/removes it between views and the page does not jump sideways.
-        filters = render_sidebar(gdf, mode)
+        portal_tab = None
+        if mode == "inspector" and roles.is_staff():
+            portal_tab = render_portal_bar()
+        # The sidebar filters belong to the staff map only; every other view keeps the minimal
+        # sidebar. It is always rendered so Streamlit never adds/removes it between views.
+        staff_map = mode == "inspector" and portal_tab == "map"
+        filters = render_sidebar(gdf, "inspector" if staff_map else ("about" if mode == "inspector" else mode))
+        if mode == "inspector" and not roles.is_staff():
+            render_staff_signin()
+            render_footer()
+            return
+        if mode == "inspector" and portal_tab != "map":
+            if portal_tab == "dashboard":
+                render_portal_dashboard(gdf)
+            else:
+                st.markdown(trust.state_html("empty", T.PORTAL_SOON_TITLE, T.PORTAL_SOON_BODY),
+                            unsafe_allow_html=True)
+            render_footer()
+            return
         if mode == "overview":
             render_overview(gdf)
             render_footer()

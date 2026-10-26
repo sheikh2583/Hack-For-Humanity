@@ -29,6 +29,9 @@ def _run(view: str):
 
     at = AppTest.from_file(str(ROOT / "app" / "streamlit_app.py"), default_timeout=120)
     at.session_state["dhoa_view_mode"] = view
+    if view == "inspector":
+        at.session_state["dhoa_role"] = "inspector"
+        at.session_state["dhoa_staff_name"] = "Test"
     return at.run()
 
 
@@ -98,8 +101,8 @@ def test_language_switch_keeps_filters_and_gives_same_results(data_dir: Path) ->
     assert not any("w_filter_district@bn" == w.key for w in at.selectbox)
     english_district = at.selectbox(key="w_filter_district@en")
     assert english_district.value == "Gazipur"
-    options = at.multiselect(key="w_filter_priority@en").options
-    assert any("High" in o for o in options) and not any("উচ্চ" in o for o in options)
+    # priority is a pills control now (not exposed by AppTest): the seeded value must be canonical English keys
+    assert at.session_state["w_filter_priority@en"] == ["High", "Medium", "Low"]
     assert not any(i.value == T.text("NO_CANDIDATES_MATCH_THESE_FILTERS", "en") for i in at.info)
 
 
@@ -112,9 +115,14 @@ def test_overview_is_the_default_and_hero_buttons_switch_views(data_dir: Path) -
     markdown = " ".join(m.value for m in at.markdown if not m.value.lstrip().startswith("<style"))
     assert "dhoa-hero" in markdown and T.HERO_MISSION in markdown
     assert "dhoa-summary" not in markdown  # the map summary strip is not on the landing page
-    at.button(key="dhoa_hero_map").click().run()
-    assert at.session_state["dhoa_view_mode"] == "inspector" and not at.exception
-    assert any(T.PRIORITY_NOTE == c.value for c in at.caption)
+    assert not any(b.key == "dhoa_hero_map" for b in at.button)  # the public never gets the staff-map button
+    staff = AppTest.from_file(str(ROOT / "app" / "streamlit_app.py"), default_timeout=120)
+    staff.session_state["dhoa_role"] = "inspector"
+    staff.session_state["dhoa_staff_name"] = "Test"
+    staff.run()
+    staff.button(key="dhoa_hero_map").click().run()
+    assert staff.session_state["dhoa_view_mode"] == "inspector" and not staff.exception
+    assert any(T.PRIORITY_NOTE == c.value for c in staff.caption)
     at = AppTest.from_file(str(ROOT / "app" / "streamlit_app.py"), default_timeout=120).run()
     at.button(key="dhoa_hero_near").click().run()
     assert at.session_state["dhoa_view_mode"] == "community" and not at.exception

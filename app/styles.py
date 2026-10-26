@@ -394,6 +394,74 @@ img, svg, iframe { max-width: 100%; }
     .dhoa-skel-tile, .dhoa-skel-bar { animation: none !important; }
     *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
+/* ---- map-first layout (M11): the map is on screen without scrolling ------------------ */
+[data-testid="stMainBlockContainer"] .st-key-dhoa_header_row h1.dhoa-brand-title {
+    font-size: 1.8rem !important; padding: 0.1em 0 !important; margin: 0 !important; line-height: 1.5 !important;
+}
+.st-key-dhoa_header_row [data-testid="stHorizontalBlock"] { align-items: center; margin-bottom: 0.25rem; }
+.st-key-dhoa_header_row h1.dhoa-brand-title { white-space: nowrap; }
+/* Inspector Portal second-level navigation: visibly smaller and quieter than the top bar */
+.st-key-dhoa_portal_bar {
+    background: var(--dhoa-color-card); border: 1px solid var(--dhoa-color-border);
+    border-radius: var(--dhoa-radius-md, 10px); padding: 0.3rem 0.6rem; margin: 0 0 0.6rem;
+}
+.st-key-dhoa_portal_bar [data-testid="stHorizontalBlock"] { align-items: center; gap: 0.5rem; }
+.st-key-dhoa_portal_bar [data-testid="stSegmentedControl"] { overflow-x: auto; }
+.st-key-dhoa_portal_bar button { font-size: 0.85rem !important; min-height: 2rem !important; }
+.st-key-dhoa_portal_bar [data-testid="stCaptionContainer"] { margin-top: 0 !important; text-align: right; }
+.st-key-dhoa_signin { max-width: 26rem; margin: 1.5rem auto; }
+@media (max-width: 768px) {
+    .st-key-dhoa_portal_bar [data-testid="stHorizontalBlock"] {
+        flex-direction: row !important; flex-wrap: wrap !important; gap: 0.4rem !important;
+    }
+    .st-key-dhoa_portal_bar [data-testid="stColumn"] { min-width: 0 !important; }
+    .st-key-dhoa_portal_bar [data-testid="stColumn"]:nth-child(1) { flex: 1 1 100% !important; }
+    .st-key-dhoa_portal_bar [data-testid="stColumn"]:nth-child(2) { flex: 1 1 50% !important; }
+    .st-key-dhoa_portal_bar [data-testid="stColumn"]:nth-child(3) { flex: 1 1 35% !important; }
+    .st-key-dhoa_portal_bar [data-testid="stCaptionContainer"] { text-align: left; }
+    /* the four sections and the portal tabs wrap onto a second line instead of being cut off */
+    .st-key-dhoa_portal_bar [data-testid="stButtonGroup"] > div,
+    .st-key-dhoa_header_row [data-testid="stButtonGroup"] > div { flex-wrap: wrap !important; overflow: visible !important; }
+}
+/* slim one-line summary strip: value and label side by side */
+.dhoa-metrics.dhoa-summary { gap: 0.4rem; margin: 0 0 0.25rem; }
+.dhoa-summary .dhoa-metric {
+    display: flex; align-items: baseline; gap: 0.45rem; flex-wrap: wrap;
+    padding: 0.3rem 0.6rem; box-shadow: none;
+}
+.dhoa-summary .dhoa-metric strong { display: inline; font-size: var(--dhoa-type-body); }
+.dhoa-summary .dhoa-metric span { display: inline; }
+[data-testid="stMainBlockContainer"] [data-testid="stCaptionContainer"] { margin-top: -0.35rem; }
+.st-key-dhoa_map_toolbar [data-testid="stHorizontalBlock"] { gap: 0.5rem; }
+.st-key-dhoa_map_toolbar [data-testid="stElementContainer"] { margin: 0; }
+.st-key-dhoa_map_toolbar .dhoa-legend { margin: 0; }
+@media (min-width: 769px) {
+    /* map height follows the window: header + summary + toolbar stay above it, no page scroll to see it */
+    .st-key-dhoa_map_frame iframe {
+        height: clamp(420px, calc(100dvh - 300px), 860px) !important;
+        min-height: 420px !important;
+    }
+}
+/* compact sidebar: all filters visible without scrolling on a laptop screen */
+[data-testid="stSidebarUserContent"] { padding-top: 0.75rem !important; }
+[data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: 0.55rem; }
+[data-testid="stSidebar"] label p { font-size: var(--dhoa-type-caption); margin-bottom: 0; }
+[data-testid="stSidebar"] [data-testid="stWidgetLabel"] { margin-bottom: 0.1rem; min-height: 0; }
+[data-testid="stSidebar"] [data-testid="stForm"] { padding: 0; }
+.st-key-dhoa_sidebar_contact p { font-size: var(--dhoa-type-caption); margin: 0; }
+/* header, toolbar and filter rows keep their columns on phones (wrap instead of one tall stack) */
+@media (max-width: 768px) {
+    .st-key-dhoa_header_row [data-testid="stHorizontalBlock"],
+    .st-key-dhoa_map_toolbar [data-testid="stHorizontalBlock"] {
+        flex-direction: row !important; flex-wrap: wrap !important; gap: 0.4rem !important;
+    }
+    .st-key-dhoa_header_row [data-testid="stColumn"]:nth-child(1) { order: 1; flex: 1 1 50% !important; }
+    .st-key-dhoa_header_row [data-testid="stColumn"]:nth-child(4) { order: 2; flex: 1 1 40% !important; }
+    .st-key-dhoa_header_row [data-testid="stColumn"]:nth-child(2) { order: 3; flex: 1 1 100% !important; }
+    .st-key-dhoa_header_row [data-testid="stColumn"]:nth-child(3) { order: 4; flex: 1 1 100% !important; }
+    .st-key-dhoa_map_toolbar [data-testid="stColumn"] { min-width: 0 !important; flex: 1 1 45% !important; }
+    .dhoa-summary .dhoa-metric { padding: 0.25rem 0.5rem; }
+}
 """
 
 
@@ -410,6 +478,7 @@ def priority_chip_html(band: str, label: str) -> str:
 
 
 def page_css(page_loading: str) -> str:
-    """Return the full ``<style>`` block for the dashboard."""
+    """Return the full ``<style>`` block for the dashboard.
+"""
     body = _BODY_CSS.replace("__PAGE_LOADING__", page_loading)
     return f"<style>\n{tokens.css_variables()}{font_face_css()}\n{body}</style>"

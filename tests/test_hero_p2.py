@@ -41,7 +41,7 @@ def test_hero_html_escapes_text_and_keeps_four_tiles() -> None:
 
 
 def test_navigation_order_and_default() -> None:
-    assert hero.VIEW_MODES == ("overview", "inspector", "community", "about")
+    assert hero.VIEW_MODES == ("overview", "community", "inspector", "about")
     assert hero.DEFAULT_VIEW == "overview"
 
 

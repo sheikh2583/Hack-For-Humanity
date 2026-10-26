@@ -113,11 +113,11 @@ VIEW_KILN = 'View kiln'
 
 BANGLADESH_BRICK_KILN_MONITORING_DASHBOA = 'Bangladesh Brick Kiln Monitoring Dashboard'
 CHOOSE_VIEW = 'Choose view'
-VIEW_INSPECTOR = '🏛 Inspector view'
-VIEW_COMMUNITY = '🏘 Community view'
+VIEW_INSPECTOR = '🔒 Inspector Portal'
+VIEW_COMMUNITY = 'Kilns near me'
 HOW_TO_USE = 'How to use'
 HELP_COMMUNITY = """
-**Using the Community view**
+**Using Kilns near me**
 
 1. **Where to look?** Pick a district, upazila or place from the list, or press “Use my location”.
 
@@ -126,7 +126,7 @@ HELP_COMMUNITY = """
 3. See the **results**, tap a marker on the map, and download the report or the list.
 """
 HELP_INSPECTOR = """
-**Using the Inspector view**
+**Using the Inspector Portal map**
 
 1. Open the **filters** on the left and choose district, area, kiln type, priority or rule signal.
 
@@ -252,7 +252,7 @@ C_MAP_CAPTION_AREA_FMT = 'The map shows all kilns in {0}. Each marker is one kil
 # P2: landing hero and top navigation (flag for native-speaker review)
 NAV_OVERVIEW = 'Overview'
 NAV_MAP = 'Map'
-NAV_NEAR_ME = 'Near me'
+NAV_NEAR_ME = 'Kilns near me'
 NAV_ABOUT = 'About'
 HERO_MISSION = 'Brick kilns found in satellite images, mapped and ranked by priority.'
 HERO_SUB = 'Explore every candidate on the map, or find the ones near your home.'
@@ -332,3 +332,24 @@ VOICE_NO_VOICE = 'This browser has no voice for this language. Please read the g
 VOICE_TRANSCRIPT = 'Read the text'
 VOICE_INSPECTOR_SCRIPT = 'Welcome to the Inspector view. Here you can explore every kiln candidate on the map. First, open the filters on the left. Choose a district, area, kiln type, priority or rule signal, then press Apply filters. Next, pick a kiln from the priority list, or tap a marker on the map. Its details appear below, including distances to nearby schools, hospitals and other places. You can switch between the street map and satellite imagery, and turn on the density heatmap, which shows where many kilns sit close together. It does not show risk. To keep a record, download the filtered list as a CSV file, or a PDF report for the selected kiln. High, medium and low priority are relative groups across all candidates. They are not an absolute measure of risk.'
 VOICE_COMMUNITY_SCRIPT = 'Welcome to Dhoa. This page helps you find brick kiln candidates near you. Step one: choose where to look. Pick a district, upazila or place from the list, or press Use my location. If you are not sure how to begin, press Try an example. Step two: choose how far. Pick a distance in kilometres. If you choose a whole upazila or district, every kiln in that area is shown. Step three: see the results. You get a short summary, a list and a map. Tap a marker on the map to see details for that kiln. You can download a report or the list to share. Priority colours are relative to each other. They are not an absolute measure of risk.'
+
+# --- S1: four sections, Inspector Portal sign-in
+NAV_INSPECTOR = '🔒 Inspector Portal'
+PORTAL_SIGNIN_TITLE = 'Inspector Portal'
+PORTAL_SIGNIN_HINT = 'This area is for staff. Enter the staff passcode to continue.'
+PORTAL_PASSCODE = 'Passcode'
+PORTAL_NAME = 'Your name'
+PORTAL_SIGN_IN = 'Sign in'
+PORTAL_WRONG_PASSCODE = 'That passcode is not correct. Please try again.'
+PORTAL_SIGNIN_UNAVAILABLE = 'Staff sign-in is not available right now.'
+PORTAL_DEMO_SIGN_IN = 'Continue as demo'
+PORTAL_SIGNED_IN_FMT = 'Signed in: {0}'
+PORTAL_SIGN_OUT = 'Sign out'
+PORTAL_TAB_DASHBOARD = 'Dashboard'
+PORTAL_TAB_MAP = 'Map'
+PORTAL_TAB_WORK = 'Work'
+PORTAL_TAB_REPORTS = 'Reports'
+PORTAL_TAB_REPORTS_FMT = 'Reports ({0})'
+PORTAL_TABS_LABEL = 'Inspector Portal sections'
+PORTAL_SOON_TITLE = 'Coming soon'
+PORTAL_SOON_BODY = 'This section will be available in the next update.'
