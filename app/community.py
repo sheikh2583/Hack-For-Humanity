@@ -328,23 +328,23 @@ def _wait_turn(
 
 
 def default_providers(timeout_s: int = 8) -> list[Provider]:
-    """Nominatim (restricted to BD) then Photon, each with a short timeout."""
-
-    def nominatim(query: str) -> tuple[float, float] | None:
-        from geopy.geocoders import Nominatim
-
-        hit = Nominatim(user_agent="dhoa-bd-community", timeout=timeout_s).geocode(
-            query, country_codes="bd"
-        )
-        return (float(hit.latitude), float(hit.longitude)) if hit else None
+    """Photon first (no rate limit on Cloud IPs), then Nominatim restricted to BD."""
 
     def photon(query: str) -> tuple[float, float] | None:
         from geopy.geocoders import Photon
 
-        hit = Photon(user_agent="dhoa-bd-community", timeout=timeout_s).geocode(query)
+        hit = Photon(user_agent="dhoa-bd-v4", timeout=timeout_s).geocode(query)
         return (float(hit.latitude), float(hit.longitude)) if hit else None
 
-    return [nominatim, photon]
+    def nominatim(query: str) -> tuple[float, float] | None:
+        from geopy.geocoders import Nominatim
+
+        hit = Nominatim(user_agent="dhoa-bd-v4", timeout=timeout_s).geocode(
+            query, country_codes="bd"
+        )
+        return (float(hit.latitude), float(hit.longitude)) if hit else None
+
+    return [photon, nominatim]
 
 
 def geocode_bangladesh(
@@ -364,15 +364,16 @@ def geocode_bangladesh(
     if not text:
         return None
     answered = False
-    for provider in providers if providers is not None else default_providers():
-        _wait_turn(clock, sleep)
-        try:
-            hit: Any = provider(f"{text}, Bangladesh")
-        except Exception:  # noqa: BLE001 - any transport/library error
-            continue
-        answered = True
-        if hit is not None and in_bangladesh(float(hit[0]), float(hit[1])):
-            return float(hit[0]), float(hit[1])
+    for query_variant in [f"{text}, Bangladesh", text]:
+        for provider in providers if providers is not None else default_providers():
+            _wait_turn(clock, sleep)
+            try:
+                hit: Any = provider(query_variant)
+            except Exception:  # noqa: BLE001 - any transport/library error
+                continue
+            answered = True
+            if hit is not None and in_bangladesh(float(hit[0]), float(hit[1])):
+                return float(hit[0]), float(hit[1])
     if not answered:
         raise GeocodeUnavailable(text)
     return None

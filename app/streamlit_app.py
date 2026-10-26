@@ -903,6 +903,7 @@ def _render_community_inputs(gdf: pd.DataFrame) -> cm.Place | None:
             label=T.C_GPS_LABEL, busy_label=T.C_GPS_BUSY, key="community_gps", default=None
         )
         _handle_gps_event(event)
+        st.caption(T.C_GPS_HINT)
         notice = st.session_state.get("community_notice")
         if notice and notice[1] in _NOTICE_NAMES:
             getattr(st, notice[0], st.info)(T.text(_NOTICE_NAMES[notice[1]]))
@@ -1189,6 +1190,13 @@ def _render_community_results(gdf: pd.DataFrame, place: cm.Place | None) -> None
         return
 
     report_name = place.name
+    selected_report_id = st.session_state.get("dhoa_report_candidate_id")
+    if selected_report_id is not None:
+        candidate = nearby[nearby["kiln_id"].astype(str).eq(str(selected_report_id))]
+        if candidate.empty:
+            st.session_state.pop("dhoa_report_candidate_id", None)
+        else:
+            _render_existing_candidate_report(candidate.iloc[0])
     map_column, list_column = st.columns([3, 2], gap="medium")  # map left, like the Map view
     with map_column:
         st.subheader(T.AREA_MAP)
@@ -1213,13 +1221,6 @@ def _render_community_results(gdf: pd.DataFrame, place: cm.Place | None) -> None
         except Exception:
             logging.exception("Community PDF generation failed")
             st.error(T.REPORT_GENERATION_FAILED_PLEASE_TRY_AGAI)
-    selected_report_id = st.session_state.get("dhoa_report_candidate_id")
-    if selected_report_id is not None:
-        candidate = nearby[nearby["kiln_id"].astype(str).eq(str(selected_report_id))]
-        if candidate.empty:
-            st.session_state.pop("dhoa_report_candidate_id", None)
-        else:
-            _render_existing_candidate_report(candidate.iloc[0])
 
 
 def _debug_details(exc: BaseException) -> None:

@@ -225,6 +225,7 @@ C_GPS_UNSUPPORTED = 'This browser cannot find your location. Search for your are
 C_GPS_INSECURE = 'Location needs a secure (https) connection. Search for your area above.'
 C_GPS_UNAVAILABLE = 'Your location could not be found. Search for your area above.'
 C_GPS_TIMEOUT = 'Finding your location is taking too long. Try again, or search for your area.'
+C_GPS_HINT = 'Your browser will ask for location permission. If blocked, use the search box above.'
 C_GEO_EMPTY = 'Type a name to search.'
 C_GEO_SEARCHING = 'Searching for the place…'
 C_GEO_NOT_FOUND = 'No place with this name was found in Bangladesh. Try another spelling, or search for a covered area above.'
