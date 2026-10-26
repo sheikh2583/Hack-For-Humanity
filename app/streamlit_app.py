@@ -12,6 +12,7 @@ import math
 import os
 import pathlib as _pathlib
 import sys
+import time
 import unicodedata
 from collections.abc import Mapping
 from datetime import UTC, datetime
@@ -27,6 +28,7 @@ if str(_ROOT) not in sys.path:
 if str(_ROOT / "app") not in sys.path:
     sys.path.insert(0, str(_ROOT / "app"))
 
+from app import storage as public_storage  # noqa: E402
 from app import strings as T  # noqa: E402
 
 DASHBOARD_TITLE = unicodedata.normalize("NFC", T.APP_TITLE)
@@ -71,6 +73,7 @@ BASE_DIR = Path(__file__).parent.parent
 CONFIG_DIR = BASE_DIR / "config"
 DATA_DIR = Path(os.environ.get("DHOA_DATA_DIR") or BASE_DIR / "data" / "processed")  # env override: hermetic tests
 DATA_PATH = DATA_DIR / "kilns_prioritised.parquet"
+APP_DB_PATH = BASE_DIR / "data" / "app.db"
 _ADMIN_AREAS_PATH = _pathlib.Path(__file__).parent.parent / "config" / "bd_admin_areas.json"
 try:
     BD_ADMIN_AREAS: dict = _json.loads(_ADMIN_AREAS_PATH.read_text(encoding="utf-8"))
@@ -902,6 +905,184 @@ def _render_community_table(nearby: pd.DataFrame, show_distance: bool) -> None:
     )
 
 
+def _render_community_cards(nearby: pd.DataFrame, show_distance: bool) -> None:
+    """Render public search results as touch-friendly candidate cards.
+
+    Input: rows from ``kiln_data.with_public_display_columns`` with coordinates
+    and ``distance_m``. Output: localized type/place/distance cards with a
+    directions link; no staff-only fields are read or displayed.
+    """
+    for index, (_, row) in enumerate(nearby.iterrows()):
+        with st.container(border=True, key=f"community_candidate_{index}"):
+            st.markdown(f"**{row.get('ui_type', T.NO_DATA)}**")
+            place = row.get("nearest_place")
+            if place is None or pd.isna(place) or not str(place).strip():
+                place = row.get("ui_area", T.NO_DATA)
+            st.caption(T.C_CARD_PLACE_FMT.format(place))
+            if show_distance:
+                distance = pd.to_numeric(pd.Series([row.get("distance_m")]), errors="coerce").iloc[0]
+                if pd.notna(distance):
+                    distance_text = T.M_DOT_FMT.format(float(distance))
+                    st.caption(T.C_CARD_DISTANCE_FMT.format(distance_text))
+            lat, lon = float(row["lat"]), float(row["lon"])
+            url = f"https://www.google.com/maps/dir/?api=1&destination={lat:.6f}%2C{lon:.6f}"
+            st.link_button(T.GET_DIRECTIONS, url, width="stretch")
+            kiln_id = str(row.get("kiln_id", ""))
+            report_key = hashlib.sha256(f"{kiln_id}:{index}".encode("utf-8")).hexdigest()[:16]
+            st.button(
+                T.C_REPORT_CARD_ACTION, key=f"dhoa_report_open_{report_key}", width="stretch",
+                on_click=_select_candidate_report, args=(kiln_id,),
+            )
+
+
+def _select_candidate_report(kiln_id: str) -> None:
+    """Select a public candidate card as the subject of the correction form."""
+    st.session_state["dhoa_report_candidate_id"] = kiln_id
+
+
+_REPORT_RATE_LIMIT = 3
+_REPORT_RATE_WINDOW_S = 3600.0
+
+
+def _report_rate_allowed() -> bool:
+    """Return whether this Streamlit session remains under the public form limit."""
+    now = time.monotonic()
+    history = [
+        float(value) for value in st.session_state.get("dhoa_report_submissions", [])
+        if now - float(value) < _REPORT_RATE_WINDOW_S
+    ]
+    st.session_state["dhoa_report_submissions"] = history
+    return len(history) < _REPORT_RATE_LIMIT
+
+
+def _record_public_report(report: public_storage.NewReport, frame: pd.DataFrame, honeypot: str) -> str:
+    """Validate a public report against the current data extent and persist it.
+
+    Input: proposed report, the public kiln frame, and the hidden honeypot value.
+    Output: a catalogue-independent result key for localized UI feedback.
+    """
+    if honeypot.strip():
+        return "sent"  # quiet discard so the honeypot does not disclose itself
+    extent = public_storage.extent_from_frame(frame)
+    if not public_storage.coordinates_in_extent(report.lat, report.lon, extent):
+        return "coordinates"
+    if not _report_rate_allowed():
+        return "rate"
+    try:
+        public_storage.SQLiteReportStore(APP_DB_PATH).create_report(report)
+    except Exception:  # noqa: BLE001 - keep storage details and submitted data out of the UI
+        logging.getLogger(__name__).exception("Could not save public report")
+        return "failed"
+    history = st.session_state.get("dhoa_report_submissions", [])
+    history.append(time.monotonic())
+    st.session_state["dhoa_report_submissions"] = history
+    return "sent"
+
+
+def _show_report_result(result: str) -> None:
+    """Render localized feedback for a report submission result key."""
+    messages = {
+        "sent": (st.success, T.C_REPORT_SENT),
+        "coordinates": (st.warning, T.C_REPORT_INVALID_COORDS),
+        "rate": (st.info, T.C_REPORT_RATE_LIMIT),
+        "failed": (st.error, T.C_REPORT_FAILED),
+    }
+    renderer, message = messages[result]
+    renderer(message)
+
+
+def _honeypot_value(key: str) -> str:
+    """Render a visually hidden honeypot field and return its value."""
+    with st.container(key=f"dhoa_report_trap_{key}"):
+        return st.text_input(
+            T.C_REPORT_HONEYPOT, key=f"dhoa_report_trap_value_{key}", label_visibility="collapsed"
+        )
+
+
+def _render_existing_candidate_report(row: pd.Series) -> None:
+    """Render the public correction form on a candidate card.
+
+    Input: one public candidate row with ``kiln_id``, ``lat`` and ``lon``.
+    Output: a localized form that creates an ``existing_candidate`` report.
+    """
+    kiln_id = str(row.get("kiln_id", ""))
+    key = hashlib.sha256(kiln_id.encode("utf-8")).hexdigest()[:16]
+    with st.expander(T.C_REPORT_EXISTING_TITLE, expanded=True):
+        with st.form(f"dhoa_report_existing_{key}"):
+            reason_label = st.selectbox(
+                T.C_REPORT_EXISTING_REASON,
+                [T.C_REPORT_REASON_LOCATION, T.C_REPORT_REASON_NOT_KILN, T.C_REPORT_REASON_OTHER],
+                key=f"dhoa_report_reason_{key}",
+            )
+            note = st.text_area(T.C_REPORT_NOTE, key=f"dhoa_report_note_{key}", height=90)
+            contact = st.text_input(T.C_REPORT_CONTACT, key=f"dhoa_report_contact_{key}")
+            trap = _honeypot_value(f"existing_{key}")
+            submitted = st.form_submit_button(T.C_REPORT_SUBMIT, width="stretch")
+        st.caption(T.C_REPORT_PRIVACY)
+        if submitted:
+            reason_code = {
+                T.C_REPORT_REASON_LOCATION: "wrong_location",
+                T.C_REPORT_REASON_NOT_KILN: "not_a_kiln",
+                T.C_REPORT_REASON_OTHER: "other",
+            }[reason_label]
+            result = _record_public_report(
+                public_storage.NewReport(
+                    kind="existing_candidate", kiln_id=kiln_id or None,
+                    lat=float(row["lat"]), lon=float(row["lon"]), reason=reason_code,
+                    note=note.strip(), contact=contact.strip() or None,
+                ),
+                row.to_frame().T,
+                trap,
+            )
+            _show_report_result(result)
+
+
+def _parse_coordinate(value: str) -> float | None:
+    """Parse a finite user-entered coordinate, returning None for invalid input."""
+    try:
+        parsed = float(value.strip())
+    except (TypeError, ValueError):
+        return None
+    return parsed if math.isfinite(parsed) else None
+
+
+def _render_missing_kiln_report(frame: pd.DataFrame) -> None:
+    """Render the page-level form for a kiln missing from the map.
+
+    Input: the public kiln frame used to derive the accepted coordinate extent.
+    Output: a localized coordinate/note/photo form writing ``not_on_map`` reports.
+    """
+    with st.expander(T.C_REPORT_NEW_TITLE):
+        extent = public_storage.extent_from_frame(frame)
+        if extent is None:
+            st.info(T.C_REPORT_NO_EXTENT)
+            return
+        with st.form("dhoa_report_missing_form"):
+            latitude_text = st.text_input(T.C_REPORT_LAT, help=T.C_REPORT_COORDS_HELP)
+            longitude_text = st.text_input(T.C_REPORT_LON, help=T.C_REPORT_COORDS_HELP)
+            note = st.text_area(T.C_REPORT_NOTE, key="dhoa_report_missing_note", height=90)
+            contact = st.text_input(T.C_REPORT_CONTACT, key="dhoa_report_missing_contact")
+            photo = st.file_uploader(
+                T.C_REPORT_PHOTO, type=["jpg", "jpeg", "png", "webp"],
+                key="dhoa_report_missing_photo",
+            )
+            trap = _honeypot_value("missing")
+            submitted = st.form_submit_button(T.C_REPORT_SUBMIT, width="stretch")
+        st.caption(T.C_REPORT_PRIVACY)
+        if submitted:
+            latitude, longitude = _parse_coordinate(latitude_text), _parse_coordinate(longitude_text)
+            if latitude is None or longitude is None:
+                _show_report_result("coordinates")
+                return
+            report = public_storage.NewReport(
+                kind="not_on_map", kiln_id=None, lat=latitude, lon=longitude,
+                reason="not_on_map", note=note.strip(), contact=contact.strip() or None,
+                photo=photo.getvalue() if photo is not None else None,
+                photo_content_type=photo.type if photo is not None else None,
+            )
+            _show_report_result(_record_public_report(report, frame, trap))
+
+
 def _render_community_summary(result: cm.SearchResult) -> None:
     """Summary card: how many kilns were found (a plain count; nothing about priority)."""
     counts = result.summary
@@ -944,18 +1125,6 @@ def _render_community_results(gdf: pd.DataFrame, place: cm.Place | None) -> None
 
     report_name = place.name
     map_column, list_column = st.columns([3, 2], gap="medium")  # map left, like the Map view
-    with list_column:
-        st.subheader(T.C_LIST_TITLE)
-        _render_community_table(nearby, show_distance=radius_m is not None)
-        try:
-            st.download_button(
-                T.DOWNLOAD_REPORT, _community_report(report_name, nearby, radius_m or 0),
-                "dhoa_community_report.pdf", "application/pdf",
-                width="stretch", key="community_alert_download",
-            )
-        except Exception:
-            logging.exception("Community PDF generation failed")
-            st.error(T.REPORT_GENERATION_FAILED_PLEASE_TRY_AGAI)
     with map_column:
         st.subheader(T.AREA_MAP)
         st.caption(
@@ -967,6 +1136,18 @@ def _render_community_results(gdf: pd.DataFrame, place: cm.Place | None) -> None
             _render_community_map_fragment(
                 nearby, gdf, place.lat, place.lon, radius_m, place.name, place.key
             )
+    with list_column:
+        st.subheader(T.C_LIST_TITLE)
+        _render_community_cards(nearby, show_distance=radius_m is not None)
+        try:
+            st.download_button(
+                T.DOWNLOAD_REPORT, _community_report(report_name, nearby, radius_m or 0),
+                "dhoa_community_report.pdf", "application/pdf",
+                width="stretch", key="community_alert_download",
+            )
+        except Exception:
+            logging.exception("Community PDF generation failed")
+            st.error(T.REPORT_GENERATION_FAILED_PLEASE_TRY_AGAI)
 
 
 def _debug_details(exc: BaseException) -> None:
@@ -1950,6 +2131,23 @@ CLUSTER_DISABLE_ZOOM = 13
 _MARKER_OPTIONS = {"disableClusteringAtZoom": CLUSTER_DISABLE_ZOOM}
 
 
+def _public_cluster_icon_js() -> str:
+    """Return a single-colour cluster icon for public Near me maps.
+
+    Input: Leaflet MarkerCluster's cluster object with ``getChildCount``.
+    Output: an icon-create JavaScript function using the same neutral colour as
+    public kiln markers, with the cluster count as plain text.
+    """
+    color = DESIGN_COLORS["unclassified"]
+    return (
+        "function(cluster){var n=cluster.getChildCount();"
+        "return L.divIcon({className:'dhoa-cluster-neutral',iconSize:new L.Point(38,38),"
+        "html:\"<div style='background:" + color + ";color:#fff;width:34px;height:34px;"
+        "border:2px solid #fff;border-radius:50%;display:flex;align-items:center;"
+        "justify-content:center;font-weight:700;box-shadow:0 1px 4px #3338'>\"+n+\"</div>\"});}"
+    )
+
+
 def _current_tile() -> str:
     """Return the selected basemap (``street`` or ``satellite``) from session state."""
     tile = st.session_state.get("map_tile", "street")
@@ -2157,6 +2355,7 @@ def _marker_map(
         FastMarkerCluster(
             payload["rows"], callback=callback,
             options=dict(_MARKER_OPTIONS),
+            icon_create_function=_public_cluster_icon_js() if public else None,
         ).add_to(map_view)
     return map_view
 
