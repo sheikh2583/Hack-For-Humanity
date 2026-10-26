@@ -970,47 +970,60 @@ def _debug_details(exc: BaseException) -> None:
 
 
 def render_voice_guide(view: str, where: str = "popover", transcript: bool = False) -> None:
-    """Spoken "how to use" guide for ``view`` (DHOA-VOICE-GUIDE v2).
+    """Spoken "how to use" guide for ``view`` (DHOA-VOICE-GUIDE v3, self-contained).
 
-    Always shows the heading and the written script. Audio: the pre-rendered mp3 when it matches the
-    current script (``app/static/audio``); otherwise the browser "Read aloud" button. A problem is shown
-    as a short visible note (details with ``?debug=1``), never silently hidden and never raised.
+    Needs nothing from ``voice.py`` or the string catalogue beyond plain names, so an older local
+    copy of those files cannot break it. Shows the heading and the written script always; audio is the
+    matching pre-rendered mp3, else the browser "Read aloud" button. Any problem is shown with its real
+    message instead of being hidden.
     """
+    import hashlib as _hashlib
+    import json as _json2
     import logging as _logging
 
+    def _t(name: str, default: str) -> str:
+        try:
+            return str(getattr(T, name))
+        except Exception:  # noqa: BLE001 - missing catalogue name
+            return default
+
     try:
-        lang = T.get_language()
-        script = T.VOICE_COMMUNITY_SCRIPT if view == "community" else T.VOICE_INSPECTOR_SCRIPT
-        audio = voice.current_audio(view, lang, script)
-        st.markdown(f"**{T.LISTEN_TO_THE_GUIDE}**")
+        try:
+            lang = T.get_language()
+        except Exception:  # noqa: BLE001
+            lang = "bn"
+        script = _t("VOICE_COMMUNITY_SCRIPT" if view == "community" else "VOICE_INSPECTOR_SCRIPT", "")
+        audio_dir = Path(__file__).resolve().parent / "static" / "audio"
+        name = f"guide_{view}_{lang}.mp3"
+        audio = None
+        try:
+            manifest = _json2.loads((audio_dir / "manifest.json").read_text(encoding="utf-8"))
+            digest = _hashlib.sha256(script.strip().encode("utf-8")).hexdigest()[:16]
+            if (audio_dir / name).is_file() and manifest.get(name) == digest:
+                audio = audio_dir / name
+        except Exception:  # noqa: BLE001 - no/bad manifest: fall back to browser voice
+            audio = None
+        st.markdown(f"**{_t('LISTEN_TO_THE_GUIDE', 'Listen to the guide')}**")
         if audio is not None:
             st.audio(str(audio), format="audio/mpeg")
-        elif voice.component_available():
+        elif (Path(__file__).resolve().parent / "components" / "voice_guide" / "index.html").is_file():
             _voice_player(
                 text=script,
-                lang=voice.speech_lang(lang),
-                read=T.VOICE_READ_ALOUD,
-                stop=T.VOICE_STOP,
-                none=T.VOICE_NO_VOICE,
+                lang="bn-BD" if lang == "bn" else "en-US",
+                read=_t("VOICE_READ_ALOUD", "Read aloud"),
+                stop=_t("VOICE_STOP", "Stop"),
+                none=_t("VOICE_NO_VOICE", "This browser has no voice for this language."),
                 key=f"dhoa_voice_{where}_{view}_{lang}",
                 default=None,
             )
-        with st.expander(T.VOICE_TRANSCRIPT):
-            st.markdown(script)
-        if str(st.query_params.get("debug", "")) == "1" and audio is None:
-            stale = (voice.AUDIO_DIR / voice.audio_name(view, lang)).is_file()
-            st.caption(
-                "debug: the mp3 is out of date for the current script - re-run tools/generate_voice_guides.py"
-                if stale
-                else "debug: no mp3 found in app/static/audio for this view and language"
-            )
+        if script:
+            with st.expander(_t("VOICE_TRANSCRIPT", "Read the text")):
+                st.markdown(script)
+        else:
+            st.caption("Voice guide text is missing from the string catalogue (VOICE_*_SCRIPT).")
     except Exception as exc:  # noqa: BLE001 - must never break the page
         _logging.getLogger(__name__).exception("Voice guide failed")
-        try:
-            debug = str(st.query_params.get("debug", "")) == "1"
-            st.caption(f"Voice guide unavailable ({type(exc).__name__}" + (f": {exc})" if debug else ")"))
-        except Exception:  # noqa: BLE001
-            pass
+        st.caption(f"Voice guide unavailable ({type(exc).__name__}: {exc})")
 
 
 def render_community_view(gdf: gpd.GeoDataFrame) -> None:
