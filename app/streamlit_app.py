@@ -35,7 +35,7 @@ assert T.CHANDRABINDU in DASHBOARD_TITLE, repr(DASHBOARD_TITLE)
 _FAVICON = _ROOT / "app" / "static" / "favicon.png"
 st.set_page_config(
     page_title=DASHBOARD_TITLE, page_icon=str(_FAVICON) if _FAVICON.is_file() else None,
-    layout="wide", initial_sidebar_state="collapsed",
+    layout="wide", initial_sidebar_state="expanded",
 )
 
 import folium
@@ -53,6 +53,7 @@ import community as cm
 import design_tokens as tokens
 import hero
 import trust
+import voice
 import styles
 import kiln_data as kd
 import inspector as ins
@@ -416,6 +417,7 @@ def _render_map_type_filter() -> str:
         T.MAP_TYPE,
         ["street", "satellite"],
         format_func=lambda value: T.STREET_MAP if value == "street" else T.SATELLITE_IMAGERY,
+        label_visibility="collapsed",
         key=widget_key,
         on_change=_sync_map_tile,
         args=(widget_key,),
@@ -954,6 +956,29 @@ def _render_community_results(gdf: pd.DataFrame, place: cm.Place | None) -> None
             )
 
 
+def render_voice_guide(view: str, transcript: bool = False) -> None:
+    """Spoken "how to use" guide for ``view`` ("inspector" or "community"), in the active language.
+
+    Plays the pre-rendered AI voice file when it matches the current script; otherwise shows a
+    "Read aloud" button that uses the browser's own voice (and says so if none exists).
+    ``transcript`` adds the spoken text for people who prefer to read it.
+    """
+    lang = T.get_language()
+    script = T.VOICE_COMMUNITY_SCRIPT if view == "community" else T.VOICE_INSPECTOR_SCRIPT
+    audio = voice.current_audio(view, lang, script)
+    if audio is not None:
+        st.audio(str(audio), format="audio/mpeg")
+    else:
+        page = voice.speech_html(script, lang, T.VOICE_READ_ALOUD, T.VOICE_STOP, T.VOICE_NO_VOICE)
+        if hasattr(st, "iframe"):  # st.components.v1.html is deprecated in streamlit >= 1.66
+            st.iframe(page, height=96)  # trusted: built only from our own catalogue text
+        else:
+            components.html(page, height=96)
+    if transcript:
+        with st.expander(T.VOICE_TRANSCRIPT):
+            st.write(script)
+
+
 def render_community_view(gdf: gpd.GeoDataFrame) -> None:
     """Render the Community view as three steps on one screen.
 
@@ -965,14 +990,10 @@ def render_community_view(gdf: gpd.GeoDataFrame) -> None:
     or a clear next step when nothing is found. No page reload anywhere.
     """
     st.markdown(f"<div class='dhoa-section-title'>{T.FIND_KILNS_NEAR_YOU}</div>", unsafe_allow_html=True)
+    with st.expander(T.LISTEN_TO_THE_GUIDE):  # first thing a citizen sees, before step 1
+        render_voice_guide("community", transcript=True)
     place = _render_community_inputs(gdf)
     _render_community_results(gdf, place)
-    with st.expander(T.LISTEN_TO_THE_GUIDE):
-        community_guide = _ROOT / "app" / "static" / "community_guide.mp3"
-        if community_guide.is_file():
-            st.audio(str(community_guide))
-        else:
-            st.info(T.AUDIO_GUIDE_COMING_SOON)
 
 
 def _popup_content(row: Mapping[str, object]) -> dict[str, Any]:
@@ -1247,35 +1268,41 @@ def render_header(gdf: gpd.GeoDataFrame) -> str:
     Output: one of ``hero.VIEW_MODES`` (``overview``, ``inspector``, ``community``, ``about``).
     The headline metrics live in the Overview hero only, so they are not repeated on every view.
     """
-    title_col, lang_col = st.columns([4, 2], vertical_alignment="center", gap="small")
-    with title_col:
-        st.markdown(f"<h1 class='dhoa-brand-title'>{html.escape(DASHBOARD_TITLE)}</h1>", unsafe_allow_html=True)
-    with lang_col:
-        _render_language_toggle()
-    st.caption(T.BANGLADESH_BRICK_KILN_MONITORING_DASHBOA)
     view_options = list(hero.VIEW_MODES)
     if st.session_state.get("dhoa_view_mode") not in view_options:
         st.session_state["dhoa_view_mode"] = hero.DEFAULT_VIEW
     _seed("dhoa_view_mode", st.session_state["dhoa_view_mode"])
-    mode = st.segmented_control(
-        T.CHOOSE_VIEW,
-        view_options,
-        format_func=_nav_label,
-        key=_wkey("dhoa_view_mode"), width="stretch",
-        on_change=_commit_view_mode,
-        label_visibility="collapsed",
-    )
-    if mode in view_options:
-        st.session_state["dhoa_view_mode"] = mode
-    selected_mode = st.session_state["dhoa_view_mode"]
-    if selected_mode in ("inspector", "community"):
-        with st.popover(T.HOW_TO_USE, icon=":material/help:", width="stretch"):
-            st.markdown(T.HELP_COMMUNITY if selected_mode == "community" else T.HELP_INSPECTOR)
-        st.caption(
-            T.CHOOSE_A_DISTRICT_AND_UPAZILA_YOU_MAY_EN if selected_mode == "community"
-            else T.BROWSE_THE_KILN_LIST_AND_MAP_USE_FILTERS
+    tool_view = st.session_state["dhoa_view_mode"] in ("inspector", "community")
+    # One row: title | navigation | help | language. The tool views (map, near me) keep the
+    # header to ~50 px so the map is on screen without scrolling; hero views keep the subtitle.
+    with st.container(key="dhoa_header_row"):
+        title_col, nav_col, help_col, lang_col = st.columns(
+            [1.5, 5, 1.6, 1.9], vertical_alignment="center", gap="small"
         )
-    st.divider()
+        with title_col:
+            st.markdown(f"<h1 class='dhoa-brand-title'>{html.escape(DASHBOARD_TITLE)}</h1>", unsafe_allow_html=True)
+        with nav_col:
+            mode = st.segmented_control(
+                T.CHOOSE_VIEW,
+                view_options,
+                format_func=_nav_label,
+                key=_wkey("dhoa_view_mode"), width="stretch",
+                on_change=_commit_view_mode,
+                label_visibility="collapsed",
+            )
+        if mode in view_options:
+            st.session_state["dhoa_view_mode"] = mode
+        selected_mode = st.session_state["dhoa_view_mode"]
+        with help_col:
+            if selected_mode in ("inspector", "community"):
+                with st.popover(T.HOW_TO_USE, icon=":material/help:", width="stretch"):
+                    render_voice_guide(selected_mode)
+                    st.markdown(T.HELP_COMMUNITY if selected_mode == "community" else T.HELP_INSPECTOR)
+        with lang_col:
+            _render_language_toggle()
+    if selected_mode not in ("inspector", "community"):
+        st.caption(T.BANGLADESH_BRICK_KILN_MONITORING_DASHBOA)
+        st.divider()
     return selected_mode
 
 
@@ -1567,8 +1594,6 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
     filters: dict[str, Any] = {}
     with st.sidebar:
         if mode == "inspector":
-            st.markdown(f"### {T.SEARCH_2}")
-            st.caption(T.RAIL_HINT)
             district_values = (
                 sorted(gdf["district"].dropna().astype(str).unique().tolist())
                 if "district" in gdf else []
@@ -1632,10 +1657,10 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
                     key=_wkey("filter_upazila"),
                     disabled=not district_selected,
                 )
-                st.markdown(f"### {T.FILTERS}")
-                filters["priorities"] = st.multiselect(
+                filters["priorities"] = st.pills(
                     T.PRIORITY,
                     _priority_opts,
+                    selection_mode="multi",
                     format_func=lambda value: f"{kd.PRIORITY_GLYPHS[value]} {_priority_text[value]}",
                     key=_wkey("filter_priority"),
                 )
@@ -1646,41 +1671,24 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
                     key=_wkey("filter_kiln_type"),
                 )
                 st.form_submit_button(T.APPLY_FILTERS, type="primary", width="stretch")
-            filters["map_tile"] = _render_map_type_filter()
 
             # The one filter computation of this rerun; everything below and the
             # main area read ``filters["visible"]`` instead of filtering again.
             visible = get_filtered_gdf(gdf)
             filters["visible"] = visible
-            export_filename = _export_filename(
-                district=None if filters["district"] == ALL_DISTRICTS else filters["district"],
-                area=None if filters["upazila"] == ALL_AREAS else filters["upazila"],
-                kiln_type="all" if filters["kiln_type"] == ALL_KILN_TYPES else filters["kiln_type"],
-                rule_signals=["all"],
-                radius_m=None,
-                extension="csv",
-            )
-            st.download_button(
-                T.DOWNLOAD_FILTERED_CSV,
-                _inspector_csv_bytes(visible, gdf),
-                export_filename,
-                "text/csv",
-                width="stretch",
-                key="sidebar_export_list",
-            )
-        st.divider()
-        _contact_info = _contact()
-        st.markdown(
-            T.HOTLINE_LINE_FMT.format(trust.localise_digits(_contact_info["number"], T.get_language()))
-            + " | [doe.gov.bd](https://doe.gov.bd)"
-            if _contact_info["number"] else T.DOE_WEB_LINE
-        )
         if mode == "inspector":
             st.button(
                 T.RESET_FILTERS,
                 key="reset_inspector_filters",
                 on_click=_reset_inspector_filters,
                 width="stretch",
+            )
+        _contact_info = _contact()
+        with st.container(key="dhoa_sidebar_contact"):
+            st.markdown(
+                T.HOTLINE_LINE_FMT.format(trust.localise_digits(_contact_info["number"], T.get_language()))
+                + " | [doe.gov.bd](https://doe.gov.bd)"
+                if _contact_info["number"] else T.DOE_WEB_LINE
             )
     return filters
 
@@ -2119,10 +2127,27 @@ def render_map(
         st.session_state["selected_lat"] = float(selected_row["lat"])
         st.session_state["selected_lng"] = float(selected_row["lon"])
     list_candidates = visible
-    list_panel, map_panel = st.columns([2, 3], gap="medium")
+    map_panel, list_panel = st.columns([3, 2], gap="medium")  # map first: it is the priority
     with list_panel:
-        st.subheader(T.PRIORITY_LIST)
-        st.caption(T.CANDIDATES_MATCH_FMT.format(len(list_candidates)))
+        head_text, head_csv = st.columns([3, 2], vertical_alignment="center", gap="small")
+        with head_text:
+            st.markdown(f"**{T.PRIORITY_LIST}**  \n{T.CANDIDATES_MATCH_FMT.format(len(list_candidates))}")
+        with head_csv:
+            st.download_button(
+                T.DOWNLOAD_FILTERED_CSV,
+                _inspector_csv_bytes(visible, gdf),
+                _export_filename(
+                    district=None if filters.get("district") in (None, ALL_DISTRICTS) else filters["district"],
+                    area=None if filters.get("upazila") in (None, ALL_AREAS) else filters["upazila"],
+                    kiln_type="all" if filters.get("kiln_type") in (None, ALL_KILN_TYPES) else filters["kiln_type"],
+                    rule_signals=["all"],
+                    radius_m=None,
+                    extension="csv",
+                ),
+                "text/csv",
+                width="stretch",
+                key="sidebar_export_list",
+            )
         list_columns, list_rows, list_kiln_ids = _list_payload(list_candidates, gdf)
         list_choice = _priority_candidate_list(
             columns=list_columns,
@@ -2162,26 +2187,27 @@ def render_map(
                     }
                 st.session_state[_token_key] = click_token
     with map_panel, st.container(key="dhoa_map_sticky"):
-        st.markdown(
-            ins.legend_html(
-                T.LEGEND_TITLE,
-                {"High": T.HIGH, "Medium": T.MEDIUM, "Low": T.LOW},
-                "",  # the summary strip above already carries T.PRIORITY_NOTE
-            ),
-            unsafe_allow_html=True,
-        )
-        st.caption(T.MARKER_COLOUR_SHOWS_PRIORITY_BOLD_BORDER)
-        st.toggle(T.HEAT_TOGGLE, key="dhoa_heatmap", help=T.HEAT_HELP)
+        with st.container(key="dhoa_map_toolbar"):
+            bar_legend, bar_heat, bar_tile = st.columns([5, 3, 3], vertical_alignment="center", gap="small")
+            with bar_legend:
+                st.markdown(
+                    ins.legend_html(
+                        T.LEGEND_TITLE,
+                        {"High": T.HIGH, "Medium": T.MEDIUM, "Low": T.LOW},
+                        "",  # the summary strip above already carries T.PRIORITY_NOTE
+                    ),
+                    unsafe_allow_html=True,
+                )
+            with bar_heat:
+                st.toggle(T.HEAT_TOGGLE, key="dhoa_heatmap", help=T.HEAT_HELP)
+            with bar_tile:
+                _render_map_type_filter()
         selected_id_for_report = st.session_state.get("selected_kiln_id")
         selected_for_report = (
             visible[visible["kiln_id"].astype(str).eq(str(selected_id_for_report))]
             if selected_id_for_report is not None
             else visible.iloc[0:0]
         )
-        if selected_for_report.empty:
-            st.caption(T.SELECT_A_CANDIDATE_FROM_THE_LIST_OR_MAP_)
-        else:
-            _render_report_download(selected_for_report.iloc[0])
         try:
             with st.spinner(T.LOADING_MAP):
                 _m = build_map(gdf, filters, filtered=visible)
@@ -2215,6 +2241,11 @@ def render_map(
                     **view_args,
                 )
                 map_result = result if isinstance(result, dict) else {}
+        # Below the map (not above it) so the map stays at the top of the screen.
+        if selected_for_report.empty:
+            st.caption(f"{T.SELECT_A_CANDIDATE_FROM_THE_LIST_OR_MAP_} {T.MARKER_COLOUR_SHOWS_PRIORITY_BOLD_BORDER}")
+        else:
+            _render_report_download(selected_for_report.iloc[0])
         detail_slot = st.container()
     click_signature = _clicked_point(map_result)
     if (

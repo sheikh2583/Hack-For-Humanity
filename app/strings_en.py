@@ -324,3 +324,11 @@ STATE_DATA_BODY = 'Please check your connection and try again in a moment.'
 STATE_LOADING = 'Loading kiln data…'
 LIST_ARIA_LABEL = 'Kiln candidates'
 LIST_ARIA_SELECT_FMT = '{0}: {1}'
+
+# --- P10: voice guide ---
+VOICE_READ_ALOUD = '🔊 Read aloud'
+VOICE_STOP = '⏹ Stop'
+VOICE_NO_VOICE = 'This browser has no voice for this language. Please read the guide instead.'
+VOICE_TRANSCRIPT = 'Read the text'
+VOICE_INSPECTOR_SCRIPT = 'Welcome to the Inspector view. Here you can explore every kiln candidate on the map. First, open the filters on the left. Choose a district, area, kiln type, priority or rule signal, then press Apply filters. Next, pick a kiln from the priority list, or tap a marker on the map. Its details appear below, including distances to nearby schools, hospitals and other places. You can switch between the street map and satellite imagery, and turn on the density heatmap, which shows where many kilns sit close together. It does not show risk. To keep a record, download the filtered list as a CSV file, or a PDF report for the selected kiln. High, medium and low priority are relative groups across all candidates. They are not an absolute measure of risk.'
+VOICE_COMMUNITY_SCRIPT = 'Welcome to Dhoa. This page helps you find brick kiln candidates near you. Step one: choose where to look. Pick a district, upazila or place from the list, or press Use my location. If you are not sure how to begin, press Try an example. Step two: choose how far. Pick a distance in kilometres. If you choose a whole upazila or district, every kiln in that area is shown. Step three: see the results. You get a short summary, a list and a map. Tap a marker on the map to see details for that kiln. You can download a report or the list to share. Priority colours are relative to each other. They are not an absolute measure of risk.'
