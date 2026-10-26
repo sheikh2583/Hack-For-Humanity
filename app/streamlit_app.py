@@ -969,41 +969,25 @@ def _debug_details(exc: BaseException) -> None:
         pass
 
 
-def render_voice_guide(view: str, where: str, transcript: bool = False) -> None:
-    """Spoken "how to use" guide for ``view`` ("inspector" or "community"), in the active language.
+def render_voice_guide(view: str, where: str = "popover") -> None:
+    """Spoken "how to use" guide for ``view``, shown only when a playable audio file exists.
 
-    Plays the pre-rendered AI voice file when it matches the current script; otherwise a
-    "Read aloud" button (browser voice) is shown, and says so if the browser has no voice for the
-    language. ``where`` keeps the widget key unique per placement. ``transcript`` prints the spoken
-    text under the player. This helper never raises: a decorative extra must not be able to break
-    the header or the view it sits in.
+    The pre-rendered AI voice file (``app/static/audio``, see ``tools/generate_voice_guides.py``)
+    is played with Streamlit's own audio player. If there is no file that matches the current
+    script, NOTHING is shown (no heading, no empty box): a control that does not work is worse
+    than none. Never raises, so it cannot break the header or the view.
     """
     try:
         lang = T.get_language()
         script = T.VOICE_COMMUNITY_SCRIPT if view == "community" else T.VOICE_INSPECTOR_SCRIPT
-    except Exception:
-        logging.getLogger(__name__).exception("Voice guide strings unavailable")
-        return
-    try:
         audio = voice.current_audio(view, lang, script)
-        if audio is not None:
-            st.audio(str(audio), format="audio/mpeg")
-        elif not voice.component_available():
-            logging.getLogger(__name__).error("app/components/voice_guide is missing; copy the whole folder")
-            st.caption(T.VOICE_NO_VOICE)
-        else:
-            _voice_player(
-                text=script, lang=voice.speech_lang(lang), read=T.VOICE_READ_ALOUD, stop=T.VOICE_STOP,
-                none=T.VOICE_NO_VOICE, key=f"dhoa_voice_{view}_{where}_{lang}", default=None,
-            )
+        if audio is None:
+            return
+        st.markdown(f"**{T.LISTEN_TO_THE_GUIDE}**")
+        st.audio(str(audio), format="audio/mpeg")
     except Exception as exc:  # noqa: BLE001
-        logging.getLogger(__name__).exception("Voice guide player failed")
+        logging.getLogger(__name__).exception("Voice guide failed")
         _debug_details(exc)
-    if transcript:
-        try:
-            st.markdown(script)
-        except Exception:
-            logging.getLogger(__name__).exception("Voice transcript failed")
 
 
 def render_community_view(gdf: gpd.GeoDataFrame) -> None:
@@ -1322,7 +1306,6 @@ def render_header(gdf: gpd.GeoDataFrame) -> str:
             if selected_mode in ("inspector", "community"):
                 with st.popover(T.HOW_TO_USE, icon=":material/help:", width="stretch"):
                     st.markdown(T.HELP_COMMUNITY if selected_mode == "community" else T.HELP_INSPECTOR)
-                    st.markdown(f"**{T.LISTEN_TO_THE_GUIDE}**")  # voice sits under the written guide
                     render_voice_guide(selected_mode, "popover")
         with lang_col:
             _render_language_toggle()
