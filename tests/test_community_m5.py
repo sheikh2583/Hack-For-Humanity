@@ -138,6 +138,49 @@ def test_copy_is_bangla_and_has_no_escapes() -> None:
         assert any("\u0980" <= ch <= "\u09ff" for ch in getattr(T, name))
 
 
+def test_popup_content_signals_include_violations() -> None:
+    from app.streamlit_app import _popup_content
+
+    row = pd.Series({
+        "kiln_id": "K001", "lat": 23.7, "lon": 90.4, "class": "FCBK",
+        "priority_band": "High", "detection_status": "New candidate (2025-26)",
+        "breached_rules": '["near_school"]', "dist_schools_m": 150.0, "breach_count": 1,
+    })
+    signals = _popup_content(row)["signals"]
+    assert any("🔴" in signal for signal in signals)
+    assert any("school" in signal.lower() or "স্কুল" in signal for signal in signals)
+
+
+def test_report_fields_retain_violations() -> None:
+    row = pd.Series({
+        "kiln_id": "K001", "lat": 23.7, "lon": 90.4,
+        "breached_rules": '["near_school"]', "breach_count": 1,
+        "dist_schools_m": 150.0, "ui_popup_html": "<div>ignored</div>",
+    })
+    report_fields = {name: value for name, value in row.to_dict().items() if not str(name).startswith("ui_")}
+    assert {"breached_rules", "breach_count", "dist_schools_m"} <= report_fields.keys()
+    assert "ui_popup_html" not in report_fields
+
+
+def test_community_results_wraps_scrollable_list(monkeypatch) -> None:
+    from contextlib import nullcontext
+    from unittest.mock import patch
+
+    import app.streamlit_app as app
+
+    place = cm.Place("dhaka", cm.KIND_DISTRICT, "Dhaka", "Dhaka", 23.7, 90.4)
+    result = cm.SearchResult(place, pd.DataFrame([{"kiln_id": "K001", "lat": 23.7, "lon": 90.4}]), None)
+    monkeypatch.setattr(app, "_community_result", lambda _: result)
+    monkeypatch.setattr(app, "_render_community_summary", lambda _: None)
+    monkeypatch.setattr(app, "_render_community_map_fragment", lambda *a: None)
+    monkeypatch.setattr(app, "_render_community_cards", lambda *a, **k: None)
+    monkeypatch.setattr(app, "_community_report", lambda *a: b"pdf")
+    monkeypatch.setattr(app.st, "columns", lambda *a, **k: [nullcontext(), nullcontext()])
+    with patch("streamlit.container", return_value=nullcontext()) as container:
+        app._render_community_results(_frame(), place)
+    assert any(call.kwargs.get("key") == "dhoa_community_list" for call in container.call_args_list)
+
+
 def _apptest():
     if not PARQUET.exists():
         pytest.skip("parquet not present")

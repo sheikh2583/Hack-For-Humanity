@@ -410,6 +410,12 @@ img, svg, iframe { max-width: 100%; }
 .st-key-dhoa_portal_bar button { font-size: 0.85rem !important; min-height: 2rem !important; }
 .st-key-dhoa_portal_bar [data-testid="stCaptionContainer"] { margin-top: 0 !important; text-align: right; }
 .st-key-dhoa_signin { max-width: 26rem; margin: 1.5rem auto; }
+.st-key-dhoa_community_list {
+    max-height: clamp(400px, 60dvh, 680px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 4px;
+}
 @media (max-width: 768px) {
     .st-key-dhoa_portal_bar [data-testid="stHorizontalBlock"] {
         flex-direction: row !important; flex-wrap: wrap !important; gap: 0.4rem !important;

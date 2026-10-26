@@ -1211,7 +1211,8 @@ def _render_community_results(gdf: pd.DataFrame, place: cm.Place | None) -> None
             )
     with list_column:
         st.subheader(T.C_LIST_TITLE)
-        _render_community_cards(nearby, show_distance=radius_m is not None)
+        with st.container(key="dhoa_community_list"):
+            _render_community_cards(nearby, show_distance=radius_m is not None)
         try:
             st.download_button(
                 T.DOWNLOAD_REPORT, _community_report(report_name, nearby, radius_m or 0),
@@ -2153,8 +2154,8 @@ def _render_selected_candidate(row: pd.Series) -> None:
 def _render_public_candidate(row: pd.Series) -> None:
     """Public detail card for a clicked kiln: id, type, area, detection status, coordinates, links.
 
-    Input: one row of the PUBLIC frame. Output: a bordered card with no priority, no rule
-    signal, no distance breakdown and no report download.
+    Input: one row of the PUBLIC frame. Output: a bordered card with public rule signals,
+    basic kiln details and links, without priority or a report download.
     """
     lat, lon = float(row.lat), float(row.lon)
     candidate_id = str(row.get("kiln_id", T.NO_DATA))
@@ -2168,6 +2169,15 @@ def _render_public_candidate(row: pd.Series) -> None:
         with right:
             st.markdown(f"**{T.DETECTION_STATUS}:** {detection}")
             st.markdown(f"**{T.COORDINATES}:** {lat:.5f}, {lon:.5f}")
+        content = _popup_content(row)
+        st.divider()
+        st.markdown(f"#### {T.RULE_SIGNALS_HEADING}")
+        signals = content["signals"]
+        if signals and any(signal != T.NO_DATA for signal in signals):
+            for signal in signals:
+                st.markdown(signal)
+        else:
+            st.caption(T.NO_DATA)
         with st.container(key="dhoa_action_row"):
             columns = st.columns(3)
             columns[0].link_button(T.DIRECTIONS_2, f"https://www.google.com/maps/dir/?api=1&destination={lat:.6f},{lon:.6f}&travelmode=driving", width="stretch")
@@ -2180,7 +2190,7 @@ def _render_report_download(row: pd.Series) -> None:
     candidate_id = str(row.get("kiln_id", "unknown"))
     try:
         # Display-only ``ui_*`` columns (popup HTML etc.) are not report inputs;
-        # leaving them out keeps the report cache key small and stable.
+        # breach and dist_*_m fields remain included for the report.
         report_fields = {
             name: value for name, value in row.to_dict().items() if not str(name).startswith("ui_")
         }
