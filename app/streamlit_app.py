@@ -212,8 +212,9 @@ def _public_data(path_text: str, mtime_ns: int, size: int, lang: str) -> gpd.Geo
     """Build the PUBLIC dataset once per data file version and language.
 
     Input: data path plus its mtime/size and the language (cache key). Output: the cached
-    prepared frame passed through ``kd.public_view`` (no priority, rule or distance column, no staff
-    display column) with only ``ui_area``/``ui_type`` added; ``attrs["dhoa_data_version"]``
+    prepared frame passed through ``kd.public_view`` with marker-only band and compact signal
+    display fields added alongside ``ui_area``/``ui_type``; raw score and rule columns stay
+    excluded. ``attrs["dhoa_data_version"]``
     ends in ``-public`` so every cache keyed by it is separate from the staff data. The
     object is shared by every session and must be treated as read-only.
     """
@@ -223,12 +224,22 @@ def _public_data(path_text: str, mtime_ns: int, size: int, lang: str) -> gpd.Geo
     version = str(prepared.attrs.get("dhoa_data_version", mtime_ns))
     prepare_public = getattr(kd, "prepare_public_frame", None)
     if callable(prepare_public):
-        return prepare_public(prepared, version=version)
+        result = prepare_public(prepared, version=version)
+        result["ui_marker_states"], result["ui_marker_distances"] = kd.popup_signal_codes(
+            prepared, _siting_rules()
+        )
+        result["ui_marker_signals"] = kd.rule_signal_rows_html(prepared, _siting_rules())
+        return result
     public_view = getattr(kd, "public_view", None)
     public_display = getattr(kd, "with_public_display_columns", None)
     if not callable(public_view) or not callable(public_display):
         raise AttributeError("kiln_data must provide public frame preparation helpers")
     result = public_display(public_view(prepared))
+    result["ui_marker_band"] = prepared["priority_band"].astype(str).to_numpy()
+    result["ui_marker_states"], result["ui_marker_distances"] = kd.popup_signal_codes(
+        prepared, _siting_rules()
+    )
+    result["ui_marker_signals"] = kd.rule_signal_rows_html(prepared, _siting_rules())
     result.attrs["dhoa_data_version"] = f"{version}-public"
     return result
 
@@ -974,17 +985,23 @@ def _render_community_table(nearby: pd.DataFrame, show_distance: bool) -> None:
 def _render_community_cards(nearby: pd.DataFrame, show_distance: bool) -> None:
     """Render public search results as touch-friendly candidate cards.
 
-    Input: rows from ``kiln_data.with_public_display_columns`` with coordinates
-    and ``distance_m``. Output: localized type/place/distance cards with a
-    directions link; no staff-only fields are read or displayed.
+    Input: public display rows with coordinates, ``distance_m``, marker band and
+    formatted rule-signal HTML. Output: localized severity/violation cards with
+    place, distance and a directions link.
     """
     for index, (_, row) in enumerate(nearby.iterrows()):
         with st.container(border=True, key=f"community_candidate_{index}"):
-            st.markdown(f"**{row.get('ui_type', T.NO_DATA)}**")
+            st.markdown(
+                f"**{row.get('ui_type', T.NO_DATA)}** · "
+                f"**{T.PRIORITY}:** {kd.priority_badge(row.get('ui_marker_band'))}"
+            )
             place = row.get("nearest_place")
             if place is None or pd.isna(place) or not str(place).strip():
                 place = row.get("ui_area", T.NO_DATA)
             st.caption(T.C_CARD_PLACE_FMT.format(place))
+            signals_html = row.get("ui_marker_signals", "")
+            if isinstance(signals_html, str) and signals_html:
+                st.markdown(signals_html, unsafe_allow_html=True)
             if show_distance:
                 distance = pd.to_numeric(pd.Series([row.get("distance_m")]), errors="coerce").iloc[0]
                 if pd.notna(distance):
@@ -2337,18 +2354,21 @@ return m;};})()"""
 def _public_marker_callback_js(payload: Mapping[str, Any], radius: int = 8) -> str:
     """Return the JS factory for the PUBLIC map with priority-band marker styling.
 
-    Input: ``kiln_data.public_marker_payload`` output (rows are
-    ``[lat, lon, band, type, area]``).
-    Output: a JS function expression for ``FastMarkerCluster``. Each marker has a hover
-    tooltip (band | type | area) and, on click, a light popup (type, area, coordinates,
-    Google Maps directions / map / Earth links) built in the browser. No priority score
-    or rule-signal field exists in the payload or in this script.
+    Input: ``kiln_data.public_marker_payload`` output (rows include position, display
+    band, type, area and compact rule states/distances). Output: a JS function expression
+    for ``FastMarkerCluster`` with a severity tooltip and a popup containing the rule signals.
+    No priority score or raw rule columns are sent to the page.
     """
     lookups = json.dumps(
         {
             "colors": [PRIORITY_COLORS["High"], PRIORITY_COLORS["Medium"],
                        PRIORITY_COLORS["Low"], DESIGN_COLORS["unclassified"]],
             "bands": payload.get("bands", [T.HIGH, T.MEDIUM, T.LOW, T.UNCLASSIFIED]),
+            "rules": payload.get("rules", []),
+            "text": payload.get("text", {
+                "signals": T.RULE_SIGNALS, "outside": T.OUTSIDE_THRESHOLD,
+                "nodata": T.NO_DATA, "unit": T.M_DOT_FMT.format(0)[1:],
+            }),
             "outline": DESIGN_COLORS["marker_outline"],
             "halo": DESIGN_COLORS["marker_halo"],
             "types": payload["types"],
@@ -2368,10 +2388,15 @@ var ic=L.divIcon({className:'dhoa-pin',iconSize:[S,S],iconAnchor:[S/2,S/2],
 html:"<svg width='"+S+"' height='"+S+"' viewBox='0 0 22 22'><circle cx='11' cy='11' r='9' fill='none' stroke='"+D.halo+"' stroke-width='3.6'/><circle cx='11' cy='11' r='9' fill='"+c+"' stroke='"+D.outline+"' stroke-width='1.3'/></svg>"});
 var m=L.marker([row[0],row[1]],{icon:ic,riseOnHover:true});
  m.bindTooltip(D.bands[row[2]]+" | "+D.types[row[3]]+" | "+D.areas[row[4]],{sticky:true});
+var sg="<strong>"+D.text.signals+":</strong>";
+for(var i=0;i<D.rules.length;i++){var st=row[5].charAt(i),dv=row[6][i];
+sg+="<div class='rule-signal-row'><span>"+['🔴','🟡','🟢','⚪'][Number(st)]+'</span> '+D.rules[i]+": "+
+(st==='3'?D.text.nodata:st==='2'?D.text.outside:dv.toLocaleString('en-US')+D.text.unit)+"</div>";}
 var la=row[0],lo=row[1],q=la.toFixed(6)+','+lo.toFixed(6),g='https://www.google.com/maps',
-h="<div class='dhoa-popup'><div class='badges'><span class='badge'>"+D.types[row[3]]+"</span></div>"
+h="<div class='dhoa-popup'><div class='badges'><span class='badge'>"+D.types[row[3]]+"</span>"
++"<span class='badge priority-badge'>"+D.bands[row[2]]+"</span></div>"
 +"<strong>"+D.labels.kiln+" · "+D.areas[row[4]]+"</strong><hr>"
-+"📍 "+D.labels.area+": "+D.areas[row[4]]+"<br>"+la.toFixed(5)+", "+lo.toFixed(5)+"<hr>"
++"📍 "+D.labels.area+": "+D.areas[row[4]]+"<br>"+la.toFixed(5)+", "+lo.toFixed(5)+"<hr>"+sg+"<hr>"
 +"<div class='popup-actions'>"
 +"<a href='"+g+"/dir/?api=1&destination="+q+"&travelmode=driving' target='_blank' rel='noopener'>🗺️ "+D.labels.directions+"</a>"
 +"<a href='"+g+"?q="+q+"' target='_blank' rel='noopener'>📍 "+D.labels.map+"</a>"

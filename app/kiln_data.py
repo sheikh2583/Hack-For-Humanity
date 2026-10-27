@@ -710,8 +710,9 @@ def with_public_display_columns(frame: pd.DataFrame) -> pd.DataFrame:
 def prepare_public_frame(frame: pd.DataFrame, version: str) -> pd.DataFrame:
     """Prepare the public dataset once at load time (read-only afterwards).
 
-    Input: the raw loaded kiln frame and a data-version token. Output: ``public_view`` of it
-    plus a default ``detection_status`` and ``PUBLIC_DISPLAY_COLUMNS``; the cache key in
+    Input: the prepared staff frame and a data-version token. Output: ``public_view`` of it
+    plus display-only marker band, signal states/distances, default ``detection_status``
+    and ``PUBLIC_DISPLAY_COLUMNS``; the cache key in
     ``attrs["dhoa_data_version"]`` carries ``-public`` so staff and public caches never mix.
     """
     result = public_view(frame)
@@ -731,9 +732,10 @@ def prepare_public_frame(frame: pd.DataFrame, version: str) -> pd.DataFrame:
 def public_marker_payload(frame: pd.DataFrame) -> dict[str, Any]:
     """Pack public map markers as position, display band, type and area.
 
-    Output: ``{"rows": [[lat, lon, band_index, type_index, area_index], ...],
-    "bands": [...], "types": [...], "areas": [...]}``. Band is a display-only
-    value; no score or rule signal is included.
+    Output: ``{"rows": [[lat, lon, band_index, type_index, area_index, states,
+    distances], ...], "bands": [...], "types": [...], "areas": [...],
+    "rules": [...], "text": {...}``. Band and compact rule states are display
+    values; no score, raw rule ids, or raw rule columns are included.
     """
     frame = with_public_display_columns(frame)
     lat = numeric_column(frame, ("lat",))
@@ -746,9 +748,13 @@ def public_marker_payload(frame: pd.DataFrame) -> dict[str, Any]:
     rows: list[list[Any]] = []
     band_indices = [{"High": 0, "Medium": 1, "Low": 2}.get(str(value), 3)
                     for value in frame.get("ui_marker_band", pd.Series([""] * len(frame))).tolist()]
-    for ok, la, lo, band, kind, area in zip(
+    state_values = frame.get("ui_marker_states", pd.Series(["3" * len(_POPUP_RULES)] * len(frame))).tolist()
+    distance_values = frame.get(
+        "ui_marker_distances", pd.Series([[-1] * len(_POPUP_RULES) for _ in range(len(frame))])
+    ).tolist()
+    for ok, la, lo, band, kind, area, states, distances in zip(
         valid.tolist(), lat.tolist(), lon.tolist(), band_indices,
-        frame["ui_type"].tolist(), frame["ui_area"].tolist()
+        frame["ui_type"].tolist(), frame["ui_area"].tolist(), state_values, distance_values
     ):
         if not ok:
             continue
@@ -758,10 +764,17 @@ def public_marker_payload(frame: pd.DataFrame) -> dict[str, Any]:
         area_i = area_pos.setdefault(area, len(area_pos))
         if area_i == len(areas):
             areas.append(html.escape(area))
-        rows.append([round(la, 5), round(lo, 5), band, kind_i, area_i])
+        rows.append([round(la, 5), round(lo, 5), band, kind_i, area_i, states, distances])
     return {
         "rows": rows, "bands": [T.HIGH, T.MEDIUM, T.LOW, T.UNCLASSIFIED],
         "types": types, "areas": areas,
+        "rules": [html.escape(label) for _id, label, _cols in _POPUP_RULES],
+        "text": {
+            "signals": html.escape(T.RULE_SIGNALS),
+            "outside": html.escape(T.OUTSIDE_THRESHOLD),
+            "nodata": html.escape(T.NO_DATA),
+            "unit": html.escape(T.M_DOT_FMT.format(0)[1:]),
+        },
     }
 
 
