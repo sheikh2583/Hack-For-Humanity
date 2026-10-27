@@ -2942,12 +2942,10 @@ def _sign_out_staff() -> None:
     st.session_state.pop("dhoa_portal_tab", None)
 
 
-def _sign_in_as_demo_inspector() -> None:
-    """Sign in to the demo portal without exposing its configured password."""
-    if not roles.demo_login_available():
-        return
-    if roles.sign_in(roles.DEMO_PASSCODE, roles.DEMO_NAME):
-        st.session_state["dhoa_portal_tab"] = "map"
+def _reveal_demo_credentials() -> None:
+    """Show the demo credentials only after the user asks to see them."""
+    if roles.demo_login_available():
+        st.session_state["dhoa_show_demo_credentials"] = True
 
 
 def render_staff_signin(gdf: gpd.GeoDataFrame) -> None:
@@ -2982,13 +2980,27 @@ def render_staff_signin(gdf: gpd.GeoDataFrame) -> None:
                     st.session_state["dhoa_portal_tab"] = "map"
                     st.rerun()
                 st.error(T.PORTAL_WRONG_PASSCODE)
+            forgot_col, register_col = st.columns(2)
+            forgot_clicked = forgot_col.button(
+                T.PORTAL_FORGOT_PASSWORD, key="dhoa_forgot_password", width="stretch",
+            )
+            register_clicked = register_col.button(
+                T.PORTAL_REGISTER, key="dhoa_register", width="stretch",
+            )
+            if forgot_clicked or register_clicked:
+                st.info(T.PORTAL_ACCOUNT_ACTION_UNAVAILABLE)
             if roles.demo_login_available():
                 st.button(
-                    T.PORTAL_FILL_DEMO_CREDENTIALS,
-                    key="dhoa_demo_inspector_signin",
-                    on_click=_sign_in_as_demo_inspector,
+                    T.PORTAL_DEMO_INSPECTOR,
+                    key="dhoa_reveal_demo_credentials",
+                    on_click=_reveal_demo_credentials,
                     type="secondary",
+                    width="stretch",
                 )
+                if st.session_state.get("dhoa_show_demo_credentials"):
+                    st.info(T.PORTAL_DEMO_CREDENTIALS_FMT.format(
+                        roles.DEMO_NAME, roles.DEMO_PASSCODE,
+                    ))
 
 
 def render_portal_bar() -> str:
