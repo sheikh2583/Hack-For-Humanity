@@ -637,6 +637,11 @@ def _render_community_map(
         st.session_state["community_selected_kiln_id"] = None
     if not selected.empty:
         groups.append(_selected_feature_group(float(selected.iloc[0]["lat"]), float(selected.iloc[0]["lon"])))
+    view_request = st.session_state.pop("dhoa_community_map_view", None)
+    view_args: dict[str, Any] = (
+        {"center": view_request["center"], "zoom": view_request["zoom"]}
+        if isinstance(view_request, dict) and view_request.get("center") else {}
+    )
     result = st_folium(
         map_view,
         key=_map_key("dhoa_community_map", fingerprint, tile),
@@ -644,6 +649,7 @@ def _render_community_map(
         width="100%",
         returned_objects=["last_object_clicked"],
         feature_group_to_add=groups or None,
+        **view_args,
     )
     point = _clicked_point(result)
     if (
@@ -1018,6 +1024,11 @@ def _render_community_cards(nearby: pd.DataFrame, show_distance: bool) -> None:
             url = f"https://www.google.com/maps/dir/?api=1&destination={lat:.6f}%2C{lon:.6f}"
             st.link_button(T.GET_DIRECTIONS, url, width="stretch")
             kiln_id = str(row.get("kiln_id", ""))
+            select_key = hashlib.sha256(f"select:{kiln_id}".encode("utf-8")).hexdigest()[:16]
+            st.button(
+                T.VIEW_KILN, key=f"dhoa_community_select_{select_key}", width="stretch",
+                on_click=_select_community_candidate, args=(kiln_id, lat, lon),
+            )
             report_key = hashlib.sha256(f"{kiln_id}:{index}".encode("utf-8")).hexdigest()[:16]
             st.button(
                 T.C_REPORT_CARD_ACTION, key=f"dhoa_report_open_{report_key}", width="stretch",
@@ -1028,6 +1039,14 @@ def _render_community_cards(nearby: pd.DataFrame, show_distance: bool) -> None:
 def _select_candidate_report(kiln_id: str) -> None:
     """Select a public candidate card as the subject of the correction form."""
     st.session_state["dhoa_report_candidate_id"] = kiln_id
+
+
+def _select_community_candidate(kiln_id: str, latitude: float, longitude: float) -> None:
+    """Select one community card and request a map focus at its coordinates."""
+    st.session_state["community_selected_kiln_id"] = str(kiln_id)
+    st.session_state["dhoa_community_map_view"] = {
+        "center": [float(latitude), float(longitude)], "zoom": SELECTED_ZOOM,
+    }
 
 
 _REPORT_RATE_LIMIT = 3
@@ -2202,13 +2221,11 @@ def _render_public_candidate(row: pd.Series) -> None:
         with right:
             st.markdown(f"**{T.DETECTION_STATUS}:** {detection}")
             st.markdown(f"**{T.COORDINATES}:** {lat:.5f}, {lon:.5f}")
-        content = _popup_content(row)
         st.divider()
         st.markdown(f"#### {T.RULE_SIGNALS_HEADING}")
-        signals = content["signals"]
-        if signals and any(signal != T.NO_DATA for signal in signals):
-            for signal in signals:
-                st.markdown(signal)
+        signals_html = row.get("ui_marker_signals", "")
+        if isinstance(signals_html, str) and signals_html:
+            st.markdown(signals_html, unsafe_allow_html=True)
         else:
             st.caption(T.NO_DATA)
         with st.container(key="dhoa_action_row"):
