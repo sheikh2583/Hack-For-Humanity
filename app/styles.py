@@ -258,9 +258,22 @@ h4 [data-testid="stHeaderActionElements"],
     border-radius: var(--dhoa-radius-pill); cursor: pointer;
     font-weight: var(--dhoa-weight-semibold); color: var(--dhoa-color-text-soft);
 }
-.st-key-dhoa_lang_toggle [role="radiogroup"] label > div:first-child:not([data-testid]) { display: none; }
+/* Hide Streamlit's default radio indicator div entirely (all variants) */
+.st-key-dhoa_lang_toggle [role="radiogroup"] label > div:first-child { display: none !important; }
+/* Active pill */
 .st-key-dhoa_lang_toggle [role="radiogroup"] label:has(input:checked) {
     background: var(--dhoa-color-primary); color: var(--dhoa-color-on-primary);
+}
+/* Fob dot: shown on the active (checked) label as a large circle before the text */
+.st-key-dhoa_lang_toggle [role="radiogroup"] label:has(input:checked)::before {
+    content: "";
+    display: inline-block;
+    width: 0.65rem;
+    height: 0.65rem;
+    border-radius: 50%;
+    background: var(--dhoa-color-on-primary);
+    margin-inline-end: 0.4rem;
+    flex-shrink: 0;
 }
 .st-key-dhoa_lang_toggle [role="radiogroup"] label p { margin: 0; line-height: var(--dhoa-lh-tight); }
 
@@ -517,25 +530,34 @@ img, svg, iframe { max-width: 100%; }
     width: max-content !important;
     max-width: calc(100vw - 2rem);
 }
+/* Collapse all intermediate Streamlit wrappers so they don't clip the button */
 .st-key-dhoa_chatbot [data-testid="stPopover"],
-.st-key-dhoa_chatbot [data-testid="stPopover"] > div:first-child {
+.st-key-dhoa_chatbot [data-testid="stPopover"] > div:first-child,
+.st-key-dhoa_chatbot [data-testid="stPopover"] > div > div,
+.st-key-dhoa_chatbot [data-testid="stElementContainer"],
+.st-key-dhoa_chatbot [data-testid="stElementContainer"] > div {
     width: max-content !important;
+    min-width: 0 !important;
+    overflow: visible !important;
 }
-/* Main button – transparent orb with glowing emoji */
-.st-key-dhoa_chatbot [data-testid="stPopoverButton"] {
+/* Main button – transparent orb with glowing emoji.
+   Target both the data-testid attr AND the raw <button> to survive Streamlit DOM changes. */
+.st-key-dhoa_chatbot [data-testid="stPopoverButton"],
+.st-key-dhoa_chatbot [data-testid="stPopover"] button,
+.st-key-dhoa_chatbot button {
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    width: 10rem !important;
-    height: 10rem !important;
-    min-width: 10rem !important;
-    min-height: 10rem !important;
+    width: 5rem !important;
+    height: 5rem !important;
+    min-width: 5rem !important;
+    min-height: 5rem !important;
     padding: 0 !important;
     border: 0 !important;
     border-radius: 50% !important;
     background: transparent !important;
     box-shadow: none !important;
-    font-size: 6.2rem !important;
+    font-size: 3rem !important;
     line-height: 1 !important;
     color: inherit !important;
     animation:
@@ -545,7 +567,9 @@ img, svg, iframe { max-width: 100%; }
     overflow: visible !important;
 }
 /* Hover: scale up and intensify glow, pause float */
-.st-key-dhoa_chatbot [data-testid="stPopoverButton"]:hover {
+.st-key-dhoa_chatbot [data-testid="stPopoverButton"]:hover,
+.st-key-dhoa_chatbot [data-testid="stPopover"] button:hover,
+.st-key-dhoa_chatbot button:hover {
     transform: translateY(-6px) scale(1.12) !important;
     animation-play-state: paused !important;
     filter:
@@ -556,7 +580,8 @@ img, svg, iframe { max-width: 100%; }
 }
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
-    .st-key-dhoa_chatbot [data-testid="stPopoverButton"] {
+    .st-key-dhoa_chatbot [data-testid="stPopoverButton"],
+    .st-key-dhoa_chatbot button {
         animation: none !important;
         filter: drop-shadow(0 0 10px rgba(0, 198, 255, 0.8)) drop-shadow(0 4px 10px rgba(0,0,0,0.5)) !important;
     }
@@ -568,12 +593,13 @@ img, svg, iframe { max-width: 100%; }
         left: 1rem !important;
         bottom: calc(3rem + env(safe-area-inset-bottom)) !important;
     }
-    .st-key-dhoa_chatbot [data-testid="stPopoverButton"] {
-        width: 11rem !important;
-        height: 11rem !important;
-        min-width: 11rem !important;
-        min-height: 11rem !important;
-        font-size: 6.8rem !important;
+    .st-key-dhoa_chatbot [data-testid="stPopoverButton"],
+    .st-key-dhoa_chatbot button {
+        width: 6rem !important;
+        height: 6rem !important;
+        min-width: 6rem !important;
+        min-height: 6rem !important;
+        font-size: 3.5rem !important;
     }
 }
 """
