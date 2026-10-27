@@ -482,6 +482,7 @@ CHAT_TITLE = '💬 Help'
 CHAT_WELCOME = 'Hi! Type a district name to jump there, or ask how to use Dhoa.'
 CHAT_FALLBACK = "I'm not sure about that. Try typing a district name, or use the navigation buttons above."
 CHAT_GO_DISTRICT = 'Showing kilns in {0}. Opening the map now…'
+CHAT_AREA_AMBIGUOUS = 'More than one area matches. Include its upazila and district name: {0}.'
 CHAT_GO_NEAR_ME = "Opening 'Kilns near me'…"
 CHAT_GO_OVERVIEW = 'Opening the Overview map…'
 CHAT_GO_ABOUT = 'Opening the About page…'

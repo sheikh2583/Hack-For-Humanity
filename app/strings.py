@@ -120,6 +120,7 @@ _COMPATIBILITY_TEXT = {
     "CHAT_WELCOME": {"bn": "হ্যালো! জেলার নাম লিখলে সেখানে চলে যাব, অথবা ধোয়া ব্যবহার সম্পর্কে যেকোনো প্রশ্ন করুন।", "en": "Hi! Type a district name to jump there, or ask how to use Dhoa."},
     "CHAT_FALLBACK": {"bn": "বুঝতে পারিনি। একটি জেলার নাম লিখুন, অথবা উপরের নেভিগেশন বোতাম ব্যবহার করুন।", "en": "I'm not sure about that. Try typing a district name, or use the navigation buttons above."},
     "CHAT_GO_DISTRICT": {"bn": "{0}-এর ভাটা দেখাচ্ছি। মানচিত্র খুলছে…", "en": "Showing kilns in {0}. Opening the map now…"},
+    "CHAT_AREA_AMBIGUOUS": {"bn": "একাধিক এলাকার সাথে মিলেছে। উপজেলা ও জেলার নাম একসাথে লিখুন: {0}।", "en": "More than one area matches. Include its upazila and district name: {0}."},
     "CHAT_GO_NEAR_ME": {"bn": "'কাছের ভাটা' খুলছে…", "en": "Opening 'Kilns near me'…"},
     "CHAT_GO_OVERVIEW": {"bn": "ওভারভিউ মানচিত্র খুলছে…", "en": "Opening the Overview map…"},
     "CHAT_GO_ABOUT": {"bn": "পরিচিতি পাতা খুলছে…", "en": "Opening the About page…"},

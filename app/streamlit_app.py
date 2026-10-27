@@ -3543,10 +3543,41 @@ def _set_report_status(report_id: str, status: str) -> None:
         _work_store().set_report_status(report_id, status, roles.staff_name())
 
 
-def _submit_chat_message(district_lookup: dict[str, str]) -> None:
+def _open_community_place_from_chat(place_key: str, place_name: str) -> None:
+    """Select an existing Community district/upazila from the floating chatbot."""
+    st.session_state["community_place_key"] = place_key
+    st.session_state["community_search_query"] = place_name
+    st.session_state["community_origin"] = None
+    st.session_state.pop("community_notice", None)
+    st.session_state.pop("community_pending_geocode", None)
+    st.session_state.pop("community_picker_reset", None)
+    st.session_state.pop("community_search_reset", None)
+    st.session_state.pop(_wkey("community_suggestion"), None)
+    st.session_state["community_selected_kiln_id"] = None
+    st.session_state["dhoa_view_mode"] = "community"
+
+
+def _chat_area_match_names(place: cm.Place) -> tuple[str, ...]:
+    """Searchable district/upazila names, including canonical and active-language labels."""
+    if place.kind == cm.KIND_DISTRICT:
+        return (place.name, place.district, _district_label(place.district))
+    if place.kind == cm.KIND_UPAZILA:
+        district_label = _district_label(place.district)
+        return (
+            place.upazila,
+            place.name,
+            f"{place.upazila}, {place.district}",
+            f"{place.upazila}, {district_label}",
+        )
+    return ()
+
+
+def _submit_chat_message(
+    district_lookup: dict[str, str], area_places: dict[str, cm.Place]
+) -> None:
     """Store a chatbot reply and apply its requested navigation before the next render.
 
-    Input schema: district display/canonical names mapped to canonical district values.
+    Input schema: district display/canonical names and the existing Community Place index.
     Output schema: app session history plus an optional existing view/place selection.
     """
     user_text = st.session_state.get("dhoa_chat_input")
@@ -3556,11 +3587,55 @@ def _submit_chat_message(district_lookup: dict[str, str]) -> None:
         "dhoa_chat_history", [{"role": "assistant", "text": T.CHAT_WELCOME}]
     )
     history.append({"role": "user", "text": user_text})
+
+    suggestion_keys = _community_place_suggestions(area_places, user_text)
+    query = " ".join(user_text.split()).casefold()
+    exact_matches: list[cm.Place] = []
+    for key in suggestion_keys:
+        place = area_places[key]
+        if query in {
+            " ".join(name.split()).casefold()
+            for name in _chat_area_match_names(place) if name
+        }:
+            exact_matches.append(place)
+
+    if exact_matches:
+        area_matches = exact_matches
+    else:
+        area_matches = [
+            area_places[key]
+            for key in suggestion_keys
+            if any(
+                name.casefold().startswith(query)
+                for name in _chat_area_match_names(area_places[key]) if name
+            )
+        ]
+    area_matches = list({place.key: place for place in area_matches}.values())
+    if len(area_matches) == 1:
+        place = area_matches[0]
+        history.append({"role": "assistant", "text": T.CHAT_GO_DISTRICT.format(place.name)})
+        _open_community_place_from_chat(place.key, place.name)
+        return
+    if len(area_matches) > 1:
+        choices = list(dict.fromkeys(place.name for place in area_matches))
+        choice_text = ", ".join(choices[:4])
+        if len(choices) > 4:
+            choice_text += ", …"
+        history.append({"role": "assistant", "text": T.CHAT_AREA_AMBIGUOUS.format(choice_text)})
+        return
+
     response = _chatbot.respond(user_text, list(district_lookup), lang=T.get_language())
     history.append({"role": "assistant", "text": response.text})
     if response.district:
         district = district_lookup.get(response.district, response.district)
-        _open_district_near_me(district)
+        place = next((
+            item for item in area_places.values()
+            if item.kind == cm.KIND_DISTRICT and item.district == district
+        ), None)
+        if place is not None:
+            _open_community_place_from_chat(place.key, place.name)
+        else:
+            _open_district_near_me(district)
     elif response.navigate_to in hero.VIEW_MODES:
         st.session_state["dhoa_view_mode"] = response.navigate_to
 
@@ -3572,10 +3647,15 @@ def render_chatbot(gdf: pd.DataFrame | None = None) -> None:
     a fixed bottom-corner Streamlit popover that answers FAQs or navigates existing views.
     """
     district_lookup: dict[str, str] = {}
+    area_places: dict[str, cm.Place] = {}
     if gdf is not None and "district" in gdf.columns:
         for value in sorted(gdf["district"].dropna().astype(str).unique().tolist()):
             district_lookup[value] = value
             district_lookup[_district_label(value)] = value
+        area_places = {
+            key: place for key, place in _community_places(gdf).items()
+            if place.kind in (cm.KIND_DISTRICT, cm.KIND_UPAZILA)
+        }
 
     if "dhoa_chat_history" not in st.session_state:
         st.session_state["dhoa_chat_history"] = [
@@ -3601,7 +3681,7 @@ def render_chatbot(gdf: pd.DataFrame | None = None) -> None:
                 T.CHAT_PLACEHOLDER,
                 key="dhoa_chat_input",
                 on_submit=_submit_chat_message,
-                args=(district_lookup,),
+                args=(district_lookup, area_places),
             )
 
 
