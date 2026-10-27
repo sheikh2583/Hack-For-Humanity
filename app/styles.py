@@ -485,13 +485,34 @@ img, svg, iframe { max-width: 100%; }
     .st-key-dhoa_map_toolbar [data-testid="stColumn"] { min-width: 0 !important; flex: 1 1 45% !important; }
     .dhoa-summary .dhoa-metric { padding: 0.25rem 0.5rem; }
 }
-/* Keep the Help orb fixed above the page in the bottom-right corner. */
+/* ── Chatbot floating action button ──────────────────────────────────── */
+@keyframes dhoa-orb-float {
+    0%, 100% { transform: translateY(0); }
+    50%       { transform: translateY(-8px); }
+}
+@keyframes dhoa-orb-glow-pulse {
+    0%, 100% {
+        filter:
+            drop-shadow(0 0 8px rgba(0, 198, 255, 0.9))
+            drop-shadow(0 0 20px rgba(0, 198, 255, 0.6))
+            drop-shadow(0 0 40px rgba(0, 114, 255, 0.4))
+            drop-shadow(0 6px 14px rgba(0, 0, 0, 0.5));
+    }
+    50% {
+        filter:
+            drop-shadow(0 0 14px rgba(0, 220, 255, 1))
+            drop-shadow(0 0 32px rgba(0, 198, 255, 0.85))
+            drop-shadow(0 0 60px rgba(0, 114, 255, 0.6))
+            drop-shadow(0 8px 18px rgba(0, 0, 0, 0.55));
+    }
+}
+/* Outer wrapper – fixed bottom-right */
 .st-key-dhoa_chatbot {
     position: fixed !important;
     top: auto !important;
     left: auto !important;
-    right: 1.25rem !important;
-    bottom: 1.25rem !important;
+    right: 1.5rem !important;
+    bottom: 1.5rem !important;
     z-index: 10000;
     width: max-content !important;
     max-width: calc(100vw - 2rem);
@@ -500,53 +521,65 @@ img, svg, iframe { max-width: 100%; }
 .st-key-dhoa_chatbot [data-testid="stPopover"] > div:first-child {
     width: max-content !important;
 }
+/* Main button – transparent orb with glowing emoji */
 .st-key-dhoa_chatbot [data-testid="stPopoverButton"] {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 7.5rem !important;
-    height: 7.5rem !important;
-    min-width: 7.5rem !important;
-    min-height: 7.5rem !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 7rem !important;
+    height: 7rem !important;
+    min-width: 7rem !important;
+    min-height: 7rem !important;
     padding: 0 !important;
     border: 0 !important;
     border-radius: 50% !important;
     background: transparent !important;
-    color: var(--dhoa-color-primary) !important;
-    font-size: 4.5rem !important;
-    line-height: 1 !important;
     box-shadow: none !important;
-    filter: drop-shadow(0 6px 16px rgb(0 0 0 / 32%));
-    animation: dhoa-orb-float 3.2s ease-in-out infinite;
-    transition: transform 180ms ease, filter 180ms ease;
+    /* Big emoji */
+    font-size: 4.4rem !important;
+    line-height: 1 !important;
+    color: inherit !important;
+    /* Layered drop-shadow glow animates between dim and bright */
+    animation:
+        dhoa-orb-float 3.2s ease-in-out infinite,
+        dhoa-orb-glow-pulse 2.8s ease-in-out infinite;
+    transition: transform 200ms ease;
+    overflow: visible !important;
 }
+/* Hover: scale up and intensify glow, pause float */
 .st-key-dhoa_chatbot [data-testid="stPopoverButton"]:hover {
-    transform: translateY(-4px) scale(1.08);
-    filter: drop-shadow(0 9px 16px rgb(0 0 0 / 34%));
-    animation-play-state: paused;
+    transform: translateY(-6px) scale(1.12) !important;
+    animation-play-state: paused !important;
+    filter:
+        drop-shadow(0 0 18px rgba(0, 230, 255, 1))
+        drop-shadow(0 0 42px rgba(0, 198, 255, 0.9))
+        drop-shadow(0 0 70px rgba(0, 114, 255, 0.7))
+        drop-shadow(0 10px 22px rgba(0, 0, 0, 0.6)) !important;
 }
-@keyframes dhoa-orb-float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-5px); }
-}
+/* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
-    .st-key-dhoa_chatbot [data-testid="stPopoverButton"] { animation: none; }
+    .st-key-dhoa_chatbot [data-testid="stPopoverButton"] {
+        animation: none !important;
+        filter: drop-shadow(0 0 10px rgba(0, 198, 255, 0.8)) drop-shadow(0 4px 10px rgba(0,0,0,0.5)) !important;
+    }
 }
+/* Mobile – bottom-LEFT, same large size */
 @media (max-width: 768px) {
     .st-key-dhoa_chatbot {
         right: auto !important;
-        left: 0.75rem !important;
+        left: 1rem !important;
         bottom: calc(1rem + env(safe-area-inset-bottom)) !important;
     }
     .st-key-dhoa_chatbot [data-testid="stPopoverButton"] {
-        width: 7rem !important;
-        height: 7rem !important;
-        min-width: 7rem !important;
-        min-height: 7rem !important;
-        font-size: 4.2rem !important;
+        width: 7.5rem !important;
+        height: 7.5rem !important;
+        min-width: 7.5rem !important;
+        min-height: 7.5rem !important;
+        font-size: 4.8rem !important;
     }
 }
 """
+
 
 
 def priority_chip_html(band: str, label: str) -> str:
