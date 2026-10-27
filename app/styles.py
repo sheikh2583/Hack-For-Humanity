@@ -53,13 +53,11 @@ hr { border-color: var(--dhoa-color-border) !important; }
 [data-testid="stAppViewContainer"] .main .block-container {
     max-width: 100%; padding: 0.75rem 1.25rem 1.5rem;
 }
-[data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"] { display: none !important; }
-[data-testid="stMain"] { flex: 1 1 100% !important; width: 100% !important; min-width: 0; }
 [data-testid="stMainBlockContainer"] {
-    box-sizing: border-box; width: 100% !important; max-width: none !important;
+    max-width: 100% !important;
     /* Streamlit's fixed top bar is 60px tall and paints over the first row (it hid the
        language switch); keep the page content clear of it. */
-    padding: 4.25rem clamp(1rem, 3vw, 3rem) 1.5rem !important;
+    padding-top: 4.25rem !important;
 }
 /* Hide heading permalinks only; keep map, navigation, and export links usable. */
 [data-testid="stHeaderActionElements"],
@@ -129,14 +127,14 @@ h4 [data-testid="stHeaderActionElements"],
 
 
 /* ---- landing hero (P2) ------------------------------------------------------ */
-.dhoa-hero { margin: var(--dhoa-space-lg) 0 var(--dhoa-space-md); }
+.dhoa-hero { margin: var(--dhoa-space-md) 0 var(--dhoa-space-sm); }
 .dhoa-hero-title {
-    max-width: 34ch; font-size: var(--dhoa-type-display); font-weight: var(--dhoa-weight-bold);
+    max-width: 28ch; font-size: var(--dhoa-type-title); font-weight: var(--dhoa-weight-bold);
     line-height: var(--dhoa-lh-heading); overflow-wrap: anywhere;
 }
 .dhoa-hero-sub {
-    max-width: 62ch; margin: var(--dhoa-space-sm) 0 var(--dhoa-space-lg);
-    color: var(--dhoa-color-text-soft); font-size: var(--dhoa-type-metric); line-height: var(--dhoa-lh-body);
+    max-width: 56ch; margin: var(--dhoa-space-xs) 0 var(--dhoa-space-md);
+    color: var(--dhoa-color-text-soft); font-size: var(--dhoa-type-body); line-height: var(--dhoa-lh-body);
 }
 .dhoa-hero-metrics { margin-bottom: var(--dhoa-space-lg); }
 /* ---- overview charts (P3): HTML bars with direct value labels ------------------- */
@@ -304,7 +302,7 @@ h4 [data-testid="stHeaderActionElements"],
     .dhoa-metric { padding: var(--dhoa-space-sm) var(--dhoa-space-md); }
     .dhoa-metric strong { font-size: var(--dhoa-type-h3); }
     .dhoa-mobile-map-hint { display: block !important; }
-    .dhoa-hero-title { font-size: var(--dhoa-type-h2); }
+    .dhoa-hero-title { font-size: var(--dhoa-type-h2); } /* was display → title on desktop, h2 on mobile */
     .dhoa-hero-sub { font-size: var(--dhoa-type-body); }
 }
 /* Keep action buttons side by side on phones (only inside keyed rows). */
@@ -396,6 +394,13 @@ img, svg, iframe { max-width: 100%; }
     .dhoa-skel-tile, .dhoa-skel-bar { animation: none !important; }
     *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
+/* ---- community list: scrollable card column (matches map height) ------------------ */
+.st-key-dhoa_community_list {
+    max-height: clamp(400px, 60dvh, 680px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 4px;
+}
 /* ---- map-first layout (M11): the map is on screen without scrolling ------------------ */
 [data-testid="stMainBlockContainer"] .st-key-dhoa_header_row h1.dhoa-brand-title {
     font-size: 1.8rem !important; padding: 0.1em 0 !important; margin: 0 !important; line-height: 1.5 !important;
@@ -411,55 +416,22 @@ img, svg, iframe { max-width: 100%; }
 .st-key-dhoa_portal_bar [data-testid="stSegmentedControl"] { overflow-x: auto; }
 .st-key-dhoa_portal_bar button { font-size: 0.85rem !important; min-height: 2rem !important; }
 .st-key-dhoa_portal_bar [data-testid="stCaptionContainer"] { margin-top: 0 !important; text-align: right; }
-/* The sign-in card sits in normal document flow, centered by flexbox, instead of being
-   transform-positioned against the preview's containing block: Streamlit can wrap a keyed
-   container in an extra layout element, which previously left `position: absolute` anchored
-   to the wrong ancestor. Only the decorative, non-interactive preview is taken out of flow. */
-.st-key-dhoa_signin_stage {
-    position: relative; isolation: isolate; min-height: min(78vh, 850px); margin-top: 0.75rem;
-    display: flex; align-items: center; justify-content: center; padding: 1rem 0;
-}
-.st-key-dhoa_signin_preview {
-    position: absolute; inset: 0; z-index: 0;
-    max-height: min(78vh, 850px); overflow: hidden; filter: blur(5px); opacity: 0.48;
-    pointer-events: none; user-select: none;
-}
-.st-key-dhoa_signin_panel {
-    position: relative; z-index: 10; margin: 0 auto;
-    width: min(27rem, calc(100% - 2rem)); max-height: 100%; overflow-y: auto;
-    box-sizing: border-box; padding: 1.25rem;
-    border: 1px solid var(--dhoa-color-border-strong); border-radius: var(--dhoa-radius-md, 12px);
-    background: var(--dhoa-color-card); box-shadow: var(--dhoa-shadow-card);
-}
-.st-key-dhoa_signin_panel .dhoa-section-title { margin-top: 0; }
-@media (max-width: 768px) {
-    .st-key-dhoa_signin_stage { min-height: 76vh; }
-    .st-key-dhoa_signin_preview { max-height: 76vh; }
-    .st-key-dhoa_signin_panel { padding: 1rem; }
-}
-.st-key-dhoa_community_list {
-    max-height: clamp(400px, 60dvh, 680px);
-    overflow-y: auto;
-    overflow-x: hidden;
-    padding-right: 4px;
-}
+.st-key-dhoa_signin { max-width: 26rem; margin: 1.5rem auto; }
 @media (max-width: 768px) {
     .st-key-dhoa_portal_bar [data-testid="stHorizontalBlock"] {
         flex-direction: row !important; flex-wrap: wrap !important; gap: 0.4rem !important;
     }
     .st-key-dhoa_portal_bar [data-testid="stColumn"] { min-width: 0 !important; }
     .st-key-dhoa_portal_bar [data-testid="stColumn"]:nth-child(1) { flex: 1 1 100% !important; }
-    /* Keep the report notice and account controls readable at phone widths. */
-    .st-key-dhoa_portal_bar [data-testid="stColumn"]:nth-child(2) { flex: 1 1 42% !important; min-width: 0 !important; }
-    .st-key-dhoa_portal_bar [data-testid="stColumn"]:nth-child(3) { flex: 1 1 38% !important; min-width: 0 !important; }
-    .st-key-dhoa_portal_bar [data-testid="stColumn"]:nth-child(4) { flex: 0 0 auto !important; min-width: 7.5rem !important; }
+    /* "Signed in: name" takes the free width and wraps; Sign out keeps its full label beside it */
+    .st-key-dhoa_portal_bar [data-testid="stColumn"]:nth-child(2) { flex: 1 1 0 !important; min-width: 0 !important; }
+    .st-key-dhoa_portal_bar [data-testid="stColumn"]:nth-child(3) { flex: 0 0 auto !important; width: auto !important; min-width: 7.5rem !important; }
     .st-key-dhoa_portal_bar [data-testid="stCaptionContainer"] { text-align: left; overflow-wrap: anywhere; }
-    .st-key-dhoa_portal_bar [data-testid="stColumn"]:nth-child(4) button { white-space: nowrap; }
-    .st-key-dhoa_portal_bar [data-testid="stSegmentedControl"],
-    .st-key-dhoa_header_row [data-testid="stSegmentedControl"] { max-width: 100%; overflow-x: auto !important; }
-    /* Keep all navigation options in one compact, horizontally scrollable row. */
+    .st-key-dhoa_portal_bar [data-testid="stColumn"]:nth-child(3) button { white-space: nowrap; }
+    .st-key-dhoa_portal_bar [data-testid="stSegmentedControl"] { overflow: visible; }
+    /* the four sections and the portal tabs wrap onto a second line instead of being cut off */
     .st-key-dhoa_portal_bar [data-testid="stButtonGroup"] > div,
-    .st-key-dhoa_header_row [data-testid="stButtonGroup"] > div { flex-wrap: nowrap !important; overflow-x: auto !important; }
+    .st-key-dhoa_header_row [data-testid="stButtonGroup"] > div { flex-wrap: wrap !important; overflow: visible !important; }
 }
 /* slim one-line summary strip: value and label side by side */
 .dhoa-metrics.dhoa-summary { gap: 0.4rem; margin: 0 0 0.25rem; }
@@ -480,16 +452,17 @@ img, svg, iframe { max-width: 100%; }
         min-height: 420px !important;
     }
 }
-/* Inspector filters are part of the full-width page, not a separate sidebar rail. */
-.st-key-dhoa_filter_panel { margin: 0 0 0.75rem; }
-.st-key-dhoa_filter_panel h4 { margin: 0 0 0.25rem; }
-.st-key-dhoa_filter_panel [data-testid="stForm"] { padding: 0; }
-.st-key-dhoa_filter_panel [data-testid="stWidgetLabel"] { margin-bottom: 0.1rem; min-height: 0; }
+/* compact sidebar: all filters visible without scrolling on a laptop screen */
+[data-testid="stSidebarUserContent"] { padding-top: 0.75rem !important; }
+[data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: 0.55rem; }
+[data-testid="stSidebar"] label p { font-size: var(--dhoa-type-caption); margin-bottom: 0; }
+[data-testid="stSidebar"] [data-testid="stWidgetLabel"] { margin-bottom: 0.1rem; min-height: 0; }
+[data-testid="stSidebar"] [data-testid="stForm"] { padding: 0; }
+.st-key-dhoa_sidebar_contact p { font-size: var(--dhoa-type-caption); margin: 0; }
 /* header, toolbar and filter rows keep their columns on phones (wrap instead of one tall stack) */
 @media (max-width: 768px) {
     .st-key-dhoa_header_row [data-testid="stHorizontalBlock"],
-    .st-key-dhoa_map_toolbar [data-testid="stHorizontalBlock"],
-    .st-key-dhoa_filter_panel [data-testid="stHorizontalBlock"] {
+    .st-key-dhoa_map_toolbar [data-testid="stHorizontalBlock"] {
         flex-direction: row !important; flex-wrap: wrap !important; gap: 0.4rem !important;
     }
     .st-key-dhoa_header_row [data-testid="stColumn"]:nth-child(1) { order: 1; flex: 1 1 50% !important; }
@@ -497,77 +470,7 @@ img, svg, iframe { max-width: 100%; }
     .st-key-dhoa_header_row [data-testid="stColumn"]:nth-child(2) { order: 3; flex: 1 1 100% !important; }
     .st-key-dhoa_header_row [data-testid="stColumn"]:nth-child(3) { order: 4; flex: 1 1 100% !important; }
     .st-key-dhoa_map_toolbar [data-testid="stColumn"] { min-width: 0 !important; flex: 1 1 45% !important; }
-    .st-key-dhoa_filter_panel [data-testid="stColumn"] { min-width: 0 !important; flex: 1 1 45% !important; }
-    .st-key-dhoa_filter_panel [data-testid="stForm"] [data-testid="stHorizontalBlock"]:first-of-type > [data-testid="stColumn"]:nth-child(2) { flex: 1 1 100% !important; }
-    .st-key-dhoa_filter_panel [data-testid="stPills"],
-    .st-key-dhoa_filter_panel [data-testid="stPills"] [role="group"] { max-width: 100%; flex-wrap: wrap !important; }
     .dhoa-summary .dhoa-metric { padding: 0.25rem 0.5rem; }
-    .dhoa-metrics.dhoa-summary { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
-}
-/* The local Help chatbot floats above page content and never restores the sidebar. */
-.st-key-dhoa_chatbot {
-    position: fixed !important; right: 1.25rem; bottom: 1.25rem; z-index: 10000;
-    width: max-content !important; max-width: calc(100vw - 2rem);
-}
-.st-key-dhoa_chatbot [data-testid="stPopover"] > button {
-    display: flex; align-items: center; justify-content: center;
-    width: 6.5rem; height: 6.5rem; min-width: 6.5rem; min-height: 6.5rem !important;
-    padding: 0 !important; border: 0 !important; border-radius: 50% !important;
-    background: transparent !important; color: var(--dhoa-color-primary) !important;
-    font-size: 4rem !important; line-height: 1 !important;
-    box-shadow: none !important;
-    filter: drop-shadow(0 8px 20px rgb(0 0 0 / 32%))
-            drop-shadow(0 0 0 rgb(0 0 0 / 0%));
-    animation: dhoa-orb-float 3.2s ease-in-out infinite,
-               dhoa-orb-glow 2.6s ease-in-out infinite;
-    transition: transform 180ms ease, filter 180ms ease;
-}
-.st-key-dhoa_chatbot [data-testid="stPopover"] > button:hover {
-    transform: translateY(-6px) scale(1.1);
-    filter: drop-shadow(0 14px 26px rgb(0 0 0 / 38%))
-            drop-shadow(0 0 22px color-mix(in srgb, var(--dhoa-color-primary) 55%, transparent));
-    animation-play-state: paused;
-}
-@keyframes dhoa-orb-float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-7px); }
-}
-@keyframes dhoa-orb-glow {
-    0%, 100% {
-        filter: drop-shadow(0 8px 20px rgb(0 0 0 / 32%))
-                drop-shadow(0 0 2px color-mix(in srgb, var(--dhoa-color-primary) 35%, transparent));
-    }
-    50% {
-        filter: drop-shadow(0 8px 20px rgb(0 0 0 / 32%))
-                drop-shadow(0 0 18px color-mix(in srgb, var(--dhoa-color-primary) 55%, transparent));
-    }
-}
-@media (prefers-reduced-motion: reduce) {
-    .st-key-dhoa_chatbot [data-testid="stPopover"] > button {
-        animation: none;
-        filter: drop-shadow(0 8px 20px rgb(0 0 0 / 32%));
-    }
-}
-.st-key-dhoa_chatbot [data-testid="stPopoverBody"] {
-    width: min(23rem, calc(100vw - 2rem)) !important;
-    max-height: min(75dvh, 42rem) !important; overflow-y: auto !important;
-    border: 1px solid var(--dhoa-color-border-strong);
-    border-radius: var(--dhoa-radius-md, 12px); box-shadow: var(--dhoa-shadow-card);
-}
-.st-key-dhoa_chat_history_view {
-    max-height: min(45dvh, 22rem); overflow-y: auto;
-}
-@media (max-width: 768px) {
-    .st-key-dhoa_chatbot {
-        right: 0.75rem; bottom: calc(3.5rem + env(safe-area-inset-bottom));
-    }
-    .st-key-dhoa_chatbot [data-testid="stPopover"] > button {
-        width: 5.25rem; height: 5.25rem; min-width: 5.25rem; min-height: 5.25rem !important;
-        font-size: 3.25rem !important;
-    }
-    .st-key-dhoa_chatbot [data-testid="stPopoverBody"] {
-        width: calc(100vw - 1.5rem) !important; max-width: 23rem !important;
-    }
 }
 """
 
