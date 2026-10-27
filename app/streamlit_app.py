@@ -1772,14 +1772,14 @@ def _open_district(district: str) -> None:
         st.session_state["dhoa_view_mode"] = "community"
 
 
-def render_overview_charts(gdf: pd.DataFrame) -> None:
+def render_overview_charts(gdf: pd.DataFrame, *, preview: bool = False) -> None:
     """Inspector Dashboard body (staff only): district bars (each opens the portal map), top upazilas, kiln-type split.
 
-    Input: the prepared frame. Output: bars with the value printed at the end of every
-    bar (colour is never the only cue: High priority also carries the triangle glyph), a
-    plain table and a share bar. Every number is a groupby of the frame (see ``overview``).
+    Input: the prepared candidate frame and an optional decorative-preview flag. Output:
+    bars with values, a plain table and a share bar. ``preview=True`` renders those
+    aggregates for the blurred sign-in backdrop without granting staff access.
     """
-    if not roles.is_staff():  # High series, upazila table and type split are staff-only
+    if not roles.is_staff() and not preview:  # High series, upazila table and type split are staff-only
         return
     stats = ov.district_stats(gdf)
     with st.container(key="dhoa_overview_charts"):
@@ -2991,7 +2991,7 @@ def render_staff_signin(gdf: gpd.GeoDataFrame) -> None:
     """
     with st.container(key="dhoa_signin_stage"):
         with st.container(key="dhoa_signin_preview"):
-            render_portal_dashboard(gdf)
+            render_portal_dashboard(gdf, preview=True)
         with st.container(key="dhoa_signin_panel"):
             st.markdown(f"<div class='dhoa-section-title'>{html.escape(T.PORTAL_SIGNIN_TITLE)}</div>",
                         unsafe_allow_html=True)
@@ -3061,8 +3061,12 @@ def render_portal_bar() -> str:
     return st.session_state["dhoa_portal_tab"]
 
 
-def render_portal_dashboard(gdf: gpd.GeoDataFrame) -> None:
-    """Inspector > Dashboard: the headline numbers and the overview charts."""
+def render_portal_dashboard(gdf: gpd.GeoDataFrame, *, preview: bool = False) -> None:
+    """Render Inspector dashboard metrics and charts, optionally for the sign-in preview.
+
+    Input: prepared Inspector GeoDataFrame and preview flag. Output: metric cards and
+    dashboard charts; preview mode is used only inside the blurred, non-interactive login backdrop.
+    """
     counts = hero.hero_counts(gdf)
     columns = st.columns(4)
     for column, (label, value) in zip(columns, (
@@ -3072,7 +3076,7 @@ def render_portal_dashboard(gdf: gpd.GeoDataFrame) -> None:
         (METRIC_LABELS["last_updated"], _data_date_label(dashboard_kilns_file())),
     )):
         column.metric(label, value)
-    render_overview_charts(gdf)
+    render_overview_charts(gdf, preview=preview)
 
 
 _VISIT_STATUS_LABELS = {
