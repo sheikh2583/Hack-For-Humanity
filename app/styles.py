@@ -519,12 +519,12 @@ img, svg, iframe { max-width: 100%; }
             drop-shadow(0 8px 18px rgba(0, 0, 0, 0.55));
     }
 }
-/* Outer wrapper – fixed bottom-LEFT on all viewport sizes */
+/* Outer wrapper – fixed bottom-RIGHT on all viewport sizes */
 .st-key-dhoa_chatbot {
     position: fixed !important;
     top: auto !important;
-    right: auto !important;
-    left: 1rem !important;
+    left: auto !important;
+    right: 1rem !important;
     bottom: 1rem !important;
     z-index: 10000 !important;
     width: max-content !important;
@@ -613,9 +613,11 @@ img, svg, iframe { max-width: 100%; }
     min-width: 6rem !important;
     min-height: 6rem !important;
 }
-/* Mobile – larger touch target; position is already bottom-left from the default block */
+/* Mobile – bottom-RIGHT, larger touch target */
 @media (max-width: 768px) {
     .st-key-dhoa_chatbot {
+        right: 1rem !important;
+        left: auto !important;
         bottom: calc(1rem + env(safe-area-inset-bottom)) !important;
     }
     .st-key-dhoa_chatbot button[data-testid="stPopoverButton"],
