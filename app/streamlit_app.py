@@ -1058,14 +1058,19 @@ def _render_community_cards(nearby: pd.DataFrame, show_distance: bool) -> None:
             url = f"https://www.google.com/maps/dir/?api=1&destination={lat:.6f}%2C{lon:.6f}"
             st.link_button(T.GET_DIRECTIONS, url, width="stretch")
             kiln_id = str(row.get("kiln_id", ""))
+            selected_kiln = str(st.session_state.get("community_selected_kiln_id", "")) == kiln_id
             select_key = hashlib.sha256(f"select:{kiln_id}".encode("utf-8")).hexdigest()[:16]
             st.button(
-                T.VIEW_KILN, key=f"dhoa_community_select_{select_key}", width="stretch",
+                T.SELECTED if selected_kiln else T.VIEW_KILN,
+                key=f"dhoa_community_select_{select_key}", width="stretch",
+                type="primary" if selected_kiln else "secondary",
                 on_click=_select_community_candidate, args=(kiln_id, lat, lon),
             )
+            report_selected = str(st.session_state.get("dhoa_report_candidate_id", "")) == kiln_id
             report_key = hashlib.sha256(f"{kiln_id}:{index}".encode("utf-8")).hexdigest()[:16]
             st.button(
                 T.C_REPORT_CARD_ACTION, key=f"dhoa_report_open_{report_key}", width="stretch",
+                type="primary" if report_selected else "secondary",
                 on_click=_select_candidate_report, args=(kiln_id,),
             )
 
@@ -1339,10 +1344,12 @@ def _render_community_results(gdf: pd.DataFrame, place: cm.Place | None) -> None
             )
     with list_column:
         st.subheader(T.C_LIST_TITLE)
-        with st.container(key="dhoa_community_list"):
-            _render_community_cards(nearby, show_distance=radius_m is not None)
+        # Show the selected complaint form before the scrollable cards so the
+        # Report action has an immediate, visible result after the rerun.
         if selected_report is not None:
             _render_existing_candidate_report(selected_report)
+        with st.container(key="dhoa_community_list"):
+            _render_community_cards(nearby, show_distance=radius_m is not None)
         try:
             st.download_button(
                 T.DOWNLOAD_REPORT, _community_report(report_name, nearby, radius_m or 0),

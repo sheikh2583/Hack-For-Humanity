@@ -117,8 +117,11 @@ def test_rate_limit_waits_between_calls() -> None:
     waits: list[float] = []
     times = iter([100.0, 100.0, 100.2, 100.2])  # two calls 0.2 s apart
     cm._LAST_CALL[0] = 0.0
-    cm.geocode_bangladesh("a", [lambda q: None], clock=lambda: next(times), sleep=waits.append)
-    cm.geocode_bangladesh("b", [lambda q: None], clock=lambda: next(times), sleep=waits.append)
+    def provider(_query: str) -> tuple[float, float]:
+        return (23.7, 90.4)  # stop after one provider call per query
+
+    cm.geocode_bangladesh("a", [provider], clock=lambda: next(times), sleep=waits.append)
+    cm.geocode_bangladesh("b", [provider], clock=lambda: next(times), sleep=waits.append)
     assert waits and waits[-1] == pytest.approx(cm.MIN_INTERVAL_S - 0.2, abs=1e-6)
 
 
@@ -169,16 +172,62 @@ def test_community_results_wraps_scrollable_list(monkeypatch) -> None:
     import app.streamlit_app as app
 
     place = cm.Place("dhaka", cm.KIND_DISTRICT, "Dhaka", "Dhaka", 23.7, 90.4)
-    result = cm.SearchResult(place, pd.DataFrame([{"kiln_id": "K001", "lat": 23.7, "lon": 90.4}]), None)
+    result = cm.SearchResult(
+        place,
+        pd.DataFrame([{
+            "kiln_id": "K001", "lat": 23.7, "lon": 90.4,
+            "district": "Dhaka", "upazila": "Savar", "class": "Zigzag",
+            "priority_band": "High",
+        }]),
+        None,
+    )
+    events = []
+    monkeypatch.setattr(app.st, "session_state", {"dhoa_report_candidate_id": "K001"})
     monkeypatch.setattr(app, "_community_result", lambda _: result)
     monkeypatch.setattr(app, "_render_community_summary", lambda _: None)
     monkeypatch.setattr(app, "_render_community_map_fragment", lambda *a: None)
-    monkeypatch.setattr(app, "_render_community_cards", lambda *a, **k: None)
+    monkeypatch.setattr(app, "_render_community_cards", lambda *a, **k: events.append("cards"))
+    monkeypatch.setattr(app, "_render_existing_candidate_report", lambda *a: events.append("report_form"))
     monkeypatch.setattr(app, "_community_report", lambda *a: b"pdf")
+    monkeypatch.setattr(app.st, "subheader", lambda *a, **k: None)
+    monkeypatch.setattr(app.st, "caption", lambda *a, **k: None)
+    monkeypatch.setattr(app.st, "markdown", lambda *a, **k: None)
+    monkeypatch.setattr(app.st, "download_button", lambda *a, **k: None)
     monkeypatch.setattr(app.st, "columns", lambda *a, **k: [nullcontext(), nullcontext()])
     with patch("streamlit.container", return_value=nullcontext()) as container:
         app._render_community_results(_frame(), place)
     assert any(call.kwargs.get("key") == "dhoa_community_list" for call in container.call_args_list)
+    assert events == ["report_form", "cards"]
+
+
+def test_community_card_actions_show_selected_state(monkeypatch) -> None:
+    from contextlib import nullcontext
+
+    import app.streamlit_app as app
+
+    monkeypatch.setattr(
+        app.st,
+        "session_state",
+        {"community_selected_kiln_id": "K001", "dhoa_report_candidate_id": "K001"},
+    )
+    monkeypatch.setattr(app.st, "container", lambda **kwargs: nullcontext())
+    monkeypatch.setattr(app.st, "markdown", lambda *args, **kwargs: None)
+    monkeypatch.setattr(app.st, "caption", lambda *args, **kwargs: None)
+    monkeypatch.setattr(app.st, "link_button", lambda *args, **kwargs: None)
+    buttons = []
+    monkeypatch.setattr(app.st, "button", lambda *args, **kwargs: buttons.append((args, kwargs)))
+    card = pd.DataFrame([{
+        "kiln_id": "K001", "lat": 23.7, "lon": 90.4, "distance_m": 120.0,
+        "ui_marker_band": "High", "ui_type": "Zigzag kiln", "ui_area": "Savar",
+        "ui_marker_signals": "", "nearest_place": "Savar",
+    }])
+
+    app._render_community_cards(card, show_distance=True)
+
+    assert buttons[0][0][0] == T.SELECTED
+    assert buttons[0][1]["type"] == "primary"
+    assert buttons[1][0][0] == T.C_REPORT_CARD_ACTION
+    assert buttons[1][1]["type"] == "primary"
 
 
 def _apptest():
