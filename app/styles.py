@@ -586,20 +586,50 @@ img, svg, iframe { max-width: 100%; }
         filter: drop-shadow(0 0 10px rgba(0, 198, 255, 0.8)) drop-shadow(0 4px 10px rgba(0,0,0,0.5)) !important;
     }
 }
-/* Mobile – bottom-LEFT, extra large */
+/* ── Fix: size the nested emoji content and hide the expand_more chevron ── */
+/* The emoji lives in stMarkdownContainer > p with its own Streamlit font-size;
+   the button's font-size alone does not reach it. */
+.st-key-dhoa_chatbot [data-testid="stMarkdownContainer"],
+.st-key-dhoa_chatbot [data-testid="stMarkdownContainer"] p {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 3.5rem !important;
+    line-height: 1 !important;
+}
+/* Hide Streamlit's automatic popover expand_more arrow */
+.st-key-dhoa_chatbot [data-testid="stIconMaterial"] {
+    display: none !important;
+}
+/* Bump the button itself to 6rem now that the content fills it properly */
+.st-key-dhoa_chatbot button[data-testid="stPopoverButton"],
+.st-key-dhoa_chatbot button {
+    width: 6rem !important;
+    height: 6rem !important;
+    min-width: 6rem !important;
+    min-height: 6rem !important;
+}
+/* Mobile – bottom-LEFT */
 @media (max-width: 768px) {
     .st-key-dhoa_chatbot {
         right: auto !important;
         left: 1rem !important;
         bottom: calc(3rem + env(safe-area-inset-bottom)) !important;
     }
-    .st-key-dhoa_chatbot [data-testid="stPopoverButton"],
+    .st-key-dhoa_chatbot button[data-testid="stPopoverButton"],
     .st-key-dhoa_chatbot button {
-        width: 6rem !important;
-        height: 6rem !important;
-        min-width: 6rem !important;
-        min-height: 6rem !important;
-        font-size: 3.5rem !important;
+        width: 7rem !important;
+        height: 7rem !important;
+        min-width: 7rem !important;
+        min-height: 7rem !important;
+    }
+    .st-key-dhoa_chatbot [data-testid="stMarkdownContainer"],
+    .st-key-dhoa_chatbot [data-testid="stMarkdownContainer"] p {
+        font-size: 4rem !important;
     }
 }
 """
