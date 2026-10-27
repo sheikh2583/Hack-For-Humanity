@@ -1140,12 +1140,19 @@ def _render_existing_candidate_report(row: pd.Series) -> None:
     """
     kiln_id = str(row.get("kiln_id", ""))
     key = hashlib.sha256(kiln_id.encode("utf-8")).hexdigest()[:16]
+    concern_label = getattr(
+        T,
+        "C_REPORT_REASON_CONCERN",
+        "সম্ভাব্য পরিবেশগত বা অবস্থানগত সমস্যা"
+        if T.get_language() == "bn"
+        else "Possible environmental or siting concern",
+    )
     with st.expander(T.C_REPORT_EXISTING_TITLE, expanded=True):
         with st.form(f"dhoa_report_existing_{key}"):
             reason_label = st.selectbox(
                 T.C_REPORT_EXISTING_REASON,
                 [T.C_REPORT_REASON_LOCATION, T.C_REPORT_REASON_NOT_KILN,
-                 T.C_REPORT_REASON_CONCERN, T.C_REPORT_REASON_OTHER],
+                 concern_label, T.C_REPORT_REASON_OTHER],
                 key=f"dhoa_report_reason_{key}",
             )
             note = st.text_area(T.C_REPORT_NOTE, key=f"dhoa_report_note_{key}", height=90)
@@ -1157,7 +1164,7 @@ def _render_existing_candidate_report(row: pd.Series) -> None:
             reason_code = {
                 T.C_REPORT_REASON_LOCATION: "wrong_location",
                 T.C_REPORT_REASON_NOT_KILN: "not_a_kiln",
-                T.C_REPORT_REASON_CONCERN: "environmental_concern",
+                concern_label: "environmental_concern",
                 T.C_REPORT_REASON_OTHER: "other",
             }[reason_label]
             result = _record_public_report(
