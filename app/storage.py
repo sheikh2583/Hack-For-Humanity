@@ -135,7 +135,7 @@ class ReportStore(Protocol):
         """Return stored reports ordered by creation time, oldest first."""
 
     def open_report_count(self) -> int:
-        """Return the number of new or reviewed reports awaiting resolution."""
+        """Return the number of reports that have not yet been reviewed."""
 
     def set_report_status(self, report_id: str, status: str, handled_by: str) -> None:
         """Update an inbox status and record its handler and handling time."""
@@ -340,14 +340,14 @@ class SQLiteReportStore:
         return [ReportRecord(**dict(row)) for row in rows]
 
     def open_report_count(self) -> int:
-        """Count new and reviewed reports for the Inspector Portal notification badge.
+        """Count reports that have not yet been reviewed for the Inspector Portal badge.
 
         Input: the reports table in this store's SQLite database. Output: one
         integer count; report content is not loaded into application memory.
         """
         with self._connect() as connection:
             row = connection.execute(
-                "SELECT COUNT(*) AS count FROM reports WHERE status IN ('new', 'reviewed')"
+                "SELECT COUNT(*) AS count FROM reports WHERE status = 'new'"
             ).fetchone()
         return int(row["count"])
 

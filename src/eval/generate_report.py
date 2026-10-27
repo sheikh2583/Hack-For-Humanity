@@ -154,8 +154,14 @@ def _area_text(row: dict[str, Any], table: dict[str, str]) -> str:
     return ", ".join(part for part in parts if part) or table["unknown"]
 
 
-def generate_kiln_report(row: dict[str, Any], lang: str = "bn") -> bytes | None:
-    """Generate the per-kiln A4 PDF in ``lang`` ("bn" or "en"); ``None`` on failure."""
+def generate_kiln_report(
+    row: dict[str, Any], lang: str = "bn", submission: dict[str, Any] | None = None,
+) -> bytes | None:
+    """Generate an A4 kiln PDF, optionally with its linked complaint submission.
+
+    Input schema: candidate row fields plus optional report metadata (id, time,
+    reason, note, contact, status, and kind). Output: PDF bytes or ``None``.
+    """
     try:
         from fpdf import FPDF
 
@@ -265,7 +271,45 @@ def generate_kiln_report(row: dict[str, Any], lang: str = "bn") -> bytes | None:
         for signal in signals:
             y = kit.paragraph(pdf, margin + 4, y, width - 4, signal, 9.5)
 
-        kit.footer(pdf, table, 1, 1)
+        if submission is not None:
+            pdf.add_page()
+            y = kit.header_band(pdf, table, table["sec_complaint"], today)
+            y = kit.section_title(pdf, margin, y, width, table["sec_complaint"])
+            linked = bool(_clean(row, "kiln_id")) and not bool(submission.get("not_linked"))
+            complaint_fields = [
+                (table["report_id"], submission.get("id")),
+                (table["submitted"], submission.get("created_at")),
+                (table["report_kind"], submission.get("kind")),
+                (table["reason"], submission.get("reason")),
+                (table["report_status"], submission.get("status")),
+                (table["report_contact"], submission.get("contact")),
+                (table["report_note"], submission.get("note")),
+            ]
+            if not linked:
+                y = kit.paragraph(pdf, margin, y, width, table["not_linked"], 10, True)
+                y += 5
+            label_width = 42.0
+            for label, raw_value in complaint_fields:
+                value = str(raw_value or "").strip() or table["not_recorded"]
+                lines = kit.wrap_text(pdf, value, width - label_width - 5, 9.5)
+                height = max(8.0, 5.8 * len(lines) + 3)
+                if y + height > pdf.h - 22:
+                    pdf.add_page()
+                    y = kit.header_band(pdf, table, table["sec_complaint"], today)
+                    y = kit.section_title(pdf, margin, y, width, table["sec_complaint"])
+                pdf.set_fill_color(*kit.BAND)
+                pdf.rect(margin, y, label_width, height, style="F")
+                kit.put(pdf, margin + 2, y + 1.7, label, 8.5, True, kit.MUTED)
+                for offset, line in enumerate(lines):
+                    kit.put(pdf, margin + label_width + 4, y + 1.7 + 5.8 * offset, line, 9.5)
+                pdf.set_draw_color(*kit.RULE)
+                pdf.line(margin, y + height, margin + width, y + height)
+                y += height
+
+        page_count = len(pdf.pages)
+        for page_number in range(1, page_count + 1):
+            pdf.page = page_number
+            kit.footer(pdf, table, page_number, page_count)
         return bytes(pdf.output())
     except Exception:
         logger.exception("Could not generate kiln candidate PDF")

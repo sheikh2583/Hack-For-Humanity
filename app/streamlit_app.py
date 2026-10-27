@@ -386,11 +386,18 @@ def _priority_reason(row: pd.Series) -> str:
 
 
 @st.cache_data(show_spinner=False)
-def _report_from_json(row_json: str, lang: str = "bn") -> bytes | None:
-    """Build and cache a candidate report from serialized row fields (per language)."""
+def _report_from_json(
+    row_json: str, lang: str = "bn", submission_json: str | None = None,
+) -> bytes | None:
+    """Build and cache a candidate PDF, optionally adding its linked complaint details.
+
+    Input: JSON-safe candidate fields, language code, and optional JSON complaint metadata.
+    Output: the generated PDF bytes, or ``None`` if generation fails.
+    """
     from src.eval.generate_report import generate_kiln_report
 
-    return generate_kiln_report(json.loads(row_json), lang)
+    submission = json.loads(submission_json) if submission_json else None
+    return generate_kiln_report(json.loads(row_json), lang, submission=submission)
 
 
 def _json_default(value: object) -> Any:
@@ -2922,8 +2929,8 @@ def _work_store() -> public_storage.SQLiteReportStore:
     return public_storage.SQLiteReportStore(APP_DB_PATH)
 
 
-def _open_report_count() -> int:
-    """Count new and reviewed reports for the staff-only navigation badge."""
+def _new_report_count() -> int:
+    """Count unreviewed public reports for the staff-only navigation notification."""
     try:
         return _work_store().open_report_count()
     except Exception:
@@ -2933,14 +2940,16 @@ def _open_report_count() -> int:
 
 @st.fragment(run_every=15)
 def _render_portal_report_notification() -> None:
-    """Refresh the Inspector Portal's open-report notification every 15 seconds."""
-    st.caption("🔔 " + T.PORTAL_OPEN_REPORTS_FMT.format(_open_report_count()))
+    """Refresh the count of unreviewed Inspector Portal reports every 15 seconds."""
+    count = _new_report_count()
+    label = "নতুন প্রতিবেদন" if T.get_language() == "bn" else "New reports"
+    st.caption(f"🔔 {label}: {count}")
 
 
 def _portal_tab_label(tab: str) -> str:
     """Translated label of an Inspector Portal sub-tab (Reports carries a count badge)."""
     if tab == "reports":
-        count = _open_report_count()
+        count = _new_report_count()
         return T.PORTAL_TAB_REPORTS_FMT.format(count) if count else T.PORTAL_TAB_REPORTS
     return {"dashboard": T.PORTAL_TAB_DASHBOARD, "map": T.PORTAL_TAB_MAP, "work": T.PORTAL_TAB_WORK}[tab]
 
@@ -3354,38 +3363,85 @@ def render_portal_reports(gdf: gpd.GeoDataFrame) -> None:
         "environmental_concern": T.C_REPORT_REASON_CONCERN,
         "other": T.C_REPORT_REASON_OTHER,
     }
-    for report in reversed(reports):
-        with st.container(border=True):
-            st.markdown(
-                f"**{labels.get(report.status, report.status)} · "
-                f"{reason_labels.get(report.reason, report.reason)}**"
-            )
-            st.caption(f"{report.created_at} · {report.lat:.5f}, {report.lon:.5f}")
-            if report.kiln_id:
-                kiln_rows = gdf[gdf["kiln_id"].astype(str).eq(str(report.kiln_id))]
-                if not kiln_rows.empty:
-                    kiln = kiln_rows.iloc[0]
-                    st.caption(
-                        f"{report.kiln_id} · {kd.priority_badge(kiln.get('priority_band'))}"
+    with st.container(height=680, key="dhoa_portal_reports_list"):
+        for report in reversed(reports):
+            with st.container(border=True):
+                st.markdown(
+                    f"**{labels.get(report.status, report.status)} · "
+                    f"{reason_labels.get(report.reason, report.reason)}**"
+                )
+                st.caption(f"{report.created_at} · {report.lat:.5f}, {report.lon:.5f}")
+                kiln = None
+                if report.kiln_id and "kiln_id" in gdf:
+                    kiln_rows = gdf[gdf["kiln_id"].astype(str).eq(str(report.kiln_id))]
+                    if not kiln_rows.empty:
+                        kiln = kiln_rows.iloc[0]
+                        st.caption(
+                            f"{report.kiln_id} · {kd.priority_badge(kiln.get('priority_band'))}"
+                        )
+                if kiln is not None:
+                    st.markdown(f"**{T.RULE_SIGNALS_HEADING}**")
+                    for signal in _popup_content(kiln.to_dict())["signals"]:
+                        st.text(signal)
+                else:
+                    st.caption(T.NO_DATA)
+                st.text(report.note)
+                if report.contact:
+                    st.text(report.contact)
+                if report.photo_ref:
+                    photo = APP_DB_PATH.parent / report.photo_ref
+                    if photo.is_file():
+                        st.image(str(photo), width=260)
+                cols = st.columns([2, 1, 1])
+                digest = hashlib.sha1(report.id.encode()).hexdigest()[:10]
+                cols[0].button(T.REPORT_OPEN_MAP, key=f"dhoa_report_map_{digest}",
+                               on_click=_open_kiln_on_map,
+                               args=(report.kiln_id or "", report.lat, report.lon), width="stretch")
+                candidate_fields = (
+                    {name: value for name, value in kiln.to_dict().items() if not str(name).startswith("ui_")}
+                    if kiln is not None else {"kiln_id": "", "lat": report.lat, "lon": report.lon}
+                )
+                kind_label = {
+                    "existing_candidate": "বিদ্যমান ভাটার অভিযোগ" if T.get_language() == "bn" else "Existing kiln report",
+                    "not_on_map": "মানচিত্রে নেই" if T.get_language() == "bn" else "Not on map",
+                }.get(report.kind, report.kind)
+                submission = {
+                    "id": report.id,
+                    "created_at": report.created_at,
+                    "reason": reason_labels.get(report.reason, report.reason),
+                    "note": report.note,
+                    "contact": report.contact,
+                    "status": labels.get(report.status, report.status),
+                    "kind": kind_label,
+                    "not_linked": kiln is None,
+                }
+                try:
+                    pdf_bytes = _report_from_json(
+                        json.dumps(candidate_fields, default=_json_default, sort_keys=True),
+                        T.get_language(),
+                        json.dumps(submission, ensure_ascii=False, sort_keys=True),
                     )
-            st.text(report.note)
-            if report.contact:
-                st.text(report.contact)
-            if report.photo_ref:
-                photo = APP_DB_PATH.parent / report.photo_ref
-                if photo.is_file():
-                    st.image(str(photo), width=260)
-            cols = st.columns([2, 1, 1])
-            digest = hashlib.sha1(report.id.encode()).hexdigest()[:10]
-            cols[0].button(T.REPORT_OPEN_MAP, key=f"dhoa_report_map_{digest}",
-                           on_click=_open_kiln_on_map,
-                           args=(report.kiln_id or "", report.lat, report.lon), width="stretch")
-            if report.status != "reviewed":
-                cols[1].button(T.REPORT_MARK_REVIEWED, key=f"dhoa_report_review_{digest}",
-                               on_click=_set_report_status, args=(report.id, "reviewed"), width="stretch")
-            if report.status != "resolved":
-                cols[2].button(T.REPORT_MARK_RESOLVED, key=f"dhoa_report_resolve_{digest}",
-                               on_click=_set_report_status, args=(report.id, "resolved"), width="stretch")
+                    if pdf_bytes is not None:
+                        safe_id = "".join(char if char.isalnum() or char in "-_" else "_" for char in report.id)
+                        st.download_button(
+                            T.DOWNLOAD_REPORT,
+                            pdf_bytes,
+                            f"dhoa_complaint_{safe_id}.pdf",
+                            "application/pdf",
+                            key=f"dhoa_report_pdf_{digest}",
+                            width="stretch",
+                        )
+                    else:
+                        st.caption(T.COULD_NOT_GENERATE_THE_REPORT_PLEASE_TRY)
+                except Exception:
+                    logging.exception("Inspector complaint PDF generation failed")
+                    st.caption(T.COULD_NOT_GENERATE_THE_REPORT_PLEASE_TRY)
+                if report.status != "reviewed":
+                    cols[1].button(T.REPORT_MARK_REVIEWED, key=f"dhoa_report_review_{digest}",
+                                   on_click=_set_report_status, args=(report.id, "reviewed"), width="stretch")
+                if report.status != "resolved":
+                    cols[2].button(T.REPORT_MARK_RESOLVED, key=f"dhoa_report_resolve_{digest}",
+                                   on_click=_set_report_status, args=(report.id, "resolved"), width="stretch")
 
 
 def _set_report_status(report_id: str, status: str) -> None:
