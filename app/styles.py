@@ -504,19 +504,19 @@ img, svg, iframe { max-width: 100%; }
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 5.75rem !important;
-    height: 5.75rem !important;
-    min-width: 5.75rem !important;
-    min-height: 5.75rem !important;
+    width: 7.5rem !important;
+    height: 7.5rem !important;
+    min-width: 7.5rem !important;
+    min-height: 7.5rem !important;
     padding: 0 !important;
     border: 0 !important;
     border-radius: 50% !important;
     background: transparent !important;
     color: var(--dhoa-color-primary) !important;
-    font-size: 3.5rem !important;
+    font-size: 4.5rem !important;
     line-height: 1 !important;
     box-shadow: none !important;
-    filter: drop-shadow(0 5px 12px rgb(0 0 0 / 28%));
+    filter: drop-shadow(0 6px 16px rgb(0 0 0 / 32%));
     animation: dhoa-orb-float 3.2s ease-in-out infinite;
     transition: transform 180ms ease, filter 180ms ease;
 }
@@ -534,15 +534,16 @@ img, svg, iframe { max-width: 100%; }
 }
 @media (max-width: 768px) {
     .st-key-dhoa_chatbot {
-        right: 0.75rem !important;
+        right: auto !important;
+        left: 0.75rem !important;
         bottom: calc(1rem + env(safe-area-inset-bottom)) !important;
     }
     .st-key-dhoa_chatbot [data-testid="stPopoverButton"] {
-        width: 5rem !important;
-        height: 5rem !important;
-        min-width: 5rem !important;
-        min-height: 5rem !important;
-        font-size: 3.1rem !important;
+        width: 7rem !important;
+        height: 7rem !important;
+        min-width: 7rem !important;
+        min-height: 7rem !important;
+        font-size: 4.2rem !important;
     }
 }
 """
