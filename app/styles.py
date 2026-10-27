@@ -129,7 +129,7 @@ h4 [data-testid="stHeaderActionElements"],
 /* ---- landing hero (P2) ------------------------------------------------------ */
 .dhoa-hero { margin: var(--dhoa-space-md) 0 var(--dhoa-space-sm); }
 .dhoa-hero-title {
-    max-width: 28ch; font-size: var(--dhoa-type-title); font-weight: var(--dhoa-weight-bold);
+    max-width: 22ch; font-size: clamp(1.4rem, 2.5vw, 1.9rem); font-weight: var(--dhoa-weight-bold);
     line-height: var(--dhoa-lh-heading); overflow-wrap: anywhere;
 }
 .dhoa-hero-sub {
@@ -394,6 +394,11 @@ img, svg, iframe { max-width: 100%; }
     .dhoa-skel-tile, .dhoa-skel-bar { animation: none !important; }
     *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
+
+/* ---- hide Streamlit Cloud deploy/manage-app button ------------------- */
+[data-testid="stAppDeployButton"],
+.viewerBadge_container__r5tak,
+[class*="viewerBadge"] { display: none !important; }
 /* ---- community list: scrollable card column (matches map height) ------------------ */
 .st-key-dhoa_community_list {
     max-height: clamp(400px, 60dvh, 680px);
