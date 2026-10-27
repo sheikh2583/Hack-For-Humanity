@@ -2908,10 +2908,16 @@ def _work_store() -> public_storage.SQLiteReportStore:
 def _open_report_count() -> int:
     """Count new and reviewed reports for the staff-only navigation badge."""
     try:
-        return sum(report.status in {"new", "reviewed"} for report in _work_store().list_reports())
+        return _work_store().open_report_count()
     except Exception:
         logging.exception("Could not load inspector report count")
         return 0
+
+
+@st.fragment(run_every=15)
+def _render_portal_report_notification() -> None:
+    """Refresh the Inspector Portal's open-report notification every 15 seconds."""
+    st.caption("🔔 " + T.PORTAL_OPEN_REPORTS_FMT.format(_open_report_count()))
 
 
 def _portal_tab_label(tab: str) -> str:
@@ -3013,8 +3019,8 @@ def render_portal_bar() -> str:
             )
         if chosen in _PORTAL_TABS:
             st.session_state["dhoa_portal_tab"] = chosen
-        open_count = _open_report_count()
-        badge_col.caption("🔔 " + T.PORTAL_OPEN_REPORTS_FMT.format(open_count))
+        with badge_col:
+            _render_portal_report_notification()
         who_col.caption(T.PORTAL_SIGNED_IN_FMT.format(roles.staff_name()))
         out_col.button(T.PORTAL_SIGN_OUT, key="dhoa_portal_signout", width="stretch",
                        on_click=_sign_out_staff)
