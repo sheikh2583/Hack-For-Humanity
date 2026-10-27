@@ -290,6 +290,7 @@ SELECT_AN_UPAZILA_TO_ENABLE_THE_RADIUS = 'উপজেলা নির্বা�
 
 # Filters
 FILTERS = 'ফিল্টার'
+FILTER_DISTRICT_HINT = 'এলাকার তালিকা ছোট করতে একটি জেলা বেছে নিন।'
 
 # ⬇ Download filtered CSV
 DOWNLOAD_FILTERED_CSV = '⬇ বাছাইকৃত তালিকা সিএসভি ডাউনলোড'

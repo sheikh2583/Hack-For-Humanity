@@ -2126,9 +2126,8 @@ def render_filter_panel(gdf: gpd.GeoDataFrame) -> dict[str, Any]:
     st.session_state["dhoa_active_view"] = "inspector"
     filters: dict[str, Any] = {}
     with st.container(key="dhoa_filter_panel", border=True):
-        heading_col, district_col = st.columns([1.2, 2.8], vertical_alignment="bottom")
-        with heading_col:
-            st.markdown(f"#### {T.FILTERS}")
+        st.markdown(f"#### {T.FILTERS}")
+        district_col, district_hint_col = st.columns([1.2, 2.8], vertical_alignment="bottom")
         district_values = (
             sorted(gdf["district"].dropna().astype(str).unique().tolist())
             if "district" in gdf else []
@@ -2149,42 +2148,44 @@ def render_filter_panel(gdf: gpd.GeoDataFrame) -> dict[str, Any]:
                 key=_wkey("filter_district"),
                 on_change=_on_district_change,
             )
+        with district_hint_col:
+            st.caption(T.FILTER_DISTRICT_HINT)
 
-            district_selected = filters["district"] != ALL_DISTRICTS
-            upazila_source = gdf if district_selected else gdf.iloc[0:0]
-            if district_selected and "district" in upazila_source:
-                upazila_source = upazila_source[
-                    upazila_source["district"].astype(str).eq(str(filters["district"]))
-                ]
-            _data_upazilas = (
-                sorted(upazila_source["upazila"].dropna().astype(str).unique().tolist())
-                if "upazila" in upazila_source else []
-            )
-            _known_upazilas = BD_ADMIN_AREAS.get(filters["district"], [])
-            upazila_values = sorted(set(_known_upazilas) | set(_data_upazilas))
-            upazila_options = [ALL_AREAS, *upazila_values]
-            _pull_form_values()
-            if st.session_state.get("filter_upazila") not in upazila_options:
-                st.session_state["filter_upazila"] = ALL_AREAS
-            _seed("filter_upazila", st.session_state["filter_upazila"])
-            # Priority options are canonical English keys; only their labels are translated,
-            # so the stored selection survives a language switch.
-            _priority_opts = ["High", "Medium", "Low"]
-            _priority_text = {"High": T.HIGH, "Medium": T.MEDIUM, "Low": T.LOW}
-            _stored_p = st.session_state.get("filter_priority", _priority_opts)
-            # Map any spelling (old Bangla/English labels) to canonical keys; never keep an unknown one.
-            _canonical_p = [v for v in kd.make_filter_key(priorities=_stored_p).priorities] if _stored_p else _priority_opts
-            st.session_state["filter_priority"] = _canonical_p
-            _seed("filter_priority", _canonical_p)
-            type_column = "class" if "class" in gdf.columns else "class_name"
-            available_types = (
-                sorted(gdf[type_column].dropna().astype(str).unique().tolist())
-                if type_column in gdf.columns else []
-            )
-            type_options = [ALL_KILN_TYPES, *available_types]
-            if st.session_state.get("filter_kiln_type") not in type_options:
-                st.session_state["filter_kiln_type"] = ALL_KILN_TYPES
-            _seed("filter_kiln_type", st.session_state["filter_kiln_type"])
+        district_selected = filters["district"] != ALL_DISTRICTS
+        upazila_source = gdf if district_selected else gdf.iloc[0:0]
+        if district_selected and "district" in upazila_source:
+            upazila_source = upazila_source[
+                upazila_source["district"].astype(str).eq(str(filters["district"]))
+            ]
+        _data_upazilas = (
+            sorted(upazila_source["upazila"].dropna().astype(str).unique().tolist())
+            if "upazila" in upazila_source else []
+        )
+        _known_upazilas = BD_ADMIN_AREAS.get(filters["district"], [])
+        upazila_values = sorted(set(_known_upazilas) | set(_data_upazilas))
+        upazila_options = [ALL_AREAS, *upazila_values]
+        _pull_form_values()
+        if st.session_state.get("filter_upazila") not in upazila_options:
+            st.session_state["filter_upazila"] = ALL_AREAS
+        _seed("filter_upazila", st.session_state["filter_upazila"])
+        # Priority options are canonical English keys; only their labels are translated,
+        # so the stored selection survives a language switch.
+        _priority_opts = ["High", "Medium", "Low"]
+        _priority_text = {"High": T.HIGH, "Medium": T.MEDIUM, "Low": T.LOW}
+        _stored_p = st.session_state.get("filter_priority", _priority_opts)
+        # Map any spelling (old Bangla/English labels) to canonical keys; never keep an unknown one.
+        _canonical_p = [v for v in kd.make_filter_key(priorities=_stored_p).priorities] if _stored_p else _priority_opts
+        st.session_state["filter_priority"] = _canonical_p
+        _seed("filter_priority", _canonical_p)
+        type_column = "class" if "class" in gdf.columns else "class_name"
+        available_types = (
+            sorted(gdf[type_column].dropna().astype(str).unique().tolist())
+            if type_column in gdf.columns else []
+        )
+        type_options = [ALL_KILN_TYPES, *available_types]
+        if st.session_state.get("filter_kiln_type") not in type_options:
+            st.session_state["filter_kiln_type"] = ALL_KILN_TYPES
+        _seed("filter_kiln_type", st.session_state["filter_kiln_type"])
         with st.form("dhoa_inspector_filters", border=False):
             area_col, priority_col, type_col = st.columns([1.25, 2, 1.25], vertical_alignment="bottom")
             with area_col:
