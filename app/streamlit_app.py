@@ -168,16 +168,19 @@ def responsive_css() -> str:
     """
     return styles.page_css(T.PAGE_LOADING) + """
 <style>
-.st-key-dhoa_signin_panel [data-testid="stTextInput"] div[data-baseweb="input"] {
-    min-height: 2.75rem; background: var(--dhoa-color-raised) !important;
+.st-key-dhoa_signin_panel input[type="text"],
+.st-key-dhoa_signin_panel input[type="password"] {
+    box-sizing: border-box; width: 100%; height: 2.75rem !important;
+    padding: 0 0.75rem !important; background: var(--dhoa-color-raised) !important;
+    color: var(--dhoa-color-text) !important;
     border: 1px solid var(--dhoa-color-border-strong) !important;
     border-radius: var(--dhoa-radius-md) !important;
 }
-.st-key-dhoa_signin_panel [data-testid="stTextInput"] div[data-baseweb="input"]:focus-within {
+.st-key-dhoa_signin_panel input[type="text"]:focus,
+.st-key-dhoa_signin_panel input[type="password"]:focus {
     border-color: var(--dhoa-color-accent-text) !important;
-}
-.st-key-dhoa_signin_panel [data-testid="stTextInput"] input {
-    background: transparent !important; color: var(--dhoa-color-text) !important;
+    outline: 2px solid var(--dhoa-color-accent-text);
+    outline-offset: 1px;
 }
 </style>
 """
