@@ -477,12 +477,13 @@ FAQ_Q6 = 'How do I switch to English or Bangla?'
 FAQ_A6 = "Use the language toggle (EN / বাং) at the top of the page to switch between English and Bangla."
 
 # Chatbot
-CHAT_PLACEHOLDER = 'Ask me anything or type a district name…'
+CHAT_PLACEHOLDER = 'Ask a question or type an area, district, upazila, or landmark…'
 CHAT_TITLE = '💬 Help'
-CHAT_WELCOME = 'Hi! Type a district name to jump there, or ask how to use Dhoa.'
-CHAT_FALLBACK = "I'm not sure about that. Try typing a district name, or use the navigation buttons above."
+CHAT_WELCOME = 'Hi! I can help find nearby kilns. Tell me a district, upazila, or landmark, or ask me how to use Dhoa.'
+CHAT_FALLBACK = 'I can look up districts, upazilas, and landmarks, or answer questions about Dhoa. Which area should I find?'
 CHAT_GO_DISTRICT = 'Showing kilns in {0}. Opening the map now…'
-CHAT_AREA_AMBIGUOUS = 'More than one area matches. Include its upazila and district name: {0}.'
+CHAT_AREA_AMBIGUOUS = 'More than one area matches. Add its district or upazila to narrow it down: {0}.'
+CHAT_SEARCH_PLACE_FMT = "I didn’t find an exact saved match for '{0}'. I’ve put it in Kilns near me; choose a location suggestion there to continue."
 CHAT_GO_NEAR_ME = "Opening 'Kilns near me'…"
 CHAT_GO_OVERVIEW = 'Opening the Overview map…'
 CHAT_GO_ABOUT = 'Opening the About page…'

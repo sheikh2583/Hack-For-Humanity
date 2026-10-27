@@ -3558,7 +3558,7 @@ def _open_community_place_from_chat(place_key: str, place_name: str) -> None:
 
 
 def _chat_area_match_names(place: cm.Place) -> tuple[str, ...]:
-    """Searchable district/upazila names, including canonical and active-language labels."""
+    """Searchable names for an indexed district, upazila, or known named place."""
     if place.kind == cm.KIND_DISTRICT:
         return (place.name, place.district, _district_label(place.district))
     if place.kind == cm.KIND_UPAZILA:
@@ -3569,7 +3569,86 @@ def _chat_area_match_names(place: cm.Place) -> tuple[str, ...]:
             f"{place.upazila}, {place.district}",
             f"{place.upazila}, {district_label}",
         )
+    if place.kind == cm.KIND_NAMED:
+        key_parts = place.key.split("|", 2)
+        canonical_name = key_parts[2] if len(key_parts) == 3 else place.name
+        return (
+            place.name,
+            canonical_name,
+            f"{canonical_name}, {place.district}",
+            f"{canonical_name}, {_district_label(place.district)}",
+        )
     return ()
+
+
+def _chat_place_query(user_text: str) -> str:
+    """Remove common navigation phrasing before matching a typed area or landmark."""
+    query = " ".join(user_text.split())
+    folded = query.casefold()
+    prefixes = (
+        "show me ", "show kilns in ", "show kilns near ", "find me ",
+        "find kilns in ", "find kilns near ", "kilns near ", "kilns in ",
+        "nearby kilns in ", "nearby kilns ", "near me in ", "near ",
+        "search for ", "go to ", "take me to ", "look up ",
+    )
+    for prefix in prefixes:
+        if folded.startswith(prefix):
+            return query[len(prefix):].strip()
+    if folded in {"show me", "show kilns", "find me", "find kilns", "search for", "go to", "take me to", "look up"}:
+        return ""
+    suffixes = (" district", " upazila", " zilla", " zila", " thana", " এলাকা", " জেলা", " উপজেলা")
+    folded = query.casefold()
+    for suffix in suffixes:
+        if folded.endswith(suffix):
+            return query[:-len(suffix)].strip()
+    return query
+
+
+def _looks_like_chat_place_query(user_text: str) -> bool:
+    """Distinguish short place searches from unsupported free-form questions."""
+    query = " ".join(user_text.split())
+    folded = query.casefold()
+    if not query or not _chat_place_query(query) or len(query) > 120 or "?" in query or "？" in query:
+        return False
+    if folded in {"hi", "hello", "hey", "হ্যালো", "আসসালামু আলাইকুম"}:
+        return False
+    if folded in {
+        "near me", "kilns near me", "find kilns near me", "nearby", "nearby kilns",
+        "কাছের", "কাছের ভাটা", "আশেপাশে",
+    }:
+        return False
+    if folded.startswith((
+        "what ", "how ", "why ", "who ", "when ", "where ", "can ",
+        "could ", "do ", "does ", "is ", "are ", "tell me ", "explain ",
+        "কী ", "কীভাবে", "কেন ", "কোথায়", "কি ",
+    )):
+        return False
+    if folded.startswith(("show ", "find ", "search ", "go to ", "take me to ", "look up ")):
+        return True
+    if "," in query:
+        return True
+    informational_terms = (
+        "report", "রিপোর্ট", "candidate", "প্রার্থী", "language", "english",
+        "bangla", "বাংলা", "dhoa", "ধোঁয়া", "ধোয়া", "faq", "help", "সাহায্য",
+        "about", "overview", "inspector", "portal", "পরিচিতি", "ওভারভিউ", "পরিদর্শক",
+    )
+    if any(term in folded for term in informational_terms):
+        return False
+    return len(query.split()) <= 4
+
+
+def _open_community_search_from_chat(query: str) -> None:
+    """Open the existing Community search with unmatched place text prefilled."""
+    st.session_state["community_place_key"] = None
+    st.session_state["community_search_query"] = query
+    st.session_state["community_origin"] = None
+    st.session_state.pop("community_notice", None)
+    st.session_state.pop("community_pending_geocode", None)
+    st.session_state.pop("community_picker_reset", None)
+    st.session_state.pop("community_search_reset", None)
+    st.session_state.pop(_wkey("community_suggestion"), None)
+    st.session_state["community_selected_kiln_id"] = None
+    st.session_state["dhoa_view_mode"] = "community"
 
 
 def _submit_chat_message(
@@ -3588,28 +3667,33 @@ def _submit_chat_message(
     )
     history.append({"role": "user", "text": user_text})
 
-    suggestion_keys = _community_place_suggestions(area_places, user_text)
-    query = " ".join(user_text.split()).casefold()
+    place_query = _chat_place_query(user_text)
+    suggestion_keys = _community_place_suggestions(area_places, place_query)
+    candidate_keys = list(dict.fromkeys([*suggestion_keys, *area_places]))
+    query = " ".join(place_query.split()).casefold()
     exact_matches: list[cm.Place] = []
-    for key in suggestion_keys:
-        place = area_places[key]
-        if query in {
-            " ".join(name.split()).casefold()
-            for name in _chat_area_match_names(place) if name
-        }:
-            exact_matches.append(place)
+    if query:
+        for key in candidate_keys:
+            place = area_places[key]
+            if query in {
+                " ".join(name.split()).casefold()
+                for name in _chat_area_match_names(place) if name
+            }:
+                exact_matches.append(place)
 
     if exact_matches:
         area_matches = exact_matches
-    else:
+    elif query:
         area_matches = [
             area_places[key]
-            for key in suggestion_keys
+            for key in candidate_keys
             if any(
                 name.casefold().startswith(query)
                 for name in _chat_area_match_names(area_places[key]) if name
             )
         ]
+    else:
+        area_matches = []
     area_matches = list({place.key: place for place in area_matches}.values())
     if len(area_matches) == 1:
         place = area_matches[0]
@@ -3624,7 +3708,19 @@ def _submit_chat_message(
         history.append({"role": "assistant", "text": T.CHAT_AREA_AMBIGUOUS.format(choice_text)})
         return
 
-    response = _chatbot.respond(user_text, list(district_lookup), lang=T.get_language())
+    is_question = any(mark in user_text for mark in ("?", "？")) or user_text.casefold().startswith((
+        "what ", "how ", "why ", "who ", "when ", "where ", "can ", "could ",
+        "do ", "does ", "is ", "are ", "tell me ", "explain ",
+        "কী ", "কীভাবে", "কেন ", "কোথায়", "কি ",
+    ))
+    response = _chatbot.respond(
+        user_text, [] if is_question else list(district_lookup), lang=T.get_language()
+    )
+    if _looks_like_chat_place_query(user_text):
+        history.append({"role": "assistant", "text": T.CHAT_SEARCH_PLACE_FMT.format(place_query)})
+        _open_community_search_from_chat(place_query)
+        return
+
     history.append({"role": "assistant", "text": response.text})
     if response.district:
         district = district_lookup.get(response.district, response.district)
@@ -3654,7 +3750,7 @@ def render_chatbot(gdf: pd.DataFrame | None = None) -> None:
             district_lookup[_district_label(value)] = value
         area_places = {
             key: place for key, place in _community_places(gdf).items()
-            if place.kind in (cm.KIND_DISTRICT, cm.KIND_UPAZILA)
+            if place.kind in (cm.KIND_DISTRICT, cm.KIND_UPAZILA, cm.KIND_NAMED)
         }
 
     if "dhoa_chat_history" not in st.session_state:
@@ -3671,7 +3767,7 @@ def render_chatbot(gdf: pd.DataFrame | None = None) -> None:
             key="dhoa_chatbot_popover",
         ):
             st.markdown(f"**{T.CHAT_TITLE}**")
-            with st.container(height=300, key="dhoa_chat_history_view"):
+            with st.container(key="dhoa_chat_history_view"):
                 for message in st.session_state["dhoa_chat_history"][-6:]:
                     role = "user" if message.get("role") == "user" else "assistant"
                     avatar = "👤" if role == "user" else "🏭"

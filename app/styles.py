@@ -526,7 +526,9 @@ img, svg, iframe { max-width: 100%; }
     border: 1px solid var(--dhoa-color-border-strong);
     border-radius: var(--dhoa-radius-md, 12px); box-shadow: var(--dhoa-shadow-card);
 }
-.st-key-dhoa_chat_history_view { overflow-y: auto; }
+.st-key-dhoa_chat_history_view {
+    max-height: min(45dvh, 22rem); overflow-y: auto;
+}
 @media (max-width: 768px) {
     .st-key-dhoa_chatbot {
         right: 0.75rem; bottom: calc(3.5rem + env(safe-area-inset-bottom));
