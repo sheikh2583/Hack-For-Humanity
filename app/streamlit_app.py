@@ -2959,10 +2959,14 @@ def _sign_out_staff() -> None:
     st.session_state.pop("dhoa_portal_tab", None)
 
 
-def _reveal_demo_credentials() -> None:
-    """Show the demo credentials only after the user asks to see them."""
+def _login_as_demo_inspector() -> None:
+    """Fill the demo login fields and sign in immediately when demo access is enabled."""
     if roles.demo_login_available():
-        st.session_state["dhoa_show_demo_credentials"] = True
+        st.session_state["dhoa_signin_name"] = roles.DEMO_NAME
+        st.session_state["dhoa_signin_passcode"] = roles.DEMO_PASSCODE
+        if roles.sign_in(roles.DEMO_PASSCODE, roles.DEMO_NAME):
+            st.session_state["dhoa_view_mode"] = "inspector"
+            st.session_state["dhoa_portal_tab"] = "map"
 
 
 _PORTAL_SIGNIN_COPY = {
@@ -2982,10 +2986,6 @@ _PORTAL_SIGNIN_COPY = {
         "en": "Password recovery and account registration are not configured yet.",
     },
     "PORTAL_DEMO_INSPECTOR": {"bn": "DoE Inspector", "en": "DoE Inspector"},
-    "PORTAL_DEMO_CREDENTIALS_FMT": {
-        "bn": "ডেমো লগইন — নাম: {0} · পাসওয়ার্ড: {1}",
-        "en": "Demo credentials — Name: {0} · Password: {1}",
-    },
 }
 
 
@@ -3044,15 +3044,11 @@ def render_staff_signin(gdf: gpd.GeoDataFrame) -> None:
             if roles.demo_login_available():
                 st.button(
                     _portal_signin_copy("PORTAL_DEMO_INSPECTOR"),
-                    key="dhoa_reveal_demo_credentials",
-                    on_click=_reveal_demo_credentials,
+                    key="dhoa_demo_inspector_login",
+                    on_click=_login_as_demo_inspector,
                     type="secondary",
                     width="stretch",
                 )
-                if st.session_state.get("dhoa_show_demo_credentials"):
-                    st.info(_portal_signin_copy("PORTAL_DEMO_CREDENTIALS_FMT").format(
-                        roles.DEMO_NAME, roles.DEMO_PASSCODE,
-                    ))
 
 
 def render_portal_bar() -> str:
