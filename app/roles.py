@@ -2,10 +2,9 @@
 
 Input schema: the typed passcode and display name, and the session state. Output schema:
 the role string ``"public"`` (default) or ``"inspector"``. One shared staff passcode is read
-from ``st.secrets["staff_passcode"]`` (or the ``DHOA_STAFF_PASSCODE`` environment variable);
-it is never stored, logged or shown. Without a configured passcode sign-in is disabled and
-everyone stays public. An optional ``demo_mode = true`` secret (or ``DHOA_DEMO_MODE=1``)
-enables a button that fills the configured passcode and demo name into the form.
+from ``st.secrets["staff_passcode"]`` (or ``DHOA_STAFF_PASSCODE``) and takes precedence.
+When no staff passcode exists, the portal offers the built-in ``dhoa-demo`` passcode as a
+demo login. ``demo_mode = false`` (or ``DHOA_DEMO_MODE=0``) disables that fallback.
 """
 
 from __future__ import annotations
@@ -20,6 +19,7 @@ INSPECTOR = "inspector"
 ROLE_KEY = "dhoa_role"
 NAME_KEY = "dhoa_staff_name"
 DEMO_NAME = "Demo"
+DEMO_PASSCODE = "dhoa-demo"
 _MAX_NAME = 60
 
 
@@ -34,16 +34,23 @@ def _secret(name: str) -> Any:
 
 
 def configured_passcode() -> str:
-    """The staff passcode from secrets or the environment ("" when not configured)."""
+    """Return the configured staff passcode, or the enabled demo passcode."""
     value = _secret("staff_passcode") or os.environ.get("DHOA_STAFF_PASSCODE") or ""
-    return str(value)
+    if value:
+        return str(value)
+    return DEMO_PASSCODE if demo_enabled() else ""
 
 
 def demo_enabled() -> bool:
-    """Whether the one-click demo sign-in is switched on."""
+    """Whether demo sign-in is enabled (defaults on only when no staff passcode exists)."""
     value = _secret("demo_mode")
     if value is None:
-        value = os.environ.get("DHOA_DEMO_MODE", "")
+        value = os.environ.get("DHOA_DEMO_MODE")
+    if value is None:
+        has_staff_passcode = bool(
+            _secret("staff_passcode") or os.environ.get("DHOA_STAFF_PASSCODE")
+        )
+        return not has_staff_passcode
     return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
