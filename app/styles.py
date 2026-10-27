@@ -511,14 +511,42 @@ img, svg, iframe { max-width: 100%; }
 }
 .st-key-dhoa_chatbot [data-testid="stPopover"] > button {
     display: flex; align-items: center; justify-content: center;
-    width: 3.75rem; height: 3.75rem; min-width: 3.75rem; min-height: 3.75rem !important;
-    padding: 0 !important; border: 2px solid var(--dhoa-color-border-strong) !important;
-    border-radius: 50% !important; background: var(--dhoa-color-primary) !important;
-    color: var(--dhoa-color-on-primary) !important; font-size: 1.65rem !important;
-    box-shadow: var(--dhoa-shadow-card); transition: transform 140ms ease, box-shadow 140ms ease;
+    width: 6.5rem; height: 6.5rem; min-width: 6.5rem; min-height: 6.5rem !important;
+    padding: 0 !important; border: 0 !important; border-radius: 50% !important;
+    background: transparent !important; color: var(--dhoa-color-primary) !important;
+    font-size: 4rem !important; line-height: 1 !important;
+    box-shadow: none !important;
+    filter: drop-shadow(0 8px 20px rgb(0 0 0 / 32%))
+            drop-shadow(0 0 0 rgb(0 0 0 / 0%));
+    animation: dhoa-orb-float 3.2s ease-in-out infinite,
+               dhoa-orb-glow 2.6s ease-in-out infinite;
+    transition: transform 180ms ease, filter 180ms ease;
 }
 .st-key-dhoa_chatbot [data-testid="stPopover"] > button:hover {
-    transform: translateY(-2px); box-shadow: var(--dhoa-shadow-card);
+    transform: translateY(-6px) scale(1.1);
+    filter: drop-shadow(0 14px 26px rgb(0 0 0 / 38%))
+            drop-shadow(0 0 22px color-mix(in srgb, var(--dhoa-color-primary) 55%, transparent));
+    animation-play-state: paused;
+}
+@keyframes dhoa-orb-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-7px); }
+}
+@keyframes dhoa-orb-glow {
+    0%, 100% {
+        filter: drop-shadow(0 8px 20px rgb(0 0 0 / 32%))
+                drop-shadow(0 0 2px color-mix(in srgb, var(--dhoa-color-primary) 35%, transparent));
+    }
+    50% {
+        filter: drop-shadow(0 8px 20px rgb(0 0 0 / 32%))
+                drop-shadow(0 0 18px color-mix(in srgb, var(--dhoa-color-primary) 55%, transparent));
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .st-key-dhoa_chatbot [data-testid="stPopover"] > button {
+        animation: none;
+        filter: drop-shadow(0 8px 20px rgb(0 0 0 / 32%));
+    }
 }
 .st-key-dhoa_chatbot [data-testid="stPopoverBody"] {
     width: min(23rem, calc(100vw - 2rem)) !important;
@@ -534,7 +562,8 @@ img, svg, iframe { max-width: 100%; }
         right: 0.75rem; bottom: calc(3.5rem + env(safe-area-inset-bottom));
     }
     .st-key-dhoa_chatbot [data-testid="stPopover"] > button {
-        width: 3.35rem; height: 3.35rem; min-width: 3.35rem; min-height: 3.35rem !important;
+        width: 5.25rem; height: 5.25rem; min-width: 5.25rem; min-height: 5.25rem !important;
+        font-size: 3.25rem !important;
     }
     .st-key-dhoa_chatbot [data-testid="stPopoverBody"] {
         width: calc(100vw - 1.5rem) !important; max-width: 23rem !important;
