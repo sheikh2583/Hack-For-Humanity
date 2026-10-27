@@ -101,6 +101,32 @@ _COMPATIBILITY_TEXT = {
     "PORTAL_FILL_DEMO_CREDENTIALS": {
         "bn": "ডেমো তথ্য পূরণ করুন", "en": "Fill demo credentials",
     },
+    # --- FAQ and local navigation chatbot ---
+    "FAQ_TITLE": {"bn": "সাধারণ জিজ্ঞাসা", "en": "Frequently Asked Questions"},
+    "FAQ_Q1": {"bn": "ধোয়া কী?", "en": "What is Dhoa?"},
+    "FAQ_A1": {"bn": "ধোয়া বাংলাদেশের স্যাটেলাইট ছবি থেকে শনাক্ত করা ইটভাটার প্রার্থীদের একটি পাবলিক মানচিত্র। এটি স্থানীয় মানুষ ও গবেষকদের কাছাকাছি ভাটা খুঁজে পেতে ও প্রতিবেদন দিতে সাহায্য করে।", "en": "Dhoa is a public map of brick kiln candidates detected from satellite images in Bangladesh. It helps communities and researchers find and report kilns in their area."},
+    "FAQ_Q2": {"bn": "আমার গ্রামের কাছের ভাটা কীভাবে খুঁজব?", "en": "How do I find kilns near my village?"},
+    "FAQ_A2": {"bn": "'কাছের ভাটা' পাতায় যান এবং অনুসন্ধান বাক্সে আপনার গ্রাম বা জেলার নাম লিখুন, অথবা 'আমার অবস্থান ব্যবহার করুন' বোতামে চাপ দিন।", "en": "Go to 'Kilns near me', type your village or district name in the search box, or tap 'Use my location' to let the app find you automatically."},
+    "FAQ_Q3": {"bn": '"প্রার্থী" মানে কী?', "en": 'What does "candidate" mean?'},
+    "FAQ_A3": {"bn": "প্রার্থী হলো এমন একটি স্থান যেখানে স্যাটেলাইট মডেল ইটভাটা থাকার সম্ভাবনা চিহ্নিত করেছে।", "en": "A candidate is a location the satellite model flagged as likely being a brick kiln."},
+    "FAQ_Q4": {"bn": "কোনো ভাটা কীভাবে রিপোর্ট করব?", "en": "How do I report a kiln?"},
+    "FAQ_A4": {"bn": "'কাছের ভাটা' পাতায় তালিকা থেকে ভাটাটি খুঁজে 'এই ভাটিটি রিপোর্ট করুন' বোতামে চাপ দিন। আপনার পর্যবেক্ষণ লিখে জমা দিন — এটি আমাদের পর্যালোচনা দলের কাছে যাবে।", "en": "In 'Kilns near me', find the kiln on the list and tap 'Report this kiln'. Fill in what you observed and submit — it goes to our review team."},
+    "FAQ_Q5": {"bn": "ভাটা রিপোর্ট করার পর কী হয়?", "en": "What happens after I report a kiln?"},
+    "FAQ_A5": {"bn": "আপনার রিপোর্ট পরিদর্শক পোর্টালে পর্যালোচনার জন্য যায়। পরিদর্শক মানচিত্রে অবস্থান দেখতে, প্রতিবেদন ডাউনলোড করতে এবং পর্যালোচিত বা সমাধান হয়েছে হিসেবে চিহ্নিত করতে পারেন।", "en": "Your report appears in the Inspector Portal for review. Inspectors can view its map location, download its report, and mark it reviewed or resolved."},
+    "FAQ_Q6": {"bn": "ভাষা কীভাবে বদলাব?", "en": "How do I switch to English or Bangla?"},
+    "FAQ_A6": {"bn": "পাতার উপরে EN / বাং টগল ব্যবহার করে ইংরেজি ও বাংলার মধ্যে যাওয়া-আসা করা যাবে।", "en": "Use the language toggle (EN / বাং) at the top of the page to switch between English and Bangla."},
+    "CHAT_PLACEHOLDER": {"bn": "প্রশ্ন করুন বা জেলার নাম লিখুন…", "en": "Ask me anything or type a district name…"},
+    "CHAT_TITLE": {"bn": "💬 সাহায্য", "en": "💬 Help"},
+    "CHAT_WELCOME": {"bn": "হ্যালো! জেলার নাম লিখলে সেখানে চলে যাব, অথবা ধোয়া ব্যবহার সম্পর্কে যেকোনো প্রশ্ন করুন।", "en": "Hi! Type a district name to jump there, or ask how to use Dhoa."},
+    "CHAT_FALLBACK": {"bn": "বুঝতে পারিনি। একটি জেলার নাম লিখুন, অথবা উপরের নেভিগেশন বোতাম ব্যবহার করুন।", "en": "I'm not sure about that. Try typing a district name, or use the navigation buttons above."},
+    "CHAT_GO_DISTRICT": {"bn": "{0}-এর ভাটা দেখাচ্ছি। মানচিত্র খুলছে…", "en": "Showing kilns in {0}. Opening the map now…"},
+    "CHAT_GO_NEAR_ME": {"bn": "'কাছের ভাটা' খুলছে…", "en": "Opening 'Kilns near me'…"},
+    "CHAT_GO_OVERVIEW": {"bn": "ওভারভিউ মানচিত্র খুলছে…", "en": "Opening the Overview map…"},
+    "CHAT_GO_ABOUT": {"bn": "পরিচিতি পাতা খুলছে…", "en": "Opening the About page…"},
+    "CHAT_GO_INSPECTOR": {"bn": "পরিদর্শক পোর্টাল খুলছে…", "en": "Opening the Inspector Portal…"},
+    "CHAT_HOW_REPORT": {"bn": "'কাছের ভাটা' পাতায় ভাটাটি খুঁজুন, তারপর সেই সারিতে 'এই ভাটিটি রিপোর্ট করুন' বোতামে চাপ দিন।", "en": "Find your kiln in 'Kilns near me', then tap 'Report this kiln' on that row."},
+    "CHAT_WHAT_CANDIDATE": {"bn": "প্রার্থী হলো স্যাটেলাইট মডেলের চিহ্নিত সম্ভাব্য ইটভাটা।", "en": "A candidate is a location the satellite model flagged as a possible brick kiln."},
+    "CHAT_HOW_LANGUAGE": {"bn": "পাতার উপরে EN / বাং টগল ব্যবহার করে ভাষা পরিবর্তন করুন।", "en": "Use the EN / বাং toggle at the top of the page to switch language."},
 }
 def get_language() -> str:
     """Return the active language code (``"bn"`` or ``"en"``)."""

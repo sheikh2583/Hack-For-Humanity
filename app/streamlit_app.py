@@ -34,6 +34,10 @@ try:  # works both as a package import and when Streamlit puts app/ on sys.path
 except ImportError:  # pragma: no cover - Streamlit script execution
     import storage as public_storage  # type: ignore[no-redef]  # noqa: E402
 from app import strings as T  # noqa: E402
+try:
+    from app import chatbot as _chatbot
+except ImportError:  # pragma: no cover
+    import chatbot as _chatbot  # type: ignore[no-redef]
 
 DASHBOARD_TITLE = unicodedata.normalize("NFC", T.APP_TITLE)
 assert T.CHANDRABINDU in DASHBOARD_TITLE, repr(DASHBOARD_TITLE)
@@ -1954,6 +1958,22 @@ def render_about(gdf: pd.DataFrame | None = None) -> None:
     if link:
         st.link_button(T.ABOUT_METHODOLOGY, link, width="content")
 
+    st.markdown(
+        f"<h3 style='margin-top:1.5rem'>{html.escape(T.FAQ_TITLE)}</h3>",
+        unsafe_allow_html=True,
+    )
+    faq_pairs = [
+        (T.FAQ_Q1, T.FAQ_A1),
+        (T.FAQ_Q2, T.FAQ_A2),
+        (T.FAQ_Q3, T.FAQ_A3),
+        (T.FAQ_Q4, T.FAQ_A4),
+        (T.FAQ_Q5, T.FAQ_A5),
+        (T.FAQ_Q6, T.FAQ_A6),
+    ]
+    for question, answer in faq_pairs:
+        with st.expander(question):
+            st.write(answer)
+
 
 def render_district_summary(district: str, gdf: gpd.GeoDataFrame) -> None:
     """Render totals, estimated spatial footprint, rule signals, and risk summary.
@@ -3523,6 +3543,68 @@ def _set_report_status(report_id: str, status: str) -> None:
         _work_store().set_report_status(report_id, status, roles.staff_name())
 
 
+def _submit_chat_message(district_lookup: dict[str, str]) -> None:
+    """Store a chatbot reply and apply its requested navigation before the next render.
+
+    Input schema: district display/canonical names mapped to canonical district values.
+    Output schema: app session history plus an optional existing view/place selection.
+    """
+    user_text = st.session_state.get("dhoa_chat_input")
+    if not isinstance(user_text, str) or not user_text.strip():
+        return
+    history = st.session_state.setdefault(
+        "dhoa_chat_history", [{"role": "assistant", "text": T.CHAT_WELCOME}]
+    )
+    history.append({"role": "user", "text": user_text})
+    response = _chatbot.respond(user_text, list(district_lookup), lang=T.get_language())
+    history.append({"role": "assistant", "text": response.text})
+    if response.district:
+        district = district_lookup.get(response.district, response.district)
+        _open_district_near_me(district)
+    elif response.navigate_to in hero.VIEW_MODES:
+        st.session_state["dhoa_view_mode"] = response.navigate_to
+
+
+def render_chatbot(gdf: pd.DataFrame | None = None) -> None:
+    """Render the floating local Help chatbot without opening the app sidebar.
+
+    Input schema: optional public kiln frame with a ``district`` column. Output:
+    a fixed bottom-corner Streamlit popover that answers FAQs or navigates existing views.
+    """
+    district_lookup: dict[str, str] = {}
+    if gdf is not None and "district" in gdf.columns:
+        for value in sorted(gdf["district"].dropna().astype(str).unique().tolist()):
+            district_lookup[value] = value
+            district_lookup[_district_label(value)] = value
+
+    if "dhoa_chat_history" not in st.session_state:
+        st.session_state["dhoa_chat_history"] = [
+            {"role": "assistant", "text": T.CHAT_WELCOME}
+        ]
+
+    with st.container(key="dhoa_chatbot"):
+        with st.popover(
+            "🏭",
+            help=T.CHAT_TITLE,
+            type="primary",
+            width=360,
+            key="dhoa_chatbot_popover",
+        ):
+            st.markdown(f"**{T.CHAT_TITLE}**")
+            with st.container(height=300, key="dhoa_chat_history_view"):
+                for message in st.session_state["dhoa_chat_history"][-6:]:
+                    role = "user" if message.get("role") == "user" else "assistant"
+                    avatar = "👤" if role == "user" else "🏭"
+                    with st.chat_message(role, avatar=avatar):
+                        st.write(message.get("text", ""))
+            st.chat_input(
+                T.CHAT_PLACEHOLDER,
+                key="dhoa_chat_input",
+                on_submit=_submit_chat_message,
+                args=(district_lookup,),
+            )
+
+
 def main() -> None:
     """Run the shared Dhoa header and selected mode flow.
 
@@ -3556,6 +3638,7 @@ def main() -> None:
     centroid_longitude = float(gdf["lon"].mean()) if not gdf.empty else 90.0
     try:
         get_projected_crs(centroid_longitude)
+        render_chatbot(public_gdf)
         mode = render_header(gdf)
         portal_tab = None
         if mode == "inspector" and roles.is_staff():

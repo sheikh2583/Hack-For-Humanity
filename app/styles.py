@@ -504,6 +504,40 @@ img, svg, iframe { max-width: 100%; }
     .dhoa-summary .dhoa-metric { padding: 0.25rem 0.5rem; }
     .dhoa-metrics.dhoa-summary { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
 }
+/* The local Help chatbot floats above page content and never restores the sidebar. */
+.st-key-dhoa_chatbot {
+    position: fixed !important; right: 1.25rem; bottom: 1.25rem; z-index: 10000;
+    width: max-content !important; max-width: calc(100vw - 2rem);
+}
+.st-key-dhoa_chatbot [data-testid="stPopover"] > button {
+    display: flex; align-items: center; justify-content: center;
+    width: 3.75rem; height: 3.75rem; min-width: 3.75rem; min-height: 3.75rem !important;
+    padding: 0 !important; border: 2px solid var(--dhoa-color-border-strong) !important;
+    border-radius: 50% !important; background: var(--dhoa-color-primary) !important;
+    color: var(--dhoa-color-on-primary) !important; font-size: 1.65rem !important;
+    box-shadow: var(--dhoa-shadow-card); transition: transform 140ms ease, box-shadow 140ms ease;
+}
+.st-key-dhoa_chatbot [data-testid="stPopover"] > button:hover {
+    transform: translateY(-2px); box-shadow: var(--dhoa-shadow-card);
+}
+.st-key-dhoa_chatbot [data-testid="stPopoverBody"] {
+    width: min(23rem, calc(100vw - 2rem)) !important;
+    max-height: min(75dvh, 42rem) !important; overflow-y: auto !important;
+    border: 1px solid var(--dhoa-color-border-strong);
+    border-radius: var(--dhoa-radius-md, 12px); box-shadow: var(--dhoa-shadow-card);
+}
+.st-key-dhoa_chat_history_view { overflow-y: auto; }
+@media (max-width: 768px) {
+    .st-key-dhoa_chatbot {
+        right: 0.75rem; bottom: calc(3.5rem + env(safe-area-inset-bottom));
+    }
+    .st-key-dhoa_chatbot [data-testid="stPopover"] > button {
+        width: 3.35rem; height: 3.35rem; min-width: 3.35rem; min-height: 3.35rem !important;
+    }
+    .st-key-dhoa_chatbot [data-testid="stPopoverBody"] {
+        width: calc(100vw - 1.5rem) !important; max-width: 23rem !important;
+    }
+}
 """
 
 

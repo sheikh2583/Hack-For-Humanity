@@ -460,3 +460,32 @@ PUB_OV_DISTRICTS_HINT = 'Select a district name to see its kiln candidates.'
 PUB_OV_OPEN_DISTRICT_FMT = 'See kiln candidates in {0}'
 PUB_HOW_3_HEAD = 'Find near you'
 PUB_HOW_3_BODY = 'Candidates are shown on a map, so you can look up the ones near a place.'
+
+# FAQ section (About page)
+FAQ_TITLE = 'Frequently Asked Questions'
+FAQ_Q1 = 'What is Dhoa?'
+FAQ_A1 = 'Dhoa is a public map of brick kiln candidates detected from satellite images in Bangladesh. It helps communities and researchers find and report kilns in their area.'
+FAQ_Q2 = 'How do I find kilns near my village?'
+FAQ_A2 = "Go to 'Kilns near me', type your village or district name in the search box, or tap 'Use my location' to let the app find you automatically."
+FAQ_Q3 = 'What does "candidate" mean?'
+FAQ_A3 = 'A candidate is a location the satellite model flagged as likely being a brick kiln.'
+FAQ_Q4 = 'How do I report a kiln?'
+FAQ_A4 = "In 'Kilns near me', find the kiln on the list and tap 'Report this kiln'. Fill in what you observed and submit — it goes to our review team."
+FAQ_Q5 = 'What happens after I report a kiln?'
+FAQ_A5 = 'Your report appears in the Inspector Portal for review. Inspectors can view its map location, download its report, and mark it reviewed or resolved.'
+FAQ_Q6 = 'How do I switch to English or Bangla?'
+FAQ_A6 = "Use the language toggle (EN / বাং) at the top of the page to switch between English and Bangla."
+
+# Chatbot
+CHAT_PLACEHOLDER = 'Ask me anything or type a district name…'
+CHAT_TITLE = '💬 Help'
+CHAT_WELCOME = 'Hi! Type a district name to jump there, or ask how to use Dhoa.'
+CHAT_FALLBACK = "I'm not sure about that. Try typing a district name, or use the navigation buttons above."
+CHAT_GO_DISTRICT = 'Showing kilns in {0}. Opening the map now…'
+CHAT_GO_NEAR_ME = "Opening 'Kilns near me'…"
+CHAT_GO_OVERVIEW = 'Opening the Overview map…'
+CHAT_GO_ABOUT = 'Opening the About page…'
+CHAT_GO_INSPECTOR = 'Opening the Inspector Portal…'
+CHAT_HOW_REPORT = "Find your kiln in 'Kilns near me', then tap 'Report this kiln' on that row."
+CHAT_WHAT_CANDIDATE = 'A candidate is a location the satellite model flagged as a possible brick kiln.'
+CHAT_HOW_LANGUAGE = 'Use the EN / বাং toggle at the top of the page to switch language.'
