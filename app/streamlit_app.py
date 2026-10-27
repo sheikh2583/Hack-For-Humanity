@@ -2948,6 +2948,41 @@ def _reveal_demo_credentials() -> None:
         st.session_state["dhoa_show_demo_credentials"] = True
 
 
+_PORTAL_SIGNIN_COPY = {
+    "PORTAL_SIGNIN_HINT": {
+        "bn": "এই অংশটি কর্মীদের জন্য। চালিয়ে যেতে আপনার নাম ও পাসওয়ার্ড দিন।",
+        "en": "This area is for staff. Enter your name and password to continue.",
+    },
+    "PORTAL_PASSCODE": {"bn": "পাসওয়ার্ড", "en": "Password"},
+    "PORTAL_PASSWORD_REQUIREMENTS": {
+        "bn": "কমপক্ষে ১২ অক্ষর; বড় ও ছোট হাতের অক্ষর, একটি সংখ্যা এবং একটি প্রতীক থাকতে হবে।",
+        "en": "At least 12 characters, with uppercase and lowercase letters, a number, and a symbol.",
+    },
+    "PORTAL_FORGOT_PASSWORD": {"bn": "পাসওয়ার্ড ভুলে গেছেন?", "en": "Forgot password?"},
+    "PORTAL_REGISTER": {"bn": "নিবন্ধন করুন", "en": "Register"},
+    "PORTAL_ACCOUNT_ACTION_UNAVAILABLE": {
+        "bn": "পাসওয়ার্ড পুনরুদ্ধার ও নতুন অ্যাকাউন্ট নিবন্ধন এখনো চালু হয়নি।",
+        "en": "Password recovery and account registration are not configured yet.",
+    },
+    "PORTAL_DEMO_INSPECTOR": {"bn": "DoE Inspector", "en": "DoE Inspector"},
+    "PORTAL_DEMO_CREDENTIALS_FMT": {
+        "bn": "ডেমো লগইন — নাম: {0} · পাসওয়ার্ড: {1}",
+        "en": "Demo credentials — Name: {0} · Password: {1}",
+    },
+}
+
+
+def _portal_signin_copy(name: str) -> str:
+    """Return current sign-in copy even if Streamlit retained a stale strings module.
+
+    Input: a sign-in copy key from ``_PORTAL_SIGNIN_COPY``. Output: its active-language
+    string. This keeps a live-reloaded app from failing when its imported catalogue has
+    not yet refreshed to include newly added sign-in labels.
+    """
+    language = T.get_language()
+    return _PORTAL_SIGNIN_COPY[name][language]
+
+
 def render_staff_signin(gdf: gpd.GeoDataFrame) -> None:
     """Show the real Inspector dashboard blurred behind a floating sign-in panel.
 
@@ -2960,7 +2995,7 @@ def render_staff_signin(gdf: gpd.GeoDataFrame) -> None:
         with st.container(key="dhoa_signin_panel"):
             st.markdown(f"<div class='dhoa-section-title'>{html.escape(T.PORTAL_SIGNIN_TITLE)}</div>",
                         unsafe_allow_html=True)
-            st.caption(T.PORTAL_SIGNIN_HINT)
+            st.caption(_portal_signin_copy("PORTAL_SIGNIN_HINT"))
             if not roles.signin_available():
                 st.info(T.PORTAL_SIGNIN_UNAVAILABLE)
                 return
@@ -2969,8 +3004,8 @@ def render_staff_signin(gdf: gpd.GeoDataFrame) -> None:
                     T.PORTAL_NAME, key="dhoa_signin_name", max_chars=60,
                 )
                 passcode = st.text_input(
-                    T.PORTAL_PASSCODE, type="password", key="dhoa_signin_passcode",
-                    placeholder=T.PORTAL_PASSWORD_REQUIREMENTS,
+                    _portal_signin_copy("PORTAL_PASSCODE"), type="password", key="dhoa_signin_passcode",
+                    placeholder=_portal_signin_copy("PORTAL_PASSWORD_REQUIREMENTS"),
                 )
                 submitted = st.form_submit_button(
                     T.PORTAL_SIGN_IN, type="primary", key="dhoa_signin_submit"
@@ -2982,23 +3017,23 @@ def render_staff_signin(gdf: gpd.GeoDataFrame) -> None:
                 st.error(T.PORTAL_WRONG_PASSCODE)
             forgot_col, register_col = st.columns(2)
             forgot_clicked = forgot_col.button(
-                T.PORTAL_FORGOT_PASSWORD, key="dhoa_forgot_password", width="stretch",
+                _portal_signin_copy("PORTAL_FORGOT_PASSWORD"), key="dhoa_forgot_password", width="stretch",
             )
             register_clicked = register_col.button(
-                T.PORTAL_REGISTER, key="dhoa_register", width="stretch",
+                _portal_signin_copy("PORTAL_REGISTER"), key="dhoa_register", width="stretch",
             )
             if forgot_clicked or register_clicked:
-                st.info(T.PORTAL_ACCOUNT_ACTION_UNAVAILABLE)
+                st.info(_portal_signin_copy("PORTAL_ACCOUNT_ACTION_UNAVAILABLE"))
             if roles.demo_login_available():
                 st.button(
-                    T.PORTAL_DEMO_INSPECTOR,
+                    _portal_signin_copy("PORTAL_DEMO_INSPECTOR"),
                     key="dhoa_reveal_demo_credentials",
                     on_click=_reveal_demo_credentials,
                     type="secondary",
                     width="stretch",
                 )
                 if st.session_state.get("dhoa_show_demo_credentials"):
-                    st.info(T.PORTAL_DEMO_CREDENTIALS_FMT.format(
+                    st.info(_portal_signin_copy("PORTAL_DEMO_CREDENTIALS_FMT").format(
                         roles.DEMO_NAME, roles.DEMO_PASSCODE,
                     ))
 
