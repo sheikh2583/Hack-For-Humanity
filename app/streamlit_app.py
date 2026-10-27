@@ -989,11 +989,18 @@ def _render_community_cards(nearby: pd.DataFrame, show_distance: bool) -> None:
     formatted rule-signal HTML. Output: localized severity/violation cards with
     place, distance and a directions link.
     """
-    for index, (_, row) in enumerate(nearby.iterrows()):
+    severity_order = {"High": 0, "Medium": 1, "Low": 2}
+    ordered_rows = sorted(
+        nearby.iterrows(),
+        key=lambda item: severity_order.get(str(item[1].get("ui_marker_band", "")), 3),
+    )
+    for index, (_, row) in enumerate(ordered_rows):
         with st.container(border=True, key=f"community_candidate_{index}"):
+            band = str(row.get("ui_marker_band", ""))
+            chip = styles.priority_chip_html(band, html.escape(kd.priority_label(band)))
             st.markdown(
-                f"**{row.get('ui_type', T.NO_DATA)}** · "
-                f"**{T.PRIORITY}:** {kd.priority_badge(row.get('ui_marker_band'))}"
+                f"**{row.get('ui_type', T.NO_DATA)}** · **{T.PRIORITY}:** {chip}",
+                unsafe_allow_html=True,
             )
             place = row.get("nearest_place")
             if place is None or pd.isna(place) or not str(place).strip():
