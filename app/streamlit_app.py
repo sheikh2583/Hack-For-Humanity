@@ -2999,7 +2999,7 @@ def render_staff_signin(gdf: gpd.GeoDataFrame) -> None:
             if not roles.signin_available():
                 st.info(T.PORTAL_SIGNIN_UNAVAILABLE)
                 return
-            with st.form("dhoa_signin_form", clear_on_submit=False):
+            with st.form("dhoa_signin_form", clear_on_submit=False, border=False):
                 name = st.text_input(
                     T.PORTAL_NAME, key="dhoa_signin_name", max_chars=60,
                 )
