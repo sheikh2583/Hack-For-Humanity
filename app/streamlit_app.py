@@ -166,7 +166,21 @@ def responsive_css() -> str:
 
     Input schema: none. Output schema: CSS string for the dashboard page.
     """
-    return styles.page_css(T.PAGE_LOADING)
+    return styles.page_css(T.PAGE_LOADING) + """
+<style>
+.st-key-dhoa_signin_panel [data-testid="stTextInput"] div[data-baseweb="input"] {
+    min-height: 2.75rem; background: var(--dhoa-color-raised) !important;
+    border: 1px solid var(--dhoa-color-border-strong) !important;
+    border-radius: var(--dhoa-radius-md) !important;
+}
+.st-key-dhoa_signin_panel [data-testid="stTextInput"] div[data-baseweb="input"]:focus-within {
+    border-color: var(--dhoa-color-accent-text) !important;
+}
+.st-key-dhoa_signin_panel [data-testid="stTextInput"] input {
+    background: transparent !important; color: var(--dhoa-color-text) !important;
+}
+</style>
+"""
 
 
 @st.cache_data
