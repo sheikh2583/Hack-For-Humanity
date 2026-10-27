@@ -2207,7 +2207,9 @@ def render_filter_panel(gdf: gpd.GeoDataFrame) -> dict[str, Any]:
             st.session_state["filter_kiln_type"] = ALL_KILN_TYPES
         _seed("filter_kiln_type", st.session_state["filter_kiln_type"])
         with st.form("dhoa_inspector_filters", border=False):
-            area_col, priority_col, type_col = st.columns([1.25, 2, 1.25], vertical_alignment="bottom")
+            area_col, priority_col, type_col = st.columns(
+                [1.15, 0.8, 1.15], vertical_alignment="bottom"
+            )
             with area_col:
                 filters["upazila"] = st.selectbox(
                     T.AREA_THANA,

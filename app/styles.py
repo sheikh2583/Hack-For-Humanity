@@ -442,6 +442,10 @@ img, svg, iframe { max-width: 100%; }
 .st-key-dhoa_portal_bar [data-testid="stSegmentedControl"] { overflow-x: auto; }
 .st-key-dhoa_portal_bar button { font-size: 0.85rem !important; min-height: 2rem !important; }
 .st-key-dhoa_portal_bar [data-testid="stCaptionContainer"] { margin-top: 0 !important; text-align: right; }
+.st-key-dhoa_filter_panel h4 { margin: 0 0 0.35rem; }
+.st-key-dhoa_filter_panel [data-testid="stForm"] { padding: 0; }
+.st-key-dhoa_filter_panel [data-testid="stWidgetLabel"] { margin-bottom: 0.25rem; min-height: 0; }
+.st-key-dhoa_filter_panel [data-testid="stCaptionContainer"] { margin-top: 0 !important; }
 .st-key-dhoa_signin_stage {
     position: relative; isolation: isolate; min-height: min(78vh, 850px); margin-top: 0.75rem;
     display: flex; align-items: center; justify-content: center; padding: 1rem 0;
