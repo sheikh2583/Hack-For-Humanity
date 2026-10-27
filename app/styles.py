@@ -519,13 +519,13 @@ img, svg, iframe { max-width: 100%; }
             drop-shadow(0 8px 18px rgba(0, 0, 0, 0.55));
     }
 }
-/* Outer wrapper – fixed bottom-RIGHT on all viewport sizes */
+/* Outer wrapper – fixed bottom-LEFT, raised clear of the district chart row */
 .st-key-dhoa_chatbot {
     position: fixed !important;
     top: auto !important;
-    left: auto !important;
-    right: 1rem !important;
-    bottom: 1rem !important;
+    left: 1rem !important;
+    right: auto !important;
+    bottom: 4.5rem !important;
     z-index: 10000 !important;
     width: max-content !important;
     max-width: calc(100vw - 2rem);
@@ -613,12 +613,12 @@ img, svg, iframe { max-width: 100%; }
     min-width: 6rem !important;
     min-height: 6rem !important;
 }
-/* Mobile – bottom-RIGHT, larger touch target */
+/* Mobile – bottom-LEFT, safe-area aware */
 @media (max-width: 768px) {
     .st-key-dhoa_chatbot {
-        right: 1rem !important;
-        left: auto !important;
-        bottom: calc(1rem + env(safe-area-inset-bottom)) !important;
+        left: max(0.75rem, env(safe-area-inset-left)) !important;
+        right: auto !important;
+        bottom: calc(4.5rem + env(safe-area-inset-bottom)) !important;
     }
     .st-key-dhoa_chatbot button[data-testid="stPopoverButton"],
     .st-key-dhoa_chatbot button {
