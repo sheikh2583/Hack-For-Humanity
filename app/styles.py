@@ -127,10 +127,13 @@ h4 [data-testid="stHeaderActionElements"],
 
 
 /* ---- landing hero (P2) ------------------------------------------------------ */
-.dhoa-hero { margin: var(--dhoa-space-md) 0 var(--dhoa-space-sm); }
+.dhoa-hero { margin: 1rem 0 0.5rem; }
 .dhoa-hero-title {
-    max-width: 22ch; font-size: clamp(1.4rem, 2.5vw, 1.9rem); font-weight: var(--dhoa-weight-bold);
-    line-height: var(--dhoa-lh-heading); overflow-wrap: anywhere;
+    max-width: 520px;
+    font-size: clamp(1.25rem, 2vw, 1.65rem);
+    font-weight: var(--dhoa-weight-bold);
+    line-height: 1.45;
+    overflow-wrap: break-word;
 }
 .dhoa-hero-sub {
     max-width: 56ch; margin: var(--dhoa-space-xs) 0 var(--dhoa-space-md);
@@ -383,7 +386,7 @@ h4 [data-testid="stHeaderActionElements"],
 
 /* ---- P8: small-screen safety and link targets --------------------------------- */
 .dhoa-footer a { display: inline-block; min-height: var(--dhoa-tap, 44px); line-height: var(--dhoa-tap, 44px); padding: 0 var(--dhoa-space-xs, 4px); color: var(--dhoa-color-accent-text); }
-.dhoa-metric strong, .dhoa-hero-title, .dhoa-about p { overflow-wrap: anywhere; }
+.dhoa-metric strong, .dhoa-about p { overflow-wrap: anywhere; }
 [data-testid="stMarkdownContainer"] table { display: block; max-width: 100%; overflow-x: auto; }
 img, svg, iframe { max-width: 100%; }
 @media (max-width: 480px) { .dhoa-skel-tiles { grid-template-columns: 1fr; } }
@@ -395,10 +398,15 @@ img, svg, iframe { max-width: 100%; }
     *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
 
-/* ---- hide Streamlit Cloud deploy/manage-app button ------------------- */
+/* Streamlit Cloud deploy / manage-app toolbar */
+[data-testid="stToolbar"],
+[data-testid="stDecoration"],
 [data-testid="stAppDeployButton"],
-.viewerBadge_container__r5tak,
-[class*="viewerBadge"] { display: none !important; }
+#stDecoration,
+.viewerBadge_container__1QSob,
+[class*="viewerBadge_container"],
+[class*="viewerBadge_link"],
+[class*="styles_viewerBadge"] { display: none !important; }
 /* ---- community list: scrollable card column (matches map height) ------------------ */
 .st-key-dhoa_community_list {
     max-height: clamp(400px, 60dvh, 680px);
