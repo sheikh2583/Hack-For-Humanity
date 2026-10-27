@@ -53,11 +53,13 @@ hr { border-color: var(--dhoa-color-border) !important; }
 [data-testid="stAppViewContainer"] .main .block-container {
     max-width: 100%; padding: 0.75rem 1.25rem 1.5rem;
 }
+[data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"] { display: none !important; }
+[data-testid="stMain"] { flex: 1 1 100% !important; width: 100% !important; min-width: 0; }
 [data-testid="stMainBlockContainer"] {
-    max-width: 100% !important;
+    box-sizing: border-box; width: 100% !important; max-width: none !important;
     /* Streamlit's fixed top bar is 60px tall and paints over the first row (it hid the
        language switch); keep the page content clear of it. */
-    padding-top: 4.25rem !important;
+    padding: 4.25rem clamp(1rem, 3vw, 3rem) 1.5rem !important;
 }
 /* Hide heading permalinks only; keep map, navigation, and export links usable. */
 [data-testid="stHeaderActionElements"],
@@ -476,17 +478,16 @@ img, svg, iframe { max-width: 100%; }
         min-height: 420px !important;
     }
 }
-/* compact sidebar: all filters visible without scrolling on a laptop screen */
-[data-testid="stSidebarUserContent"] { padding-top: 0.75rem !important; }
-[data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: 0.55rem; }
-[data-testid="stSidebar"] label p { font-size: var(--dhoa-type-caption); margin-bottom: 0; }
-[data-testid="stSidebar"] [data-testid="stWidgetLabel"] { margin-bottom: 0.1rem; min-height: 0; }
-[data-testid="stSidebar"] [data-testid="stForm"] { padding: 0; }
-.st-key-dhoa_sidebar_contact p { font-size: var(--dhoa-type-caption); margin: 0; }
+/* Inspector filters are part of the full-width page, not a separate sidebar rail. */
+.st-key-dhoa_filter_panel { margin: 0 0 0.75rem; }
+.st-key-dhoa_filter_panel h4 { margin: 0 0 0.25rem; }
+.st-key-dhoa_filter_panel [data-testid="stForm"] { padding: 0; }
+.st-key-dhoa_filter_panel [data-testid="stWidgetLabel"] { margin-bottom: 0.1rem; min-height: 0; }
 /* header, toolbar and filter rows keep their columns on phones (wrap instead of one tall stack) */
 @media (max-width: 768px) {
     .st-key-dhoa_header_row [data-testid="stHorizontalBlock"],
-    .st-key-dhoa_map_toolbar [data-testid="stHorizontalBlock"] {
+    .st-key-dhoa_map_toolbar [data-testid="stHorizontalBlock"],
+    .st-key-dhoa_filter_panel [data-testid="stHorizontalBlock"] {
         flex-direction: row !important; flex-wrap: wrap !important; gap: 0.4rem !important;
     }
     .st-key-dhoa_header_row [data-testid="stColumn"]:nth-child(1) { order: 1; flex: 1 1 50% !important; }
@@ -494,6 +495,7 @@ img, svg, iframe { max-width: 100%; }
     .st-key-dhoa_header_row [data-testid="stColumn"]:nth-child(2) { order: 3; flex: 1 1 100% !important; }
     .st-key-dhoa_header_row [data-testid="stColumn"]:nth-child(3) { order: 4; flex: 1 1 100% !important; }
     .st-key-dhoa_map_toolbar [data-testid="stColumn"] { min-width: 0 !important; flex: 1 1 45% !important; }
+    .st-key-dhoa_filter_panel [data-testid="stColumn"] { min-width: 0 !important; flex: 1 1 45% !important; }
     .dhoa-summary .dhoa-metric { padding: 0.25rem 0.5rem; }
 }
 """

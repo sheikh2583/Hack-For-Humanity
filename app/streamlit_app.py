@@ -41,7 +41,7 @@ assert T.CHANDRABINDU in DASHBOARD_TITLE, repr(DASHBOARD_TITLE)
 _FAVICON = _ROOT / "app" / "static" / "favicon.png"
 st.set_page_config(
     page_title=DASHBOARD_TITLE, page_icon=str(_FAVICON) if _FAVICON.is_file() else None,
-    layout="wide", initial_sidebar_state="expanded",
+    layout="wide", initial_sidebar_state="collapsed",
 )
 
 import folium
@@ -2105,29 +2105,32 @@ def _inspector_csv_bytes(visible: pd.DataFrame, source: pd.DataFrame) -> bytes:
     return _cached_inspector_csv(version, tuple(_inspector_filter_key()), visible)
 
 
-def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
-    """Render Inspector filters and the persistent export/contact actions.
+def render_filter_panel(gdf: gpd.GeoDataFrame) -> dict[str, Any]:
+    """Render the full-width Inspector filters above its map.
 
-    Input schema: prepared kiln GeoDataFrame and the active view. Output: the
-    widget values, plus (Inspector only) ``filters["visible"]``, the filtered
+    Input schema: prepared kiln GeoDataFrame. Output: filter widget values and
+    ``filters["visible"]``, the filtered
     frame computed exactly once for this rerun and meant to be passed down.
 
     The district picker stays outside the form because the area list depends on
     it. Area, priority and kiln type sit in a form, so any number of edits
     cost one rerun, triggered by the apply button.
     """
-    st.session_state["dhoa_active_view"] = mode
+    st.session_state["dhoa_active_view"] = "inspector"
     filters: dict[str, Any] = {}
-    with st.sidebar:
-        if mode == "inspector":
-            district_values = (
-                sorted(gdf["district"].dropna().astype(str).unique().tolist())
-                if "district" in gdf else []
-            )
-            district_options = [ALL_DISTRICTS, *district_values]
-            if st.session_state.get("filter_district") not in district_options:
-                st.session_state["filter_district"] = ALL_DISTRICTS
-            _seed("filter_district", st.session_state["filter_district"])
+    with st.container(key="dhoa_filter_panel", border=True):
+        heading_col, district_col = st.columns([1.2, 2.8], vertical_alignment="bottom")
+        with heading_col:
+            st.markdown(f"#### {T.FILTERS}")
+        district_values = (
+            sorted(gdf["district"].dropna().astype(str).unique().tolist())
+            if "district" in gdf else []
+        )
+        district_options = [ALL_DISTRICTS, *district_values]
+        if st.session_state.get("filter_district") not in district_options:
+            st.session_state["filter_district"] = ALL_DISTRICTS
+        _seed("filter_district", st.session_state["filter_district"])
+        with district_col:
             filters["district"] = st.selectbox(
                 T.DISTRICT,
                 district_options,
@@ -2175,7 +2178,9 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
             if st.session_state.get("filter_kiln_type") not in type_options:
                 st.session_state["filter_kiln_type"] = ALL_KILN_TYPES
             _seed("filter_kiln_type", st.session_state["filter_kiln_type"])
-            with st.form("dhoa_inspector_filters", border=False):
+        with st.form("dhoa_inspector_filters", border=False):
+            area_col, priority_col, type_col = st.columns([1.25, 2, 1.25], vertical_alignment="bottom")
+            with area_col:
                 filters["upazila"] = st.selectbox(
                     T.AREA_THANA,
                     upazila_options,
@@ -2183,6 +2188,7 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
                     key=_wkey("filter_upazila"),
                     disabled=not district_selected,
                 )
+            with priority_col:
                 filters["priorities"] = st.pills(
                     T.PRIORITY,
                     _priority_opts,
@@ -2190,32 +2196,21 @@ def render_sidebar(gdf: gpd.GeoDataFrame, mode: str) -> dict[str, Any]:
                     format_func=lambda value: f"{kd.PRIORITY_GLYPHS[value]} {_priority_text[value]}",
                     key=_wkey("filter_priority"),
                 )
+            with type_col:
                 filters["kiln_type"] = st.selectbox(
                     T.KILN_TYPE,
                     type_options,
                     format_func=lambda value: T.ALL_TYPES if value == ALL_KILN_TYPES else _type_label(value),
                     key=_wkey("filter_kiln_type"),
                 )
+            apply_col, reset_col = st.columns([1, 1], gap="small")
+            with apply_col:
                 st.form_submit_button(T.APPLY_FILTERS, type="primary", width="stretch")
+            with reset_col:
+                st.form_submit_button(T.RESET_FILTERS, on_click=_reset_inspector_filters, width="stretch")
 
-            # The one filter computation of this rerun; everything below and the
-            # main area read ``filters["visible"]`` instead of filtering again.
-            visible = get_filtered_gdf(gdf)
-            filters["visible"] = visible
-        if mode == "inspector":
-            st.button(
-                T.RESET_FILTERS,
-                key="reset_inspector_filters",
-                on_click=_reset_inspector_filters,
-                width="stretch",
-            )
-        _contact_info = _contact()
-        with st.container(key="dhoa_sidebar_contact"):
-            st.markdown(
-                T.HOTLINE_LINE_FMT.format(trust.localise_digits(_contact_info["number"], T.get_language()))
-                + " | [doe.gov.bd](https://doe.gov.bd)"
-                if _contact_info["number"] else T.DOE_WEB_LINE
-            )
+        # The one filter computation of this rerun; the main area reuses it.
+        filters["visible"] = get_filtered_gdf(gdf)
     return filters
 
 
@@ -2606,7 +2601,7 @@ def build_map(
 ) -> folium.Map:
     """Return the Inspector base map for the filtered candidate set.
 
-    Input schema: prioritized candidate GeoDataFrame, sidebar state (unused) and
+    Input schema: prioritized candidate GeoDataFrame, filter-panel state (unused) and
     optionally the already-filtered frame. Output schema: a Folium map fitted to
     the filtered kilns, with one ``FastMarkerCluster`` of tooltip circle
     markers (no popups, no LayerControl) that depends only on the filter
@@ -2725,7 +2720,7 @@ def _render_empty_results(selected_upazila: str) -> None:
 
     Input: the selected upazila (or ``ALL_AREAS``). Output: a message that says
     what happened, a hint, and a one-click reset that reruns the whole app so
-    the sidebar widgets pick up the cleared filters.
+    the page filter widgets pick up the cleared values.
     """
     st.info(
         T.NO_KILNS_IN_AREA_FMT.format(selected_upazila)
@@ -2734,7 +2729,7 @@ def _render_empty_results(selected_upazila: str) -> None:
     )
     st.caption(T.EMPTY_FILTER_HINT)
     # The reset runs as a callback (the only place widget-keyed state may be
-    # changed); the app-wide rerun then redraws the sidebar with cleared filters.
+    # changed); the app-wide rerun then redraws the page filters with cleared values.
     if st.button(T.RESET_FILTERS, key="dhoa_empty_reset_filters", on_click=_reset_inspector_filters):
         st.rerun(scope="app")
 
@@ -2746,7 +2741,7 @@ def render_map(
 ) -> None:
     """Render the priority list, the stable map and the selected-kiln panel.
 
-    Input schema: candidate GeoDataFrame, sidebar filter mapping and, normally,
+    Input schema: candidate GeoDataFrame, filter-panel mapping and, normally,
     the already-filtered frame (``filters["visible"]``). Output: list, map and
     detail card. Pan and zoom never reach Python (``returned_objects`` is only
     ``last_object_clicked``), so they cannot rerun the script or snap the view
@@ -2801,7 +2796,7 @@ def render_map(
                 ),
                 "text/csv",
                 width="stretch",
-                key="sidebar_export_list",
+                key="inspector_export_list",
             )
         list_columns, list_rows, list_kiln_ids = _list_payload(list_candidates, gdf)
         list_choice = _priority_candidate_list(
@@ -2933,7 +2928,7 @@ def render_map(
                 _render_work_controls(selected.iloc[0])
 
 
-# Selecting a kiln reruns only this fragment, not the header, sidebar or data layer.
+# Selecting a kiln reruns only this fragment, not the header or data layer.
 render_map_fragment = st.fragment(render_map)
 
 
@@ -3163,7 +3158,7 @@ _VISIT_STATUS_LABELS = {
 
 
 def _save_current_filter(display_name: str, name: str) -> None:
-    """Persist current Inspector sidebar values under the signed-in name."""
+    """Persist current Inspector filter values under the signed-in name."""
     if not roles.is_staff():
         return
     values: dict[str, object] = {
@@ -3505,7 +3500,7 @@ def _set_report_status(report_id: str, status: str) -> None:
 
 
 def main() -> None:
-    """Run the shared Dhoa header, sidebar, and selected mode flow.
+    """Run the shared Dhoa header and selected mode flow.
 
     Input schema: local configuration and prioritized GeoParquet.
     Output schema: one Inspector or Community dashboard view.
@@ -3541,10 +3536,9 @@ def main() -> None:
         portal_tab = None
         if mode == "inspector" and roles.is_staff():
             portal_tab = render_portal_bar()
-        # The sidebar filters belong to the staff map only; every other view keeps the minimal
-        # sidebar. It is always rendered so Streamlit never adds/removes it between views.
+        # Inspector filters live above the map; the dashboard has no sidebar.
         staff_map = mode == "inspector" and portal_tab == "map"
-        filters = render_sidebar(gdf, "inspector" if staff_map else ("about" if mode == "inspector" else mode))
+        filters = render_filter_panel(gdf) if staff_map else {}
         if mode == "inspector" and not roles.is_staff():
             render_staff_signin(gdf)
             render_footer()
@@ -3574,7 +3568,7 @@ def main() -> None:
             render_community_view(public_gdf)
             render_footer()
             return
-        visible = filters["visible"]  # computed once in render_sidebar
+        visible = filters["visible"]  # computed once in render_filter_panel
         _render_summary_strip(visible)
         render_map_fragment(gdf, filters, visible)
         render_footer()

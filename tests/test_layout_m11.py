@@ -1,4 +1,4 @@
-"""Map-first layout: the map is the first thing on screen; sidebar fits without scrolling."""
+"""Map-first layout: full-width content with Inspector filters above the map."""
 
 from __future__ import annotations
 
@@ -24,12 +24,14 @@ def test_header_is_one_row_and_tool_views_have_no_subtitle_or_divider() -> None:
     assert body.index("st.divider()") > body.index('if selected_mode not in ("inspector", "community")')
 
 
-def test_sidebar_is_compact_priority_is_pills_and_map_type_left_the_sidebar() -> None:
-    sidebar = SOURCE[SOURCE.index("def render_sidebar"):SOURCE.index("def _metres_text")]
-    assert "st.pills(" in sidebar and "st.multiselect(" not in sidebar
-    assert "_render_map_type_filter()" not in sidebar and "st.download_button" not in sidebar
-    assert "T.SEARCH_2" not in sidebar and "T.RAIL_HINT" not in sidebar
-    assert sidebar.index("RESET_FILTERS") < sidebar.index("dhoa_sidebar_contact")
+def test_filters_are_full_width_and_no_streamlit_sidebar_is_used() -> None:
+    panel = SOURCE[SOURCE.index("def render_filter_panel"):SOURCE.index("def _metres_text")]
+    assert 'st.container(key="dhoa_filter_panel", border=True)' in panel
+    assert "st.pills(" in panel and "st.multiselect(" not in panel
+    assert "T.RESET_FILTERS" in panel and "T.APPLY_FILTERS" in panel
+    assert "with st.sidebar" not in SOURCE
+    assert '[data-testid="stSidebar"]' in CSS and "display: none !important" in CSS
+    assert "width: 100% !important" in CSS
 
 
 def test_map_toolbar_holds_legend_heat_toggle_and_map_type() -> None:

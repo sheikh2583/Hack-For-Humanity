@@ -92,7 +92,7 @@ def test_community_point_outside_coverage_is_explained(data_dir: Path) -> None:
 
 
 def test_language_switch_keeps_filters_and_gives_same_results(data_dir: Path) -> None:
-    """Switching bn -> en remounts the sidebar widgets with English option text, same filter, same rows."""
+    """Switching bn -> en remounts the page filters with English option text and same results."""
     at = _run("inspector")
     at.selectbox(key="w_filter_district@bn").select("Gazipur").run()
     next(b for b in at.button if b.label == T.APPLY_FILTERS).click().run()

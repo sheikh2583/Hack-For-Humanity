@@ -253,5 +253,5 @@ def test_inspector_renders_apply_button_and_no_radius_slider() -> None:
 
     at = AppTest.from_file(str(ROOT / "app" / "streamlit_app.py"), default_timeout=120).run()
     assert not at.exception
-    assert dashboard.T.APPLY_FILTERS in [button.label for button in at.sidebar.button]
-    assert "filter_radius_m" not in [slider.key for slider in at.sidebar.slider]
+    assert dashboard.T.APPLY_FILTERS in [button.label for button in at.button]
+    assert "filter_radius_m" not in [slider.key for slider in at.slider]
