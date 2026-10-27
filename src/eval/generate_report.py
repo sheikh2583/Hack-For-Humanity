@@ -167,7 +167,24 @@ def generate_kiln_report(
 
         from src.eval import pdf_kit as kit
 
-        table = kit.labels(lang)
+        table = dict(kit.labels(lang))
+        complaint_label_fallbacks = {
+            "sec_complaint": ("অভিযোগের বিবরণ", "Complaint details"),
+            "report_id": ("অভিযোগ আইডি", "Report ID"),
+            "submitted": ("জমা দেওয়ার সময়", "Submitted"),
+            "report_kind": ("অভিযোগের ধরন", "Report type"),
+            "reason": ("অভিযোগের কারণ", "Reason"),
+            "report_status": ("পর্যালোচনার অবস্থা", "Review status"),
+            "report_contact": ("যোগাযোগ", "Contact"),
+            "report_note": ("অভিযোগের বিবরণী", "Report note"),
+            "not_linked": (
+                "এই অভিযোগটি কোনো শনাক্তকৃত ভাটার সাথে যুক্ত নয়।",
+                "This report is not linked to a detected kiln candidate.",
+            ),
+        }
+        language_index = 1 if lang == "en" else 0
+        for key, choices in complaint_label_fallbacks.items():
+            table.setdefault(key, choices[language_index])
         today = datetime.now(UTC).date().isoformat()
         lat, lon = float(row["lat"]), float(row["lon"])
         kiln_id = _clean(row, "kiln_id") or table["not_recorded"]
