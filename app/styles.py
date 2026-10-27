@@ -506,13 +506,13 @@ img, svg, iframe { max-width: 100%; }
             drop-shadow(0 8px 18px rgba(0, 0, 0, 0.55));
     }
 }
-/* Outer wrapper – fixed bottom-right */
+/* Outer wrapper – fixed bottom-right, raised above Streamlit toolbar */
 .st-key-dhoa_chatbot {
     position: fixed !important;
     top: auto !important;
     left: auto !important;
     right: 1.5rem !important;
-    bottom: 1.5rem !important;
+    bottom: 4rem !important;
     z-index: 10000;
     width: max-content !important;
     max-width: calc(100vw - 2rem);
@@ -526,20 +526,18 @@ img, svg, iframe { max-width: 100%; }
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    width: 7rem !important;
-    height: 7rem !important;
-    min-width: 7rem !important;
-    min-height: 7rem !important;
+    width: 10rem !important;
+    height: 10rem !important;
+    min-width: 10rem !important;
+    min-height: 10rem !important;
     padding: 0 !important;
     border: 0 !important;
     border-radius: 50% !important;
     background: transparent !important;
     box-shadow: none !important;
-    /* Big emoji */
-    font-size: 4.4rem !important;
+    font-size: 6.2rem !important;
     line-height: 1 !important;
     color: inherit !important;
-    /* Layered drop-shadow glow animates between dim and bright */
     animation:
         dhoa-orb-float 3.2s ease-in-out infinite,
         dhoa-orb-glow-pulse 2.8s ease-in-out infinite;
@@ -563,19 +561,19 @@ img, svg, iframe { max-width: 100%; }
         filter: drop-shadow(0 0 10px rgba(0, 198, 255, 0.8)) drop-shadow(0 4px 10px rgba(0,0,0,0.5)) !important;
     }
 }
-/* Mobile – bottom-LEFT, same large size */
+/* Mobile – bottom-LEFT, extra large */
 @media (max-width: 768px) {
     .st-key-dhoa_chatbot {
         right: auto !important;
         left: 1rem !important;
-        bottom: calc(1rem + env(safe-area-inset-bottom)) !important;
+        bottom: calc(3rem + env(safe-area-inset-bottom)) !important;
     }
     .st-key-dhoa_chatbot [data-testid="stPopoverButton"] {
-        width: 7.5rem !important;
-        height: 7.5rem !important;
-        min-width: 7.5rem !important;
-        min-height: 7.5rem !important;
-        font-size: 4.8rem !important;
+        width: 11rem !important;
+        height: 11rem !important;
+        min-width: 11rem !important;
+        min-height: 11rem !important;
+        font-size: 6.8rem !important;
     }
 }
 """
