@@ -430,6 +430,17 @@ img, svg, iframe { max-width: 100%; }
     background: var(--dhoa-color-card); box-shadow: var(--dhoa-shadow-card);
 }
 .st-key-dhoa_signin_panel .dhoa-section-title { margin-top: 0; }
+.st-key-dhoa_signin_panel [data-testid="stTextInput"] [data-baseweb="input"] {
+    min-height: 2.75rem; background: var(--dhoa-color-raised) !important;
+    border: 1px solid var(--dhoa-color-border-strong) !important;
+    border-radius: var(--dhoa-radius-md) !important;
+}
+.st-key-dhoa_signin_panel [data-testid="stTextInput"] [data-baseweb="input"]:focus-within {
+    border-color: var(--dhoa-color-accent-text) !important;
+}
+.st-key-dhoa_signin_panel [data-testid="stTextInput"] input {
+    background: transparent !important; color: var(--dhoa-color-text) !important;
+}
 @media (max-width: 768px) {
     .st-key-dhoa_signin_stage { min-height: 76vh; }
     .st-key-dhoa_signin_preview { max-height: 76vh; }
