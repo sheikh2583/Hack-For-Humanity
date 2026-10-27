@@ -485,6 +485,62 @@ img, svg, iframe { max-width: 100%; }
     .st-key-dhoa_map_toolbar [data-testid="stColumn"] { min-width: 0 !important; flex: 1 1 45% !important; }
     .dhoa-summary .dhoa-metric { padding: 0.25rem 0.5rem; }
 }
+/* Keep the Help orb fixed above the page in the bottom-right corner. */
+.st-key-dhoa_chatbot {
+    position: fixed !important;
+    top: auto !important;
+    left: auto !important;
+    right: 1.25rem !important;
+    bottom: 1.25rem !important;
+    z-index: 10000;
+    width: max-content !important;
+    max-width: calc(100vw - 2rem);
+}
+.st-key-dhoa_chatbot button[aria-haspopup="dialog"] {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 5.25rem;
+    height: 5.25rem;
+    min-width: 5.25rem;
+    min-height: 5.25rem !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 50% !important;
+    background: transparent !important;
+    color: var(--dhoa-color-primary) !important;
+    font-size: 3.25rem !important;
+    line-height: 1 !important;
+    box-shadow: none !important;
+    filter: drop-shadow(0 5px 12px rgb(0 0 0 / 28%));
+    animation: dhoa-orb-float 3.2s ease-in-out infinite;
+    transition: transform 180ms ease, filter 180ms ease;
+}
+.st-key-dhoa_chatbot button[aria-haspopup="dialog"]:hover {
+    transform: translateY(-4px) scale(1.08);
+    filter: drop-shadow(0 9px 16px rgb(0 0 0 / 34%));
+    animation-play-state: paused;
+}
+@keyframes dhoa-orb-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .st-key-dhoa_chatbot button[aria-haspopup="dialog"] { animation: none; }
+}
+@media (max-width: 768px) {
+    .st-key-dhoa_chatbot {
+        right: 0.75rem !important;
+        bottom: calc(1rem + env(safe-area-inset-bottom)) !important;
+    }
+    .st-key-dhoa_chatbot button[aria-haspopup="dialog"] {
+        width: 4.5rem;
+        height: 4.5rem;
+        min-width: 4.5rem;
+        min-height: 4.5rem !important;
+        font-size: 2.85rem !important;
+    }
+}
 """
 
 
