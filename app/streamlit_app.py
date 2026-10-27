@@ -1135,6 +1135,17 @@ def _report_success_button_label() -> str:
     )
 
 
+def _report_concern_label() -> str:
+    """Return the localized environmental concern label despite a stale catalog."""
+    return getattr(
+        T,
+        "C_REPORT_REASON_CONCERN",
+        "সম্ভাব্য পরিবেশগত বা অবস্থানগত সমস্যা"
+        if T.get_language() == "bn"
+        else "Possible environmental or siting concern",
+    )
+
+
 def _honeypot_value(key: str) -> str:
     """Render a visually hidden honeypot field and return its value."""
     with st.container(key=f"dhoa_report_trap_{key}"):
@@ -1151,13 +1162,7 @@ def _render_existing_candidate_report(row: pd.Series) -> None:
     """
     kiln_id = str(row.get("kiln_id", ""))
     key = hashlib.sha256(kiln_id.encode("utf-8")).hexdigest()[:16]
-    concern_label = getattr(
-        T,
-        "C_REPORT_REASON_CONCERN",
-        "সম্ভাব্য পরিবেশগত বা অবস্থানগত সমস্যা"
-        if T.get_language() == "bn"
-        else "Possible environmental or siting concern",
-    )
+    concern_label = _report_concern_label()
     success_key = f"dhoa_report_success_{key}"
     with st.expander(T.C_REPORT_EXISTING_TITLE, expanded=True):
         with st.form(f"dhoa_report_existing_{key}"):
@@ -2971,7 +2976,7 @@ def _work_store() -> public_storage.SQLiteReportStore:
 def _new_report_count() -> int:
     """Count unreviewed public reports for the staff-only navigation notification."""
     try:
-        return _work_store().open_report_count()
+        return sum(report.status == "new" for report in _work_store().list_reports())
     except Exception:
         logging.exception("Could not load inspector report count")
         return 0
@@ -3399,7 +3404,7 @@ def render_portal_reports(gdf: gpd.GeoDataFrame) -> None:
     reason_labels = {
         "wrong_location": T.C_REPORT_REASON_LOCATION,
         "not_a_kiln": T.C_REPORT_REASON_NOT_KILN,
-        "environmental_concern": T.C_REPORT_REASON_CONCERN,
+        "environmental_concern": _report_concern_label(),
         "other": T.C_REPORT_REASON_OTHER,
     }
     with st.container(height=680, key="dhoa_portal_reports_list"):
