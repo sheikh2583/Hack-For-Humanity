@@ -449,15 +449,17 @@ img, svg, iframe { max-width: 100%; }
     }
     .st-key-dhoa_portal_bar [data-testid="stColumn"] { min-width: 0 !important; }
     .st-key-dhoa_portal_bar [data-testid="stColumn"]:nth-child(1) { flex: 1 1 100% !important; }
-    /* "Signed in: name" takes the free width and wraps; Sign out keeps its full label beside it */
-    .st-key-dhoa_portal_bar [data-testid="stColumn"]:nth-child(2) { flex: 1 1 0 !important; min-width: 0 !important; }
-    .st-key-dhoa_portal_bar [data-testid="stColumn"]:nth-child(3) { flex: 0 0 auto !important; width: auto !important; min-width: 7.5rem !important; }
+    /* Keep the report notice and account controls readable at phone widths. */
+    .st-key-dhoa_portal_bar [data-testid="stColumn"]:nth-child(2) { flex: 1 1 42% !important; min-width: 0 !important; }
+    .st-key-dhoa_portal_bar [data-testid="stColumn"]:nth-child(3) { flex: 1 1 38% !important; min-width: 0 !important; }
+    .st-key-dhoa_portal_bar [data-testid="stColumn"]:nth-child(4) { flex: 0 0 auto !important; min-width: 7.5rem !important; }
     .st-key-dhoa_portal_bar [data-testid="stCaptionContainer"] { text-align: left; overflow-wrap: anywhere; }
-    .st-key-dhoa_portal_bar [data-testid="stColumn"]:nth-child(3) button { white-space: nowrap; }
-    .st-key-dhoa_portal_bar [data-testid="stSegmentedControl"] { overflow: visible; }
-    /* the four sections and the portal tabs wrap onto a second line instead of being cut off */
+    .st-key-dhoa_portal_bar [data-testid="stColumn"]:nth-child(4) button { white-space: nowrap; }
+    .st-key-dhoa_portal_bar [data-testid="stSegmentedControl"],
+    .st-key-dhoa_header_row [data-testid="stSegmentedControl"] { max-width: 100%; overflow-x: auto !important; }
+    /* Keep all navigation options in one compact, horizontally scrollable row. */
     .st-key-dhoa_portal_bar [data-testid="stButtonGroup"] > div,
-    .st-key-dhoa_header_row [data-testid="stButtonGroup"] > div { flex-wrap: wrap !important; overflow: visible !important; }
+    .st-key-dhoa_header_row [data-testid="stButtonGroup"] > div { flex-wrap: nowrap !important; overflow-x: auto !important; }
 }
 /* slim one-line summary strip: value and label side by side */
 .dhoa-metrics.dhoa-summary { gap: 0.4rem; margin: 0 0 0.25rem; }
@@ -496,7 +498,11 @@ img, svg, iframe { max-width: 100%; }
     .st-key-dhoa_header_row [data-testid="stColumn"]:nth-child(3) { order: 4; flex: 1 1 100% !important; }
     .st-key-dhoa_map_toolbar [data-testid="stColumn"] { min-width: 0 !important; flex: 1 1 45% !important; }
     .st-key-dhoa_filter_panel [data-testid="stColumn"] { min-width: 0 !important; flex: 1 1 45% !important; }
+    .st-key-dhoa_filter_panel [data-testid="stForm"] [data-testid="stHorizontalBlock"]:first-of-type > [data-testid="stColumn"]:nth-child(2) { flex: 1 1 100% !important; }
+    .st-key-dhoa_filter_panel [data-testid="stPills"],
+    .st-key-dhoa_filter_panel [data-testid="stPills"] [role="group"] { max-width: 100%; flex-wrap: wrap !important; }
     .dhoa-summary .dhoa-metric { padding: 0.25rem 0.5rem; }
+    .dhoa-metrics.dhoa-summary { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
 }
 """
 

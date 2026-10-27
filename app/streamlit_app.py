@@ -3003,10 +3003,9 @@ def _render_portal_report_notification() -> None:
 
 
 def _portal_tab_label(tab: str) -> str:
-    """Translated label of an Inspector Portal sub-tab (Reports carries a count badge)."""
+    """Translated label of an Inspector Portal sub-tab."""
     if tab == "reports":
-        count = _new_report_count()
-        return T.PORTAL_TAB_REPORTS_FMT.format(count) if count else T.PORTAL_TAB_REPORTS
+        return T.PORTAL_TAB_REPORTS
     return {"dashboard": T.PORTAL_TAB_DASHBOARD, "map": T.PORTAL_TAB_MAP, "work": T.PORTAL_TAB_WORK}[tab]
 
 
@@ -3087,8 +3086,9 @@ def render_staff_signin(gdf: gpd.GeoDataFrame) -> None:
                 )
                 passcode = st.text_input(
                     _portal_signin_copy("PORTAL_PASSCODE"), type="password", key="dhoa_signin_passcode",
-                    placeholder=_portal_signin_copy("PORTAL_PASSWORD_REQUIREMENTS"),
+                    placeholder="••••••••",
                 )
+                st.caption(_portal_signin_copy("PORTAL_PASSWORD_REQUIREMENTS"))
                 submitted = st.form_submit_button(
                     T.PORTAL_SIGN_IN, type="primary", key="dhoa_signin_submit"
                 )
@@ -3106,6 +3106,8 @@ def render_staff_signin(gdf: gpd.GeoDataFrame) -> None:
             )
             if forgot_clicked or register_clicked:
                 st.info(_portal_signin_copy("PORTAL_ACCOUNT_ACTION_UNAVAILABLE"))
+            else:
+                st.caption(_portal_signin_copy("PORTAL_ACCOUNT_ACTION_UNAVAILABLE"))
             if roles.demo_login_available():
                 st.button(
                     _portal_signin_copy("PORTAL_DEMO_INSPECTOR"),
@@ -3339,6 +3341,12 @@ def _open_kiln_on_map(kiln_id: str, lat: float, lon: float) -> None:
     st.session_state["dhoa_portal_tab"] = "map"
 
 
+def _open_inspector_map_from_work() -> None:
+    """Navigate from an empty Work view to the existing Inspector Map workflow."""
+    st.session_state["dhoa_view_mode"] = "inspector"
+    st.session_state["dhoa_portal_tab"] = "map"
+
+
 def render_portal_work(gdf: gpd.GeoDataFrame) -> None:
     """Render staff assignments with status filtering, data-derived distance sorting and directions."""
     if not roles.is_staff():
@@ -3376,6 +3384,14 @@ def render_portal_work(gdf: gpd.GeoDataFrame) -> None:
         rows.sort(key=lambda item: (rank.get(str(item[1].get("priority_band", "")), 3), item[0].kiln_id))
     if not rows:
         st.info(T.WORK_EMPTY)
+        st.caption(T.WORK_EMPTY_MAP_HINT)
+        st.button(
+            T.WORK_OPEN_INSPECTOR_MAP,
+            key="dhoa_work_empty_open_map",
+            on_click=_open_inspector_map_from_work,
+            type="primary",
+            width="stretch",
+        )
         _render_activity_log(store)
         return
     route_links = staff_tools.google_maps_route_links(
@@ -3419,7 +3435,7 @@ def render_portal_reports(gdf: gpd.GeoDataFrame) -> None:
         "environmental_concern": _report_concern_label(),
         "other": T.C_REPORT_REASON_OTHER,
     }
-    with st.container(height=680, key="dhoa_portal_reports_list"):
+    with st.container(key="dhoa_portal_reports_list"):
         for report in reversed(reports):
             with st.container(border=True):
                 st.markdown(
