@@ -1124,6 +1124,17 @@ def _show_report_result(result: str) -> None:
     renderer(message)
 
 
+def _report_success_button_label() -> str:
+    """Return the localized completed-state label, with fallback for stale catalogs."""
+    return getattr(
+        T,
+        "C_REPORT_SUCCESS_BUTTON",
+        "সফলভাবে রিপোর্ট করা হয়েছে"
+        if T.get_language() == "bn"
+        else "Successfully reported",
+    )
+
+
 def _honeypot_value(key: str) -> str:
     """Render a visually hidden honeypot field and return its value."""
     with st.container(key=f"dhoa_report_trap_{key}"):
@@ -1147,6 +1158,7 @@ def _render_existing_candidate_report(row: pd.Series) -> None:
         if T.get_language() == "bn"
         else "Possible environmental or siting concern",
     )
+    success_key = f"dhoa_report_success_{key}"
     with st.expander(T.C_REPORT_EXISTING_TITLE, expanded=True):
         with st.form(f"dhoa_report_existing_{key}"):
             reason_label = st.selectbox(
@@ -1158,7 +1170,11 @@ def _render_existing_candidate_report(row: pd.Series) -> None:
             note = st.text_area(T.C_REPORT_NOTE, key=f"dhoa_report_note_{key}", height=90)
             contact = st.text_input(T.C_REPORT_CONTACT, key=f"dhoa_report_contact_{key}")
             trap = _honeypot_value(f"existing_{key}")
-            submitted = st.form_submit_button(T.C_REPORT_SUBMIT, width="stretch")
+            already_reported = bool(st.session_state.get(success_key, False))
+            submit_label = _report_success_button_label() if already_reported else T.C_REPORT_SUBMIT
+            submitted = st.form_submit_button(
+                submit_label, width="stretch", disabled=already_reported,
+            )
         st.caption(T.C_REPORT_PRIVACY)
         if submitted:
             reason_code = {
@@ -1176,7 +1192,12 @@ def _render_existing_candidate_report(row: pd.Series) -> None:
                 row.to_frame().T,
                 trap,
             )
+            if result == "sent":
+                st.session_state[success_key] = True
+                st.rerun()
             _show_report_result(result)
+        if st.session_state.get(success_key):
+            _show_report_result("sent")
 
 
 def _parse_coordinate(value: str) -> float | None:
@@ -1194,6 +1215,7 @@ def _render_missing_kiln_report(frame: pd.DataFrame) -> None:
     Input: the public kiln frame used to derive the accepted coordinate extent.
     Output: a localized coordinate/note/photo form writing ``not_on_map`` reports.
     """
+    success_key = "dhoa_report_missing_success"
     with st.expander(T.C_REPORT_NEW_TITLE):
         extent = public_storage.extent_from_frame(frame)
         if extent is None:
@@ -1209,7 +1231,11 @@ def _render_missing_kiln_report(frame: pd.DataFrame) -> None:
                 key="dhoa_report_missing_photo",
             )
             trap = _honeypot_value("missing")
-            submitted = st.form_submit_button(T.C_REPORT_SUBMIT, width="stretch")
+            already_reported = bool(st.session_state.get(success_key, False))
+            submit_label = _report_success_button_label() if already_reported else T.C_REPORT_SUBMIT
+            submitted = st.form_submit_button(
+                submit_label, width="stretch", disabled=already_reported,
+            )
         st.caption(T.C_REPORT_PRIVACY)
         if submitted:
             latitude, longitude = _parse_coordinate(latitude_text), _parse_coordinate(longitude_text)
@@ -1222,7 +1248,13 @@ def _render_missing_kiln_report(frame: pd.DataFrame) -> None:
                 photo=photo.getvalue() if photo is not None else None,
                 photo_content_type=photo.type if photo is not None else None,
             )
-            _show_report_result(_record_public_report(report, frame, trap))
+            result = _record_public_report(report, frame, trap)
+            if result == "sent":
+                st.session_state[success_key] = True
+                st.rerun()
+            _show_report_result(result)
+        if st.session_state.get(success_key):
+            _show_report_result("sent")
 
 
 def _render_community_summary(result: cm.SearchResult) -> None:
