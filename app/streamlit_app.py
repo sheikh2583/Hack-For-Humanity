@@ -388,16 +388,26 @@ def _priority_reason(row: pd.Series) -> str:
 @st.cache_data(show_spinner=False)
 def _report_from_json(
     row_json: str, lang: str = "bn", submission_json: str | None = None,
+    generator_revision: str = "complaint-pdf-fallback-v2",
 ) -> bytes | None:
     """Build and cache a candidate PDF, optionally adding its linked complaint details.
 
-    Input: JSON-safe candidate fields, language code, and optional JSON complaint metadata.
+    Input: JSON-safe candidate fields, language code, optional complaint metadata,
+    and a cache revision for PDF generator changes.
     Output: the generated PDF bytes, or ``None`` if generation fails.
     """
-    from src.eval.generate_report import generate_kiln_report
+    import importlib
+
+    from src.eval import generate_report as report_generator
 
     submission = json.loads(submission_json) if submission_json else None
-    return generate_kiln_report(json.loads(row_json), lang, submission=submission)
+    if submission is not None:
+        report_generator = importlib.reload(report_generator)
+    # ``generator_revision`` deliberately participates in Streamlit's cache key.
+    _ = generator_revision
+    return report_generator.generate_kiln_report(
+        json.loads(row_json), lang, submission=submission,
+    )
 
 
 def _json_default(value: object) -> Any:
