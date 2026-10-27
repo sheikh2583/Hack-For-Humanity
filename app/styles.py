@@ -409,16 +409,23 @@ img, svg, iframe { max-width: 100%; }
 .st-key-dhoa_portal_bar [data-testid="stSegmentedControl"] { overflow-x: auto; }
 .st-key-dhoa_portal_bar button { font-size: 0.85rem !important; min-height: 2rem !important; }
 .st-key-dhoa_portal_bar [data-testid="stCaptionContainer"] { margin-top: 0 !important; text-align: right; }
+/* The sign-in card sits in normal document flow, centered by flexbox, instead of being
+   transform-positioned against the preview's containing block: Streamlit can wrap a keyed
+   container in an extra layout element, which previously left `position: absolute` anchored
+   to the wrong ancestor. Only the decorative, non-interactive preview is taken out of flow. */
 .st-key-dhoa_signin_stage {
     position: relative; isolation: isolate; min-height: min(78vh, 850px); margin-top: 0.75rem;
+    display: flex; align-items: center; justify-content: center; padding: 1rem 0;
 }
 .st-key-dhoa_signin_preview {
+    position: absolute; inset: 0; z-index: 0;
     max-height: min(78vh, 850px); overflow: hidden; filter: blur(5px); opacity: 0.48;
     pointer-events: none; user-select: none;
 }
 .st-key-dhoa_signin_panel {
-    position: absolute !important; z-index: 10; top: 50%; left: 50%; transform: translate(-50%, -50%);
-    width: min(27rem, calc(100% - 2rem)); box-sizing: border-box; padding: 1.25rem;
+    position: relative; z-index: 10; margin: 0 auto;
+    width: min(27rem, calc(100% - 2rem)); max-height: 100%; overflow-y: auto;
+    box-sizing: border-box; padding: 1.25rem;
     border: 1px solid var(--dhoa-color-border-strong); border-radius: var(--dhoa-radius-md, 12px);
     background: var(--dhoa-color-card); box-shadow: var(--dhoa-shadow-card);
 }
