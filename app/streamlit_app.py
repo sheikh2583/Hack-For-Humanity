@@ -2942,50 +2942,38 @@ def _sign_out_staff() -> None:
     st.session_state.pop("dhoa_portal_tab", None)
 
 
-def _fill_demo_credentials() -> None:
-    """Fill the configured demo passcode and display name into the sign-in fields."""
-    if not roles.demo_enabled() or not roles.configured_passcode():
+def _sign_in_as_demo_inspector() -> None:
+    """Sign in to the demo portal without exposing its configured password."""
+    if not roles.demo_login_available():
         return
-    st.session_state["dhoa_signin_passcode"] = roles.configured_passcode()
-    st.session_state["dhoa_signin_name"] = roles.DEMO_NAME
+    if roles.sign_in(roles.DEMO_PASSCODE, roles.DEMO_NAME):
+        st.session_state["dhoa_portal_tab"] = "map"
 
 
-def render_staff_signin() -> None:
-    """Sign-in page shown in place of the portal while the session is public."""
-    with st.container(key="dhoa_signin"):
-        st.markdown(f"<div class='dhoa-section-title'>{html.escape(T.PORTAL_SIGNIN_TITLE)}</div>",
-                    unsafe_allow_html=True)
-        st.markdown(
-            textwrap.dedent("""
-            <style>
-            .dhoa-portal-preview{filter:blur(5px);opacity:.48;pointer-events:none;
-              user-select:none;margin:.5rem auto 1rem;max-width:42rem}
-            .dhoa-portal-preview-head{height:1.1rem;width:38%;border-radius:8px;
-              background:#9aa7b4;margin:0 0 .8rem}
-            .dhoa-portal-preview-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem}
-            .dhoa-portal-preview-card{height:4.2rem;border:1px solid #64748b;border-radius:10px;
-              background:linear-gradient(135deg,#243447,#17212b)}
-            .dhoa-portal-preview-map{height:7rem;margin-top:.6rem;border:1px solid #64748b;
-              border-radius:10px;background:radial-gradient(circle at 42% 45%,#5b7180 0 2px,transparent 3px),
-              radial-gradient(circle at 66% 60%,#5b7180 0 2px,transparent 3px),#18232e}
-            </style>
-            <div class="dhoa-portal-preview" aria-hidden="true">
-              <div class="dhoa-portal-preview-head"></div>
-              <div class="dhoa-portal-preview-cards"><div class="dhoa-portal-preview-card"></div>
-                <div class="dhoa-portal-preview-card"></div><div class="dhoa-portal-preview-card"></div></div>
-              <div class="dhoa-portal-preview-map"></div>
-            </div>
-            """),
-            unsafe_allow_html=True,
-        )
-        if not roles.signin_available():
-            st.info(T.PORTAL_SIGNIN_UNAVAILABLE)
-            return
-        st.caption(T.PORTAL_SIGNIN_HINT)
-        if roles.configured_passcode():
+def render_staff_signin(gdf: gpd.GeoDataFrame) -> None:
+    """Show the real Inspector dashboard blurred behind a floating sign-in panel.
+
+    Input: the prepared Inspector GeoDataFrame. Output: a non-interactive dashboard
+    preview and an overlaid sign-in panel; the preview is purely presentational.
+    """
+    with st.container(key="dhoa_signin_stage"):
+        with st.container(key="dhoa_signin_preview"):
+            render_portal_dashboard(gdf)
+        with st.container(key="dhoa_signin_panel"):
+            st.markdown(f"<div class='dhoa-section-title'>{html.escape(T.PORTAL_SIGNIN_TITLE)}</div>",
+                        unsafe_allow_html=True)
+            st.caption(T.PORTAL_SIGNIN_HINT)
+            if not roles.signin_available():
+                st.info(T.PORTAL_SIGNIN_UNAVAILABLE)
+                return
             with st.form("dhoa_signin_form", clear_on_submit=False):
-                passcode = st.text_input(T.PORTAL_PASSCODE, type="password", key="dhoa_signin_passcode")
-                name = st.text_input(T.PORTAL_NAME, key="dhoa_signin_name", max_chars=60)
+                name = st.text_input(
+                    T.PORTAL_NAME, key="dhoa_signin_name", max_chars=60,
+                )
+                passcode = st.text_input(
+                    T.PORTAL_PASSCODE, type="password", key="dhoa_signin_passcode",
+                    placeholder=T.PORTAL_PASSWORD_REQUIREMENTS,
+                )
                 submitted = st.form_submit_button(
                     T.PORTAL_SIGN_IN, type="primary", key="dhoa_signin_submit"
                 )
@@ -2994,14 +2982,13 @@ def render_staff_signin() -> None:
                     st.session_state["dhoa_portal_tab"] = "map"
                     st.rerun()
                 st.error(T.PORTAL_WRONG_PASSCODE)
-        if roles.demo_enabled():
-            st.caption(T.PORTAL_DEMO_CREDENTIALS_HINT)
-            st.button(
-                T.PORTAL_FILL_DEMO_CREDENTIALS,
-                key="dhoa_fill_demo_credentials",
-                on_click=_fill_demo_credentials,
-                type="secondary",
-            )
+            if roles.demo_login_available():
+                st.button(
+                    T.PORTAL_FILL_DEMO_CREDENTIALS,
+                    key="dhoa_demo_inspector_signin",
+                    on_click=_sign_in_as_demo_inspector,
+                    type="secondary",
+                )
 
 
 def render_portal_bar() -> str:
@@ -3385,7 +3372,7 @@ def main() -> None:
         staff_map = mode == "inspector" and portal_tab == "map"
         filters = render_sidebar(gdf, "inspector" if staff_map else ("about" if mode == "inspector" else mode))
         if mode == "inspector" and not roles.is_staff():
-            render_staff_signin()
+            render_staff_signin(gdf)
             render_footer()
             return
         if mode == "inspector" and portal_tab != "map":

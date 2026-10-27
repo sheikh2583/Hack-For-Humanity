@@ -3,8 +3,8 @@
 Input schema: the typed passcode and display name, and the session state. Output schema:
 the role string ``"public"`` (default) or ``"inspector"``. One shared staff passcode is read
 from ``st.secrets["staff_passcode"]`` (or ``DHOA_STAFF_PASSCODE``) and takes precedence.
-When no staff passcode exists, the portal offers the built-in ``dhoa-demo`` passcode as a
-demo login. ``demo_mode = false`` (or ``DHOA_DEMO_MODE=0``) disables that fallback.
+When no staff passcode exists, the portal offers a built-in demo login. ``demo_mode = false``
+(or ``DHOA_DEMO_MODE=0``) disables that fallback. The demo password is never shown in the UI.
 """
 
 from __future__ import annotations
@@ -18,8 +18,8 @@ PUBLIC = "public"
 INSPECTOR = "inspector"
 ROLE_KEY = "dhoa_role"
 NAME_KEY = "dhoa_staff_name"
-DEMO_NAME = "Demo"
-DEMO_PASSCODE = "dhoa-demo"
+DEMO_NAME = "DoE Inspector"
+DEMO_PASSCODE = "DhoaDemo!2026"
 _MAX_NAME = 60
 
 
@@ -52,6 +52,12 @@ def demo_enabled() -> bool:
         )
         return not has_staff_passcode
     return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def demo_login_available() -> bool:
+    """Expose the demo account only when no real staff passcode is configured."""
+    real_passcode = _secret("staff_passcode") or os.environ.get("DHOA_STAFF_PASSCODE") or ""
+    return not bool(real_passcode) and demo_enabled()
 
 
 def signin_available() -> bool:
