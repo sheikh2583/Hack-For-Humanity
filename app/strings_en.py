@@ -499,30 +499,6 @@ FAQ_Q5 = 'What happens after I report a kiln?'
 FAQ_A5 = 'Your report appears in the Inspector Portal for review. Inspectors can view its map location, download its report, and mark it reviewed or resolved.'
 FAQ_Q6 = 'How do I switch to English or Bangla?'
 FAQ_A6 = "Use the language toggle (EN / বাং) at the top of the page to switch between English and Bangla."
-FAQ_SECTIONS = (
-    ("About Dhoa", (
-        ("What is Dhoa, and how does it work?", "Dhoa maps potential brick kiln locations identified from Sentinel-2 satellite imagery, adds nearby place and map context, and lets community users search candidates and submit reports."),
-        ("Who can use Dhoa?", "The Overview, Kilns near me, and About views are public. The Inspector Portal requires staff sign-in."),
-    )),
-    ("AI Detection", (
-        ("How does Dhoa identify potential brick kiln locations?", "A trained image model analyzes Sentinel-2 imagery and produces candidate locations. The map combines these results with available geographic context."),
-        ("Are detected locations confirmed brick kilns?", "No. They are model-identified candidates and may include false detections. Dhoa does not confirm a site through the map alone."),
-        ("How are potential kilns prioritized?", "The map ranks candidates into high, medium, and low priority bands using the configured screening signals. A priority is a review aid, not a legal finding."),
-        ("Can Dhoa make mistakes or miss existing kilns?", "Yes. Image conditions, site changes, and model limitations can cause missed or incorrect candidates. The map is not a complete or field-verified inventory."),
-    )),
-    ("Community View", (
-        ("How can I check for potential brick kilns near my community?", "Open Kilns near me, search for a place or use your location, choose a search distance, and review the candidates shown on the map and list."),
-        ("How does the search radius work?", "It filters candidates by distance from the selected search point. Some named places are represented by a broader area, so a radius may not apply to every place search."),
-        ("How can I report a missing brick kiln?", "The current report form is attached to listed candidates. If a kiln is missing from the list, Dhoa does not currently provide a separate map-pin report flow."),
-        ("Can I report a location if I am unsure whether it is a kiln?", "Reports can share an observation about a listed candidate. State what you observed and what is uncertain; submitting a report does not confirm the location."),
-    )),
-    ("Inspections and Environmental Monitoring", (
-        ("How can inspectors use Dhoa to plan field visits?", "Authorized inspectors can use the map, filters, priority bands, and candidate details to organize desk review and plan where to investigate."),
-        ("Does detecting a kiln mean it is operating illegally?", "No. A candidate is not proof that a kiln exists, is operating, or violates a rule. Legal status requires separate evidence and assessment."),
-        ("How can Dhoa support environmental monitoring?", "Candidate locations and nearby map context can help identify places for further review. Dhoa does not measure emissions or verify environmental conditions."),
-        ("Where does Dhoa's data come from, and how reliable is it?", "Candidate locations come from model analysis of Sentinel-2 imagery; nearby context comes from the map datasets shown in the app. Coverage and accuracy vary, and candidates are not field-verified."),
-    )),
-)
 
 # Chatbot
 CHAT_PLACEHOLDER = 'Ask a question or type an area, district, upazila, or landmark…'
