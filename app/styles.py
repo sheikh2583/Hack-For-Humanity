@@ -639,20 +639,25 @@ img, svg, iframe { max-width: 100%; }
 /* Mobile – bottom-LEFT, safe-area aware */
 @media (max-width: 768px) {
     .st-key-dhoa_chatbot {
-        left: max(0.75rem, env(safe-area-inset-left)) !important;
+        left: max(0.5rem, env(safe-area-inset-left)) !important;
         right: auto !important;
-        bottom: calc(4.5rem + env(safe-area-inset-bottom)) !important;
+        bottom: calc(4rem + env(safe-area-inset-bottom)) !important;
     }
     .st-key-dhoa_chatbot button[data-testid="stPopoverButton"],
     .st-key-dhoa_chatbot button {
-        width: 7rem !important;
-        height: 7rem !important;
-        min-width: 7rem !important;
-        min-height: 7rem !important;
+        width: 3.75rem !important;
+        height: 3.75rem !important;
+        min-width: 3.75rem !important;
+        min-height: 3.75rem !important;
     }
     .st-key-dhoa_chatbot [data-testid="stMarkdownContainer"],
     .st-key-dhoa_chatbot [data-testid="stMarkdownContainer"] p {
-        font-size: 4rem !important;
+        font-size: 2.25rem !important;
+    }
+    .st-key-dhoa_chatbot button,
+    .st-key-dhoa_chatbot [data-testid="stPopoverButton"] {
+        animation: none !important;
+        filter: drop-shadow(0 0 8px rgba(0, 198, 255, 0.45)) !important;
     }
 }
 """
