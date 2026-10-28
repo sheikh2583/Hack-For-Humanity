@@ -179,7 +179,9 @@ h4 [data-testid="stHeaderActionElements"],
 .dhoa-about p { color: var(--dhoa-color-text-soft); font-size: var(--dhoa-type-metric); }
 .dhoa-faq-title { margin-top: 1.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--dhoa-color-border); }
 .dhoa-faq-category { margin: 1.25rem 0 0.5rem; color: var(--dhoa-color-accent); font-size: var(--dhoa-type-body); }
-.dhoa-faq-category + div [data-testid="stExpander"] { border-radius: var(--dhoa-radius-md); }
+.st-key-dhoa_faq_section_0, .st-key-dhoa_faq_section_1,
+.st-key-dhoa_faq_section_2, .st-key-dhoa_faq_section_3 { margin-bottom: 0.75rem; }
+.dhoa-faq-title + div [data-testid="stExpander"] { border-radius: var(--dhoa-radius-md); }
 
 /* ---- cards and chips ------------------------------------------------------- */
 .dhoa-card, [data-testid="stVerticalBlockBorderWrapper"]:has(> div > [data-testid="stVerticalBlock"] > .dhoa-card-marker) {
