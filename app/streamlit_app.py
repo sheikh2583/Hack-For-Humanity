@@ -1959,12 +1959,11 @@ def render_about(gdf: pd.DataFrame | None = None) -> None:
         st.link_button(T.ABOUT_METHODOLOGY, link, width="content")
 
     st.markdown(f"<h3 class='dhoa-faq-title'>{html.escape(T.FAQ_TITLE)}</h3>", unsafe_allow_html=True)
-    for section_index, (category, faq_pairs) in enumerate(T.FAQ_SECTIONS):
-        with st.container(key=f"dhoa_faq_section_{section_index}"):
-            st.markdown(f"<h4 class='dhoa-faq-category'>{html.escape(category)}</h4>", unsafe_allow_html=True)
-            for question, answer in faq_pairs:
-                with st.expander(question):
-                    st.write(answer)
+    for category, faq_pairs in T.FAQ_SECTIONS:
+        st.markdown(f"<h4 class='dhoa-faq-category'>{html.escape(category)}</h4>", unsafe_allow_html=True)
+        for question, answer in faq_pairs:
+            with st.expander(question):
+                st.write(answer)
 
 
 def render_district_summary(district: str, gdf: gpd.GeoDataFrame) -> None:
