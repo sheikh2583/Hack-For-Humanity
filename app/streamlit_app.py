@@ -3667,6 +3667,9 @@ def _submit_chat_message(
     history = st.session_state.setdefault(
         "dhoa_chat_history", [{"role": "assistant", "text": T.CHAT_WELCOME}]
     )
+    def add_reply(text: str) -> None:
+        history.append({"role": "assistant", "text": f"{text}\n\n{T.CHAT_FOLLOW_UP}"})
+
     history.append({"role": "user", "text": user_text})
 
     place_query = _chat_place_query(user_text)
@@ -3685,6 +3688,10 @@ def _submit_chat_message(
 
     if exact_matches:
         area_matches = exact_matches
+    elif len(suggestion_keys) == 1:
+        # Reuse the Community picker's substring match. If it offers exactly one
+        # local place, select it instead of leaving the typed text unresolved.
+        area_matches = [area_places[suggestion_keys[0]]]
     elif query:
         area_matches = [
             area_places[key]
@@ -3699,7 +3706,7 @@ def _submit_chat_message(
     area_matches = list({place.key: place for place in area_matches}.values())
     if len(area_matches) == 1:
         place = area_matches[0]
-        history.append({"role": "assistant", "text": T.CHAT_GO_DISTRICT.format(place.name)})
+        add_reply(T.CHAT_GO_DISTRICT.format(place.name))
         _open_community_place_from_chat(place.key, place.name)
         return
     if len(area_matches) > 1:
@@ -3707,7 +3714,7 @@ def _submit_chat_message(
         choice_text = ", ".join(choices[:4])
         if len(choices) > 4:
             choice_text += ", …"
-        history.append({"role": "assistant", "text": T.CHAT_AREA_AMBIGUOUS.format(choice_text)})
+        add_reply(T.CHAT_AREA_AMBIGUOUS.format(choice_text))
         return
 
     is_question = any(mark in user_text for mark in ("?", "？")) or user_text.casefold().startswith((
@@ -3719,11 +3726,11 @@ def _submit_chat_message(
         user_text, [] if is_question else list(district_lookup), lang=T.get_language()
     )
     if _looks_like_chat_place_query(user_text):
-        history.append({"role": "assistant", "text": T.CHAT_SEARCH_PLACE_FMT.format(place_query)})
+        add_reply(T.CHAT_SEARCH_PLACE_FMT.format(place_query))
         _open_community_search_from_chat(place_query)
         return
 
-    history.append({"role": "assistant", "text": response.text})
+    add_reply(response.text)
     if response.district:
         district = district_lookup.get(response.district, response.district)
         place = next((
