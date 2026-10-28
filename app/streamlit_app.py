@@ -3648,12 +3648,18 @@ def _looks_like_chat_place_query(user_text: str) -> bool:
 
 
 def _open_community_search_from_chat(query: str) -> None:
-    """Open the existing Community search with unmatched place text prefilled."""
+    """Open Community search and automatically resolve an unmatched place name.
+
+    Input schema: a typed place name. Output schema: Community search session
+    state with the existing geocoder queued for the next render.
+    """
     st.session_state["community_place_key"] = None
     st.session_state["community_search_query"] = query
     st.session_state["community_origin"] = None
     st.session_state.pop("community_notice", None)
-    st.session_state.pop("community_pending_geocode", None)
+    # Use the same geocoder as the Community picker, without requiring a second
+    # manual suggestion selection from the user.
+    st.session_state["community_pending_geocode"] = query
     st.session_state.pop("community_picker_reset", None)
     st.session_state.pop("community_search_reset", None)
     st.session_state.pop(_wkey("community_suggestion"), None)

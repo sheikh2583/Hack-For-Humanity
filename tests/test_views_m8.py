@@ -12,6 +12,7 @@ pytest.importorskip("pyarrow")
 
 import app.community as cm  # noqa: E402
 import app.strings as T  # noqa: E402
+import community as runtime_cm  # noqa: E402 - streamlit_app imports through app/ on sys.path
 from tests.synthetic import REMOTE_PLACE, write_parquet  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -81,6 +82,24 @@ def test_community_empty_state_offers_one_click_widen(data_dir: Path) -> None:
     assert at.session_state["community_radius_m"] in cm.RADIUS_CHOICES_M
     assert at.session_state["community_radius_m"] > 1000
     assert not any(b.key == "community_widen" for b in at.button)
+
+
+def test_chat_place_query_geocodes_and_opens_nearby_search(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A chatbot place query selects its geocoded origin without manual picker input."""
+    monkeypatch.setattr(runtime_cm, "geocode_bangladesh", lambda query: (23.75, 90.38))
+    at = _run("overview")
+    at.chat_input(key="dhoa_chat_input").set_value("Agrabad").run()
+
+    assert not at.exception
+    assert at.session_state["dhoa_view_mode"] == "community"
+    assert at.session_state["community_origin"] == {
+        "name": "Agrabad", "gps": False, "lat": 23.75, "lon": 90.38,
+    }
+    history = at.session_state["dhoa_chat_history"]
+    assert any("Agrabad" in item["text"] for item in history)
+    assert not any("নির্দিষ্ট স্থানীয় মিল পাইনি" in item["text"] for item in history)
 
 
 def test_community_point_outside_coverage_is_explained(data_dir: Path) -> None:
