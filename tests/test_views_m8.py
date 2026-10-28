@@ -98,7 +98,7 @@ def test_chat_place_query_geocodes_and_opens_nearby_search(
         "name": "Agrabad", "gps": False, "lat": 23.75, "lon": 90.38,
     }
     history = at.session_state["dhoa_chat_history"]
-    assert any("Agrabad" in item["text"] for item in history)
+    assert any("মানচিত্র প্রস্তুত" in item["text"] for item in history)
     assert not any("নির্দিষ্ট স্থানীয় মিল পাইনি" in item["text"] for item in history)
 
 

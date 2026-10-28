@@ -122,7 +122,7 @@ _COMPATIBILITY_TEXT = {
     "CHAT_FOLLOW_UP": {"bn": "আর কী জানতে চান?", "en": "What else would you like to know?"},
     "CHAT_GO_DISTRICT": {"bn": "{0}-এর ভাটা দেখাচ্ছি। মানচিত্র খুলছে…", "en": "Showing kilns in {0}. Opening the map now…"},
     "CHAT_AREA_AMBIGUOUS": {"bn": "একাধিক এলাকার সাথে মিলেছে। সঠিকটি খুঁজতে স্থানের সাথে জেলা বা উপজেলার নাম লিখুন: {0}।", "en": "More than one area matches. Add its district or upazila to narrow it down: {0}."},
-    "CHAT_SEARCH_PLACE_FMT": {"bn": "{0} এলাকার কাছাকাছি ভাটার মানচিত্র তৈরি। সম্ভাব্য স্থানগুলো দেখুন।", "en": "Your nearby kiln map is ready for {0}. Explore the locations shown."},
+    "CHAT_SEARCH_PLACE_FMT": {"bn": "আপনার এলাকার কাছাকাছি ভাটার মানচিত্র প্রস্তুত!", "en": "Your nearby kiln map is ready!"},
     "CHAT_GO_NEAR_ME": {"bn": "'কাছের ভাটা' খুলছে…", "en": "Opening 'Kilns near me'…"},
     "CHAT_GO_OVERVIEW": {"bn": "ওভারভিউ মানচিত্র খুলছে…", "en": "Opening the Overview map…"},
     "CHAT_GO_ABOUT": {"bn": "পরিচিতি পাতা খুলছে…", "en": "Opening the About page…"},
