@@ -4,6 +4,7 @@ const SERVICE_WORKER = `const CACHE="dhoa-v1";
 self.addEventListener("install",()=>self.skipWaiting());
 self.addEventListener("activate",()=>self.clients.claim());
 self.addEventListener("fetch",(e)=>{
+  if (e.request.method !== "GET" || new URL(e.request.url).origin !== self.location.origin) return;
   e.respondWith(fetch(e.request).catch(()=>caches.match(e.request)));
 });`;
 
@@ -22,12 +23,13 @@ const MANIFEST = JSON.stringify({
   name: "Dhoa – ইটভাটা পর্যবেক্ষণ",
   short_name: "Dhoa",
   start_url: "/",
+  scope: "/",
   display: "standalone",
   background_color: "#0f1419",
   theme_color: "#0072b2",
   icons: [
-    { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any maskable" },
-    { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any maskable" },
+    { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+    { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
   ],
 });
 
@@ -79,12 +81,18 @@ const SHELL = `<!doctype html>
     let installPrompt = null;
     const mobileInstallUi = matchMedia("(max-width: 768px) and (pointer: coarse)").matches;
     const isInstalled = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+    const dismissed = () => localStorage.getItem("dhoa-install-dismissed");
     if (mobileInstallUi && !isInstalled && !localStorage.getItem("dhoa-install-dismissed")) installCard.hidden = false;
     window.addEventListener("beforeinstallprompt", (event) => {
-      if (!mobileInstallUi || isInstalled || localStorage.getItem("dhoa-install-dismissed")) return;
+      if (!mobileInstallUi || isInstalled || dismissed()) return;
       event.preventDefault();
       installPrompt = event;
       installCard.hidden = false;
+    });
+    window.addEventListener("appinstalled", () => {
+      installPrompt = null;
+      installCard.hidden = true;
+      localStorage.removeItem("dhoa-install-dismissed");
     });
     document.getElementById("install-action").addEventListener("click", async () => {
       if (!installPrompt) {
