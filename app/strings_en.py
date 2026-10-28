@@ -119,20 +119,44 @@ HOW_TO_USE = 'How to use'
 HELP_COMMUNITY = """
 **Using Kilns near me**
 
-1. **Where to look?** Type a few letters to search for a district, upazila or nearby place, then choose a suggestion. Or press “Use my location”.
+1. Type a district, upazila, or nearby place in the search box.
 
-2. **How far?** Choose 1, 2, 5 or 10 km. If you pick an upazila or district, all kilns in that area are shown.
+2. Select the correct location from the **Matching areas** list.
 
-3. See the **results**, tap a marker on the map, and download the report.
+3. Alternatively, select **Use my location** and allow browser location access.
+
+4. When a named area is selected, all kiln candidates in that area are shown, so the distance selector is not required.
+
+5. When using the current location, choose **1 km**, **2 km**, **5 km**, or **10 km**.
+
+6. Review kiln candidates on the map and select a marker to see available information.
+
+7. To report a missing kiln, open **Report a kiln missing from the map**.
+
+8. Enter latitude and longitude, add a short note, and optionally add contact information and a photo.
+
+9. These are satellite-based kiln candidates for monitoring and field verification, not final legal or enforcement decisions.
+
+[▶ Play voice guide — audio coming soon]
 """
 HELP_INSPECTOR = """
-**Using the Inspector Portal map**
+**Using the Inspector Portal**
 
-1. Open the **filters** on the left and choose district, area, kiln type, priority or rule signal.
+1. **Dashboard:** View total candidates, high-priority candidates, district summaries, and upazilas with the most candidates.
 
-2. Pick a kiln from the **priority list**, or tap a marker on the map. The selected kiln's details appear below.
+2. **Map:** Filter by district, area/upazila, priority, and kiln type. Select **Apply filters** to use the filters, or **Reset filters** to clear them. Use the **Street map** and density heatmap to understand locations, and download the filtered list with **Download filtered list (CSV)**.
 
-3. Choose **Street map** or **Satellite imagery** on the map. Download the CSV list or a PDF report of the selected kiln if needed.
+3. **View kiln:** Open an individual candidate and review its details. Available actions include **Download PDF**, **Open location on map**, **Directions**, **Street View**, **Google Earth**, **Update visit status**, **Assign to me** or assign the visit, **Add a note**, and **Attach a visit photo**. Select **Save updates** when finished.
+
+4. **Work:** Manage assigned visits, saved filters, visit status, priority, distance, routes, map routes, and directions.
+
+5. **Reports:** Review community reports and rule signals, open the location, select **Mark reviewed** or **Mark resolved**, and download reports.
+
+6. Sign out when finished, especially on shared computers.
+
+7. Map detections, distance indicators, and priority levels support field verification and are not final enforcement decisions.
+
+[▶ Play voice guide — audio coming soon]
 """
 CHOOSE_A_DISTRICT_AND_UPAZILA_YOU_MAY_EN = 'Find kiln candidates near your area in three steps.'
 BROWSE_THE_KILN_LIST_AND_MAP_USE_FILTERS = 'Browse the ranked kiln list and map, and use the filters to find candidates.'
