@@ -628,6 +628,24 @@ img, svg, iframe { max-width: 100%; }
 .st-key-dhoa_chatbot [data-testid="stIconMaterial"] {
     display: none !important;
 }
+/* Keep the conversation readable in the constrained mobile popover. */
+.st-key-dhoa_chat_history_view {
+    width: 100% !important;
+    max-height: min(55dvh, 20rem) !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+}
+.st-key-dhoa_chat_history_view [data-testid="stChatMessage"] {
+    min-width: 0 !important;
+    padding: 0.45rem !important;
+}
+.st-key-dhoa_chat_history_view [data-testid="stChatMessageContent"],
+.st-key-dhoa_chat_history_view [data-testid="stChatMessageContent"] p {
+    min-width: 0 !important;
+    overflow-wrap: anywhere !important;
+    white-space: normal !important;
+    line-height: 1.45 !important;
+}
 /* Bump the button itself to 6rem now that the content fills it properly */
 .st-key-dhoa_chatbot button[data-testid="stPopoverButton"],
 .st-key-dhoa_chatbot button {

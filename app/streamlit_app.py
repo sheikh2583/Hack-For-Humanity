@@ -3668,7 +3668,9 @@ def _submit_chat_message(
         "dhoa_chat_history", [{"role": "assistant", "text": T.CHAT_WELCOME}]
     )
     def add_reply(text: str) -> None:
-        history.append({"role": "assistant", "text": f"{text}\n\n{T.CHAT_FOLLOW_UP}"})
+        follow_up = getattr(T, "CHAT_FOLLOW_UP", "")
+        reply = f"{text}\n\n{follow_up}" if follow_up else text
+        history.append({"role": "assistant", "text": reply})
 
     history.append({"role": "user", "text": user_text})
 
@@ -3776,7 +3778,7 @@ def render_chatbot(gdf: pd.DataFrame | None = None) -> None:
             key="dhoa_chatbot_popover",
         ):
             st.markdown(f"**{T.CHAT_TITLE}**")
-            with st.container(key="dhoa_chat_history_view"):
+            with st.container(key="dhoa_chat_history_view", height=320, border=False):
                 for message in st.session_state["dhoa_chat_history"][-6:]:
                     role = "user" if message.get("role") == "user" else "assistant"
                     avatar = "👤" if role == "user" else "🏭"
