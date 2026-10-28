@@ -72,7 +72,7 @@ const SHELL = `<!doctype html>
   <aside id="install-card" hidden aria-label="Install Dhoa">
     <button id="install-action" type="button">Install Dhoa · ধোঁয়া ইনস্টল করুন</button>
     <button id="install-close" type="button" aria-label="Dismiss">×</button>
-    <p id="install-help" hidden>Android Chrome: tap ⋮, then Install. iPhone: open this link in Safari and choose Share → Add to Home Screen.<br>অ্যান্ড্রয়েড: ⋮ চাপুন, তারপর Install। iPhone: Safari-তে খুলে Share → Add to Home Screen চাপুন।</p>
+    <p id="install-help" hidden>Android: in Chrome, tap ⋮ → Install app. Brave may not expose the install prompt; open this page in Chrome to install it. iPhone: in Safari, choose Share → Add to Home Screen, then turn on Open as Web App.<br>অ্যান্ড্রয়েড: Chrome-এ ⋮ → Install app চাপুন। Brave-এ install prompt নাও আসতে পারে; Chrome-এ এই পেজ খুলে install করুন। iPhone: Safari-তে Share → Add to Home Screen চাপুন, তারপর Open as Web App চালু করুন।</p>
   </aside>
   <script>
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js");
@@ -81,8 +81,8 @@ const SHELL = `<!doctype html>
     let installPrompt = null;
     const mobileInstallUi = matchMedia("(max-width: 768px) and (pointer: coarse)").matches;
     const isInstalled = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
-    const dismissed = () => localStorage.getItem("dhoa-install-dismissed");
-    if (mobileInstallUi && !isInstalled && !localStorage.getItem("dhoa-install-dismissed")) installCard.hidden = false;
+    const dismissed = () => localStorage.getItem("dhoa-install-dismissed-v2");
+    if (mobileInstallUi && !isInstalled && !dismissed()) installCard.hidden = false;
     window.addEventListener("beforeinstallprompt", (event) => {
       if (!mobileInstallUi || isInstalled || dismissed()) return;
       event.preventDefault();
@@ -92,23 +92,26 @@ const SHELL = `<!doctype html>
     window.addEventListener("appinstalled", () => {
       installPrompt = null;
       installCard.hidden = true;
-      localStorage.removeItem("dhoa-install-dismissed");
     });
     document.getElementById("install-action").addEventListener("click", async () => {
-      if (!installPrompt) {
-        installHelp.hidden = !installHelp.hidden;
+      if (installPrompt) {
+        const prompt = installPrompt;
+        installPrompt = null;
+        await prompt.prompt();
+        if ((await prompt.userChoice).outcome === "accepted") installCard.hidden = true;
         return;
       }
-      const prompt = installPrompt;
-      installPrompt = null;
-      await prompt.prompt();
-      if ((await prompt.userChoice).outcome === "accepted") installCard.hidden = true;
+      const isAndroid = /Android/i.test(navigator.userAgent);
+      if (isAndroid && !/Chrome\//i.test(navigator.userAgent)) {
+        installHelp.hidden = false;
+        return;
+      }
+      installHelp.hidden = !installHelp.hidden;
     });
     document.getElementById("install-close").addEventListener("click", () => {
       installCard.hidden = true;
-      localStorage.setItem("dhoa-install-dismissed", "1");
+      localStorage.setItem("dhoa-install-dismissed-v2", "1");
     });
-    window.addEventListener("appinstalled", () => { installCard.hidden = true; });
   </script>
 </body>
 </html>`;
@@ -142,5 +145,3 @@ export default {
     });
   },
 };
-
-\n
