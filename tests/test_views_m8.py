@@ -138,3 +138,18 @@ def test_about_view_renders(data_dir: Path) -> None:
     at.session_state["dhoa_view_mode"] = "about"
     at.run()
     assert not at.exception and T.ABOUT_BODY in " ".join(m.value for m in at.markdown)
+
+
+def test_chat_place_match_ignores_spacing_in_place_name() -> None:
+    """Joined and spaced spellings resolve to the same indexed community place."""
+    from app import streamlit_app as app
+
+    place = cm.Place(
+        key="named|Gazipur|Board Bazar", kind=cm.KIND_NAMED,
+        name="Board Bazar", label="Board Bazar, Gazipur",
+        lat=24.0, lon=90.4, district="Gazipur", upazila="Gazipur Sadar",
+    )
+    places = {place.key: place}
+
+    assert app._community_place_suggestions(places, "Boardbazar") == [place.key]
+    assert app._normalized_place_search("Board Bazar") == app._normalized_place_search("Boardbazar")

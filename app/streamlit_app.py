@@ -736,20 +736,28 @@ def _community_places(gdf: pd.DataFrame) -> dict[str, cm.Place]:
     return {place.key: place for place in _cached_places(_community_version_key(gdf), gdf)}
 
 
+def _normalized_place_search(text: str) -> str:
+    """Normalize a place query so spacing and punctuation do not block matches."""
+    folded = unicodedata.normalize("NFKC", text).casefold()
+    return "".join(character for character in folded if character.isalnum())
+
+
 def _community_place_suggestions(places: dict[str, cm.Place], query: str) -> list[str]:
     """Match typed text against place names; return at most 12 ranked place keys.
 
     Input schema: dataset place keys and ``Place`` values plus user-entered text.
     Output schema: matching keys ordered by name-prefix match, then label.
     """
-    needle = query.strip().casefold()
+    needle = _normalized_place_search(query)
     if not needle:
         return []
     matches = [
         place for place in places.values()
-        if needle in " ".join((place.name, place.district, place.upazila, place.label)).casefold()
+        if needle in _normalized_place_search(" ".join((place.name, place.district, place.upazila, place.label)))
     ]
-    matches.sort(key=lambda place: (not place.name.casefold().startswith(needle), place.label.casefold()))
+    matches.sort(key=lambda place: (
+        not _normalized_place_search(place.name).startswith(needle), place.label.casefold()
+    ))
     return [place.key for place in matches[:12]]
 
 
@@ -3677,13 +3685,13 @@ def _submit_chat_message(
     place_query = _chat_place_query(user_text)
     suggestion_keys = _community_place_suggestions(area_places, place_query)
     candidate_keys = list(dict.fromkeys([*suggestion_keys, *area_places]))
-    query = " ".join(place_query.split()).casefold()
+    query = _normalized_place_search(place_query)
     exact_matches: list[cm.Place] = []
     if query:
         for key in candidate_keys:
             place = area_places[key]
             if query in {
-                " ".join(name.split()).casefold()
+                _normalized_place_search(" ".join(name.split()))
                 for name in _chat_area_match_names(place) if name
             }:
                 exact_matches.append(place)
@@ -3699,7 +3707,7 @@ def _submit_chat_message(
             area_places[key]
             for key in candidate_keys
             if any(
-                name.casefold().startswith(query)
+                _normalized_place_search(name).startswith(query)
                 for name in _chat_area_match_names(area_places[key]) if name
             )
         ]
