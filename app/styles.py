@@ -178,8 +178,15 @@ h4 [data-testid="stHeaderActionElements"],
 .dhoa-about { max-width: 70ch; }
 .dhoa-about p { color: var(--dhoa-color-text-soft); font-size: var(--dhoa-type-metric); }
 .dhoa-faq-title { margin-top: 1.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--dhoa-color-border); }
-.dhoa-faq-category { margin: 1.25rem 0 0.5rem; color: var(--dhoa-color-accent); font-size: var(--dhoa-type-body); }
-.dhoa-faq-category + div [data-testid="stExpander"] { border-radius: var(--dhoa-radius-md); }
+.dhoa-faq-category { margin: 1.25rem 0 0.5rem; color: var(--dhoa-color-accent-text); font-size: var(--dhoa-type-body); }
+.dhoa-faq-list { display: grid; gap: 0.5rem; }
+.dhoa-faq-item { overflow: hidden; border: 1px solid var(--dhoa-color-border); border-radius: var(--dhoa-radius-md); background: var(--dhoa-color-card); }
+.dhoa-faq-item summary { position: relative; padding: 0.85rem 2.75rem 0.85rem 1rem; color: var(--dhoa-color-text); font-weight: 600; line-height: 1.45; cursor: pointer; list-style: none; }
+.dhoa-faq-item summary::-webkit-details-marker { display: none; }
+.dhoa-faq-item summary::after { content: '+'; position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); color: var(--dhoa-color-accent-text); font-size: 1.25rem; }
+.dhoa-faq-item[open] summary::after { content: '−'; }
+.dhoa-faq-answer { padding: 0 1rem 1rem; color: var(--dhoa-color-text-soft); line-height: 1.6; }
+@media (max-width: 768px) { .dhoa-faq-item summary { padding: 0.75rem 2.5rem 0.75rem 0.85rem; } .dhoa-faq-answer { padding: 0 0.85rem 0.85rem; } }
 
 /* ---- cards and chips ------------------------------------------------------- */
 .dhoa-card, [data-testid="stVerticalBlockBorderWrapper"]:has(> div > [data-testid="stVerticalBlock"] > .dhoa-card-marker) {
